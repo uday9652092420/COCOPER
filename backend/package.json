@@ -1,0 +1,17 @@
+{
+  "name": "coconut-cocktail-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.3",
+    "dotenv": "^16.4.2",
+    "express": "^4.21.2",
+    "pg": "^8.11.0",
+    "web-creator": "file:.."
+  }
+}

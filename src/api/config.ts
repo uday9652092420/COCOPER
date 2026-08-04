@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE_URL = 'http://localhost:5000/api'
+const DEFAULT_API_BASE_URL = 'http://localhost:4004/api'
 
 const getConfiguredApiBaseUrl = (): string => {
   const runtimeConfig = (globalThis as typeof globalThis & { __APP_CONFIG__?: { apiBaseUrl?: string } }).__APP_CONFIG__

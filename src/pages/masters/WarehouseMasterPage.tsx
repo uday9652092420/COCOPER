@@ -5,7 +5,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { warehouses as dbWarehouses, type Warehouse } from '../../mock/db'
+import type { Warehouse } from '../../mock/db'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Toolbar } from '../../components/common/Toolbar'
 import { SearchFilterPanel } from '../../components/common/SearchFilterPanel'
@@ -20,6 +20,9 @@ import {
 } from "../../services/warehouseservices/warehouse.service";
 import {
     getNextWarehouseCode
+} from "../../services/warehouseservices/warehouse.service";
+import {
+  getWarehouses,
 } from "../../services/warehouseservices/warehouse.service";
 
 /**
@@ -58,13 +61,35 @@ const WarehouseMasterPage: React.FC = () => {
   const [editing, setEditing] = useState<Warehouse | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Warehouse | null>(null)
 
-  useEffect(() => {
-    const id = setTimeout(() => {
-      setRecords(dbWarehouses)
-      setLoading(false)
-    }, 400)
-    return () => clearTimeout(id)
-  }, [])
+ const loadWarehouses = async () => {
+  try {
+    setLoading(true);
+
+    const rows = await getWarehouses();
+
+    const mapped: Warehouse[] = rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      name: r.name,
+      address: r.address ?? "",
+      manager: r.manager ?? "",
+      contactNumber: r.contact_number ?? "",
+      status: r.status,
+      createdAt: r.created_at,
+    }));
+
+    setRecords(mapped);
+  } catch (error) {
+    console.error(error);
+    toast.error("Failed to load warehouses");
+  } finally {
+    setLoading(false);
+  }
+};
+
+useEffect(() => {
+  loadWarehouses();
+}, []);
 
   const filtered = useMemo(
     () =>
@@ -166,8 +191,7 @@ const handleSave = async (
 
 console.log("REQUEST BODY", payload);
 
-const created: CreateWarehouseResponse =
-  await createWarehouse(payload);
+await createWarehouse(payload);
       // Create Warehouse API
   //    const created: CreateWarehouseResponse =
   // await createWarehouse({
@@ -179,19 +203,20 @@ const created: CreateWarehouseResponse =
   //       status: values.status,
   //     });
 
-      const newRecord: Warehouse = {
-  id: created.id,
-  code: created.code,
-  name: created.name,
-  address: created.address ?? "",
-  manager: created.manager ?? "",
-  contactNumber: created.contact_number ?? "",
-  status: created.status,
-  createdAt: created.created_at.substring(0, 10),
-}
+//       const newRecord: Warehouse = {
+//   id: created.id,
+//   code: created.code,
+//   name: created.name,
+//   address: created.address ?? "",
+//   manager: created.manager ?? "",
+//   contactNumber: created.contact_number ?? "",
+//   status: created.status,
+//   createdAt: created.created_at.substring(0, 10),
+// }
 
       // Keep existing mock records + newly created DB record
-      setRecords((prev) => [newRecord, ...prev]);
+     
+      await loadWarehouses();
 
       toast.success("Warehouse created successfully.");
     }

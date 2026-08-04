@@ -52,3 +52,27 @@ export async function getNextWarehouseCode(): Promise<string> {
 
   return data.code;
 }
+
+export interface WarehouseResponse {
+  id: string;
+  code: string;
+  name: string;
+  address: string;
+  manager: string;
+ contact_number: string;
+  status: "Active" | "Inactive";
+  created_at: string;
+}
+
+
+
+
+export async function getWarehouses(): Promise<WarehouseResponse[]> {
+  const response = await fetch(`${API}/warehouses`);
+
+  if (!response.ok) {
+    throw new Error("Failed to load warehouses");
+  }
+
+  return response.json();
+}

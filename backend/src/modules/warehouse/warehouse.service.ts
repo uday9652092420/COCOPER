@@ -1,5 +1,8 @@
 import { WarehouseCreateDTO, Warehouse } from './warehouse.types.js';
 import { createWarehouseRepo, getWarehouseByIdRepo, listWarehousesRepo } from './warehouse.repository.js';
+import {
+  getNextWarehouseCodeRepo,
+} from './warehouse.repository.js';
 
 export async function createWarehouse(payload: WarehouseCreateDTO): Promise<Warehouse> {
   // business rules could go here (e.g., normalize code)
@@ -14,4 +17,7 @@ export async function getWarehouseById(id: string): Promise<Warehouse | null> {
 
 export async function listWarehouses(): Promise<Warehouse[]> {
   return listWarehousesRepo();
+}
+export async function getNextWarehouseCode(): Promise<string> {
+  return getNextWarehouseCodeRepo();
 }

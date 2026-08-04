@@ -40,3 +40,15 @@ export async function createWarehouse(payload: {
 
   return data;
 }
+
+export async function getNextWarehouseCode(): Promise<string> {
+  const response = await fetch(`${API}/warehouses/next-code`);
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch warehouse code");
+  }
+
+  const data = await response.json();
+
+  return data.code;
+}

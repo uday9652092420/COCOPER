@@ -1,11 +1,38 @@
 import { pool } from '../../config/db.js';
 import { WarehouseCreateDTO, Warehouse } from './warehouse.types.js';
 
+
+
+
+export async function getNextWarehouseCodeRepo(): Promise<string> {
+  const { rows } = await pool.query(`
+    SELECT code
+    FROM warehouses
+    WHERE code LIKE 'WH-%'
+    ORDER BY CAST(SUBSTRING(code FROM 4) AS INTEGER) DESC
+    LIMIT 1
+  `);
+
+  if (rows.length === 0) {
+    return "WH-1";
+  }
+
+  const lastCode = rows[0].code; // WH-15
+
+  const lastNumber = parseInt(lastCode.replace("WH-", ""), 10);
+
+  return `WH-${lastNumber + 1}`;
+}
 export async function createWarehouseRepo(payload: WarehouseCreateDTO): Promise<Warehouse> {
   const id = payload.id || `WH-${Date.now()}`;
-  const values = [
+ const warehouseCode =
+  payload.code && payload.code.trim() !== ""
+    ? payload.code
+    : await getNextWarehouseCodeRepo();
+
+const values = [
     id,
-    payload.code,
+    warehouseCode,
     payload.name,
     payload.address ?? null,
     payload.manager ?? null,

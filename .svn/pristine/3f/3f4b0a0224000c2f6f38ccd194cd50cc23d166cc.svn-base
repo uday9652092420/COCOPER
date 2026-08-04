@@ -18,9 +18,6 @@ import {
   createWarehouse,
   type CreateWarehouseResponse,
 } from "../../services/warehouseservices/warehouse.service";
-import {
-    getNextWarehouseCode
-} from "../../services/warehouseservices/warehouse.service";
 
 /**
  * @description Warehouse form values.
@@ -49,7 +46,6 @@ interface WarehouseFormValues {
  * @description Warehouse master maintenance screen.
  */
 const WarehouseMasterPage: React.FC = () => {
-  const [nextCode, setNextCode] = useState("");
   const [records, setRecords] = useState<Warehouse[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -79,14 +75,7 @@ const WarehouseMasterPage: React.FC = () => {
   )
 
   const fields: FormFieldConfig[] = [
-  {
-    name: 'code',
-    label: 'Warehouse Code',
-    type: 'text',
-    required: true,
-    readOnly: true,
-   
-  },
+    { name: 'code', label: 'Warehouse Code', type: 'text', required: true },
     { name: 'name', label: 'Warehouse Name', type: 'text', required: true },
     { name: 'address', label: 'Address', type: 'textarea', required: true },
     { name: 'manager', label: 'Manager', type: 'text', required: true },
@@ -103,19 +92,10 @@ const WarehouseMasterPage: React.FC = () => {
     },
   ]
 
-  const openAdd = async () => {
-    try {
-        const code = await getNextWarehouseCode();
-
-        setNextCode(code);
-
-        setEditing(null);
-
-        setModalOpen(true);
-    } catch {
-        toast.error("Failed to generate warehouse code");
-    }
-}
+  const openAdd = () => {
+    setEditing(null)
+    setModalOpen(true)
+  }
 
   /**
    * @function openEdit
@@ -295,7 +275,7 @@ const created: CreateWarehouseResponse =
                 status: editing.status,
               }
             : {
-               code: nextCode,
+                code: '',
                 name: '',
                 address: '',
                 manager: '',

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import warehouseRoutes from '../modules/warehouse/warehouse.routes';
+import warehouseRoutes from '../modules/warehouse/warehouse.routes.js';
 
 
 

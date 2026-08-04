@@ -267,7 +267,13 @@ const LabourMasterPage: React.FC = () => {
         </button>
       </div>
 
-      <SearchFilterPanel onSearchChange={setSearch} onStatusChange={setStatusFilter} searchPlaceholder="Search by name, contact..." />
+     <SearchFilterPanel
+    onSearch={setSearch}
+    onClear={() => {
+        setSearch("")
+        setStatusFilter("")
+    }}
+/>
 
       <DataGrid<LabourStaff>
         data={filtered}

@@ -14,6 +14,10 @@ import MasterFormModal, { type FormFieldConfig } from './components/MasterFormMo
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import { formatDate } from '../../utils/format'
 import { Edit2, Trash2 } from 'lucide-react'
+import {
+  createWarehouse,
+  type CreateWarehouseResponse,
+} from "../../services/warehouseservices/warehouse.service";
 
 /**
  * @description Warehouse form values.
@@ -24,8 +28,18 @@ interface WarehouseFormValues {
   address: string
   manager: string
   contactNumber: string
-  status: string
+  status: "Active" | "Inactive"
 }
+// interface CreateWarehouseResponse {
+//   id: string
+//   code: string
+//   name: string
+//   address: string
+//   manager: string
+//   contact_number: string
+//   status: "Active" | "Inactive"
+//   created_at: string
+// }
 
 /**
  * @component WarehouseMasterPage
@@ -96,29 +110,86 @@ const WarehouseMasterPage: React.FC = () => {
    * @function handleSave
    * @description Save handler for add/edit operations.
    */
-  const handleSave = (values: WarehouseFormValues, resetAfter: boolean) => {
+  /**
+ * @function handleSave
+ * @description Save handler for Add/Edit Warehouse.
+ */
+const handleSave = async (
+  values: WarehouseFormValues,
+  resetAfter: boolean
+) => {
+  try {
     if (editing) {
-      setRecords((prev) => prev.map((w) => (w.id === editing.id ? { ...w, ...values } : w)))
-      toast.success('Warehouse updated.')
+      // Temporary local update until PUT API is implemented
+      setRecords((prev) =>
+        prev.map((w) =>
+          w.id === editing.id
+            ? {
+                ...w,
+                ...values,
+              }
+            : w
+        )
+      );
+
+      toast.success("Warehouse updated.");
     } else {
+
+      const payload = {
+  code: values.code,
+  name: values.name,
+  address: values.address,
+  manager: values.manager,
+  contact_number: values.contactNumber,
+  status: values.status,
+};
+
+console.log("REQUEST BODY", payload);
+
+const created: CreateWarehouseResponse =
+  await createWarehouse(payload);
+      // Create Warehouse API
+  //    const created: CreateWarehouseResponse =
+  // await createWarehouse({
+  //       code: values.code,
+  //       name: values.name,
+  //       address: values.address,
+  //       manager: values.manager,
+  //       contact_number: values.contactNumber,
+  //       status: values.status,
+  //     });
+
       const newRecord: Warehouse = {
-        id: `WH-${Date.now()}`,
-        code: values.code,
-        name: values.name,
-        address: values.address,
-        manager: values.manager,
-        contactNumber: values.contactNumber,
-        status: values.status as Warehouse['status'],
-        createdAt: new Date().toISOString().slice(0, 10),
-      }
-      setRecords((prev) => [newRecord, ...prev])
-      toast.success('Warehouse added.')
+  id: created.id,
+  code: created.code,
+  name: created.name,
+  address: created.address ?? "",
+  manager: created.manager ?? "",
+  contactNumber: created.contact_number ?? "",
+  status: created.status,
+  createdAt: created.created_at.substring(0, 10),
+}
+
+      // Keep existing mock records + newly created DB record
+      setRecords((prev) => [newRecord, ...prev]);
+
+      toast.success("Warehouse created successfully.");
     }
+
     if (!resetAfter) {
-      setModalOpen(false)
-      setEditing(null)
+      setModalOpen(false);
+      setEditing(null);
     }
-  }
+  } catch (error: any) {
+  console.error(error);
+
+  toast.error(
+    error?.message ||
+    error?.details?.errors?.contact_number ||
+    "Failed to save warehouse."
+  );
+}
+};
 
   /**
    * @function handleDelete

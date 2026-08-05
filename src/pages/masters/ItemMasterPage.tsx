@@ -3,9 +3,9 @@
  * @description Item master maintenance screen.
  */
 
-import React, { useEffect, useMemo, useState } from 'react'
-import { toast } from 'sonner'
-import { items as dbItems, type Item } from '../../mock/db'
+
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { PageHeader } from '../../components/common/PageHeader'
 import { Toolbar } from '../../components/common/Toolbar'
 import { SearchFilterPanel } from '../../components/common/SearchFilterPanel'
@@ -14,6 +14,15 @@ import MasterFormModal, { type FormFieldConfig } from './components/MasterFormMo
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import { formatDate } from '../../utils/format'
 import { Edit2, Trash2 } from 'lucide-react'
+import {
+  getItems,
+  getNextItemCode,
+  createItem,
+  updateItem,
+  deleteItem,
+  type ItemResponse,
+} from "../../services/itemservices/item.service";
+
 
 /**
  * @description Item form values.
@@ -31,21 +40,31 @@ interface ItemFormValues {
  * @description Item master maintenance screen.
  */
 const ItemMasterPage: React.FC = () => {
-  const [records, setRecords] = useState<Item[]>([])
+  const [records, setRecords] = useState<ItemResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
-  const [editing, setEditing] = useState<Item | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState<Item | null>(null)
+ const [editing, setEditing] = useState<ItemResponse | null>(null)
+ const [confirmDelete, setConfirmDelete] = useState<ItemResponse | null>(null)
 
-  useEffect(() => {
-    const id = setTimeout(() => {
-      setRecords(dbItems)
-      setLoading(false)
-    }, 400)
-    return () => clearTimeout(id)
-  }, [])
+  const loadItems = async () => {
+  try {
+    setLoading(true);
+
+    const data = await getItems();
+
+    setRecords(data);
+  } catch (error: any) {
+    toast.error(error.message || "Failed to load items");
+  } finally {
+    setLoading(false);
+  }
+};
+
+useEffect(() => {
+  loadItems();
+}, []);
 
   const filtered = useMemo(
     () =>
@@ -66,7 +85,7 @@ const ItemMasterPage: React.FC = () => {
     {
       key: 'status',
       label: 'Status',
-      render: (row: Item) => (
+      render: (row: ItemResponse) => (
         <span className={`rounded-full px-2 py-0.5 text-[10px] ${row.status === 'Active' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
           {row.status}
         </span>
@@ -75,13 +94,13 @@ const ItemMasterPage: React.FC = () => {
     {
       key: 'createdAt',
       label: 'Created Date',
-      render: (row: Item) => formatDate(row.createdAt),
+      render: (row: ItemResponse) => formatDate(row.created_at)
     },
     {
       key: 'actions',
       label: '',
       width: '110px',
-      render: (row: Item) => (
+      render: (row: ItemResponse) => (
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -124,52 +143,102 @@ const ItemMasterPage: React.FC = () => {
     },
   ]
 
-  const openAdd = () => {
-    setEditing(null)
-    setModalOpen(true)
-  }
+const openAdd = async () => {
+  setEditing(null);
 
-  const openEdit = (row: Item) => {
-    setEditing(row)
-    setModalOpen(true)
-  }
+  const code = await getNextItemCode();
 
-  const handleSave = (values: ItemFormValues, resetAfter: boolean) => {
-    if (editing) {
-      setRecords((prev) => prev.map((it) => (it.id === editing.id ? { ...it, ...values } : it)))
-      toast.success('Item updated.')
-    } else {
-      const newRecord: Item = {
-        id: `IT-${Date.now()}`,
+  setEditing({
+    id: "",
+    code,
+    name: "",
+    category: "",
+    uom: "",
+    status: "Active",
+    created_at: "",
+  });
+
+  setModalOpen(true);
+};
+
+const openEdit = (row: ItemResponse) => {
+  setEditing(row);
+  setModalOpen(true);
+};
+
+  const handleSave = async (
+  values: ItemFormValues,
+  resetAfter: boolean
+) => {
+  try {
+    if (editing?.id) {
+      await updateItem(editing.id, {
         code: values.code,
         name: values.name,
         category: values.category,
         uom: values.uom,
-        status: values.status as Item['status'],
-        createdAt: new Date().toISOString().slice(0, 10),
-      }
-      setRecords((prev) => [newRecord, ...prev])
-      toast.success('Item added.')
+        status: values.status as "Active" | "Inactive",
+      });
+
+      toast.success("Item updated successfully");
+    } else {
+      await createItem({
+        code: values.code,
+        name: values.name,
+        category: values.category,
+        uom: values.uom,
+        status: values.status as "Active" | "Inactive",
+      });
+
+      toast.success("Item created successfully");
     }
+
+    await loadItems();
+
     if (!resetAfter) {
-      setModalOpen(false)
-      setEditing(null)
+      setModalOpen(false);
+      setEditing(null);
+    } else {
+      const code = await getNextItemCode();
+
+      setEditing({
+        id: "",
+        code,
+        name: "",
+        category: "",
+        uom: "",
+        status: "Active",
+        created_at: "",
+      });
     }
+  } catch (error: any) {
+    toast.error(error.message || "Operation failed");
   }
+};
 
-  const handleDelete = () => {
-    if (!confirmDelete) return
-    setRecords((prev) => prev.filter((it) => it.id !== confirmDelete.id))
-    toast.success('Item deleted.')
-    setConfirmDelete(null)
+ const handleDelete = async () => {
+  if (!confirmDelete) return;
+
+  try {
+    await deleteItem(confirmDelete.id);
+
+    toast.success("Item deleted successfully");
+
+    await loadItems();
+
+    setConfirmDelete(null);
+  } catch (error: any) {
+    toast.error(error.message || "Delete failed");
   }
-
+};
   return (
     <div>
       <PageHeader title="Item Master" breadcrumb={['Masters', 'Item Master']} />
       <Toolbar title="Item Master" onAdd={openAdd} />
       <SearchFilterPanel onSearch={setSearch} onClear={() => setSearch('')} />
-      <DataGrid columns={columns} data={filtered} rowKey={(r: Item) => r.id} />
+      <DataGrid columns={columns} data={filtered} rowKey={(r: ItemResponse)=>r.id}
+      
+    />
       <MasterFormModal<ItemFormValues>
         open={modalOpen}
         title={editing ? 'Edit Item' : 'Add Item'}
@@ -204,4 +273,4 @@ const ItemMasterPage: React.FC = () => {
   )
 }
 
-export default ItemMasterPage
+export default ItemMasterPage;

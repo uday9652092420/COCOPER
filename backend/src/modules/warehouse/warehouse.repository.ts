@@ -64,3 +64,41 @@ export async function listWarehousesRepo(): Promise<Warehouse[]> {
   );
   return rows;
 }
+export async function updateWarehouseRepo(
+  id: string,
+  payload: WarehouseCreateDTO
+): Promise<Warehouse | null> {
+  const { rows } = await pool.query(
+    `
+    UPDATE warehouses
+    SET
+      code = $2,
+      name = $3,
+      address = $4,
+      manager = $5,
+      contact_number = $6,
+      status = $7
+    WHERE id = $1
+    RETURNING
+      id,
+      code,
+      name,
+      address,
+      manager,
+      contact_number,
+      status,
+      created_at
+    `,
+    [
+      id,
+      payload.code,
+      payload.name,
+      payload.address ?? null,
+      payload.manager ?? null,
+      payload.contact_number ?? null,
+      payload.status ?? "Active",
+    ]
+  );
+
+  return rows[0] ?? null;
+}

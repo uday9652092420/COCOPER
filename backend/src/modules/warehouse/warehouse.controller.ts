@@ -4,6 +4,8 @@ import {
   listWarehouses as listWarehousesService,
   getWarehouseById as getWarehouseByIdService,
   getNextWarehouseCode,
+  updateWarehouse as updateWarehouseService,
+  
 } from "./warehouse.service.js";
 
 import { validateWarehousePayload } from "./warehouse.validation.js";
@@ -90,6 +92,45 @@ export async function getWarehouseHandler(
   } catch (error) {
     return next(
       new AppError("Failed to retrieve warehouse", 500, {
+        cause: error,
+      })
+    );
+  }
+}
+
+export async function updateWarehouseHandler(
+  req: Request<WarehouseParams>,
+  res: Response,
+  next: NextFunction
+) {
+  const payload = req.body;
+
+  const errors = validateWarehousePayload(payload);
+
+  if (errors) {
+    return next(
+      new AppError("Validation failed", 400, {
+        errors,
+      })
+    );
+  }
+
+  try {
+    const updated = await updateWarehouseService(
+      req.params.id,
+      payload
+    );
+
+    if (!updated) {
+      return next(
+        new AppError("Warehouse not found", 404)
+      );
+    }
+
+    return res.status(200).json(updated);
+  } catch (error) {
+    return next(
+      new AppError("Failed to update warehouse", 500, {
         cause: error,
       })
     );

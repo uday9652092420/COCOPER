@@ -25,6 +25,7 @@ import {
   getWarehouses,
 } from "../../services/warehouseservices/warehouse.service";
 
+import { updateWarehouse } from '../../services/warehouseservices/warehouse.service'
 /**
  * @description Warehouse form values.
  */
@@ -165,20 +166,20 @@ const handleSave = async (
 ) => {
   try {
     if (editing) {
-      // Temporary local update until PUT API is implemented
-      setRecords((prev) =>
-        prev.map((w) =>
-          w.id === editing.id
-            ? {
-                ...w,
-                ...values,
-              }
-            : w
-        )
-      );
+  await updateWarehouse(editing.id, {
+    code: values.code,
+    name: values.name,
+    address: values.address,
+    manager: values.manager,
+    contact_number: values.contactNumber,
+    status: values.status,
+  });
 
-      toast.success("Warehouse updated.");
-    } else {
+  await loadWarehouses();
+
+  toast.success("Warehouse updated successfully.");
+}
+    else {
 
       const payload = {
   code: values.code,

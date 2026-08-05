@@ -4,16 +4,19 @@ import {
   listWarehousesHandler,
   getWarehouseHandler,
   getNextWarehouseCodeHandler,
+  updateWarehouseHandler,   // ✅ ADD THIS
+  // ✅ ADD THIS
 } from "./warehouse.controller.js";
 
 const router = express.Router();
 
-// IMPORTANT: specific routes first
 router.get("/next-code", getNextWarehouseCodeHandler);
 
-// General routes
 router.get("/", listWarehousesHandler);
 router.get("/:id", getWarehouseHandler);
+
 router.post("/", createWarehouseHandler);
+router.put("/:id", updateWarehouseHandler);
+
 
 export default router;

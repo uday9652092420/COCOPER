@@ -76,3 +76,31 @@ export async function getWarehouses(): Promise<WarehouseResponse[]> {
 
   return response.json();
 }
+
+export async function updateWarehouse(
+  id: string,
+  payload: {
+    code: string;
+    name: string;
+    address: string;
+    manager: string;
+    contact_number: string;
+    status: "Active" | "Inactive";
+  }
+): Promise<CreateWarehouseResponse> {
+  const response = await fetch(`${API}/warehouses/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw data;
+  }
+
+  return data;
+}

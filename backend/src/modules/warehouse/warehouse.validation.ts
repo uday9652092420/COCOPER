@@ -1,4 +1,4 @@
-import { WarehouseCreateDTO } from './warehouse.types';
+import { WarehouseCreateDTO } from './warehouse.types.js';
 
 export function validateWarehousePayload(payload: Partial<WarehouseCreateDTO>) {
   const errors: Record<string, string> = {};

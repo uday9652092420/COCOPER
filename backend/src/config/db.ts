@@ -1,11 +1,8 @@
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+
 import { Pool } from 'pg';
 import { DB_CONFIG } from './env.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+
 
 export const pool = new Pool({
   host: DB_CONFIG.DB_HOST,
@@ -17,14 +14,7 @@ export const pool = new Pool({
 });
 
 export async function initializeDatabase(): Promise<void> {
-  await pool.query('SELECT 1');
-
-  const sqlPath = path.resolve(__dirname, '../../db/warehouse_master.sql');
-  if (!fs.existsSync(sqlPath)) {
-    console.warn(`Initialization SQL not found at ${sqlPath}`);
-    return;
-  }
-
-  const sql = fs.readFileSync(sqlPath, 'utf8');
-  await pool.query(sql);
+  // Only verify database connection
+  await pool.query("SELECT 1");
+  console.log("Database connected successfully.");
 }

@@ -104,3 +104,16 @@ export async function updateWarehouse(
 
   return data;
 }
+export async function deleteWarehouse(id: string) {
+  const response = await fetch(`${API}/warehouses/${id}`, {
+    method: "DELETE",
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw data;
+  }
+
+  return data;
+}

@@ -4,7 +4,8 @@ import {
   listWarehousesHandler,
   getWarehouseHandler,
   getNextWarehouseCodeHandler,
-  updateWarehouseHandler,   // ✅ ADD THIS
+  updateWarehouseHandler, 
+  deleteWarehouseHandler  // ✅ ADD THIS
   // ✅ ADD THIS
 } from "./warehouse.controller.js";
 
@@ -17,6 +18,7 @@ router.get("/:id", getWarehouseHandler);
 
 router.post("/", createWarehouseHandler);
 router.put("/:id", updateWarehouseHandler);
+router.delete("/:id", deleteWarehouseHandler);
 
 
 export default router;

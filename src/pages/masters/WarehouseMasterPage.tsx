@@ -25,7 +25,10 @@ import {
   getWarehouses,
 } from "../../services/warehouseservices/warehouse.service";
 
-import { updateWarehouse } from '../../services/warehouseservices/warehouse.service'
+import {
+  updateWarehouse,
+  deleteWarehouse,
+} from "../../services/warehouseservices/warehouse.service";
 /**
  * @description Warehouse form values.
  */
@@ -241,12 +244,28 @@ await createWarehouse(payload);
    * @function handleDelete
    * @description Delete confirmed warehouse record.
    */
-  const handleDelete = () => {
-    if (!confirmDelete) return
-    setRecords((prev) => prev.filter((w) => w.id !== confirmDelete.id))
-    toast.success('Warehouse deleted.')
-    setConfirmDelete(null)
+ const handleDelete = async () => {
+  if (!confirmDelete) return;
+
+  try {
+    await deleteWarehouse(confirmDelete.id);
+
+    toast.success("Warehouse deleted successfully.");
+
+    await loadWarehouses();
+
+    setConfirmDelete(null);
+  } catch (error: any) {
+    console.error(error);
+
+    toast.error(
+      error?.message ||
+      "Unable to delete warehouse."
+    );
+
+    setConfirmDelete(null);
   }
+};
 
   /**
    * @description Table column definitions (placed after handlers to avoid any reference issues).

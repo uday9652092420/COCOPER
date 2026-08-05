@@ -5,6 +5,7 @@ import {
   getWarehouseById as getWarehouseByIdService,
   getNextWarehouseCode,
   updateWarehouse as updateWarehouseService,
+  deleteWarehouse as deleteWarehouseService
   
 } from "./warehouse.service.js";
 
@@ -133,6 +134,21 @@ export async function updateWarehouseHandler(
       new AppError("Failed to update warehouse", 500, {
         cause: error,
       })
+    );
+  }
+}
+export async function deleteWarehouseHandler(
+  req: Request<WarehouseParams>,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const result = await deleteWarehouseService(req.params.id);
+
+    return res.status(200).json(result);
+  } catch (error: any) {
+    return next(
+      new AppError(error.message, 400)
     );
   }
 }

@@ -102,3 +102,67 @@ export async function updateWarehouseRepo(
 
   return rows[0] ?? null;
 }
+export async function checkWarehouseUsageRepo(id: string) {
+  const usedIn: string[] = [];
+
+  // Get warehouse code from warehouse id
+  const warehouseResult = await pool.query(
+    `
+    SELECT code
+    FROM warehouses
+    WHERE id = $1
+    `,
+    [id]
+  );
+
+  if (warehouseResult.rowCount === 0) {
+    throw new Error("Warehouse not found");
+  }
+
+  const warehouseCode = warehouseResult.rows[0].code;
+
+  // Check Loading Dispatch
+  const loadingDispatch = await pool.query(
+    `
+    SELECT 1
+    FROM loading_dispatch
+    WHERE warehouse_id = $1
+    LIMIT 1
+    `,
+    [warehouseCode]
+  );
+
+  if (loadingDispatch.rowCount && loadingDispatch.rowCount > 0) {
+    usedIn.push("Loading Dispatch");
+  }
+
+  return usedIn;
+}
+export async function deleteWarehouseRepo(id:string){
+
+    const result=await pool.query(
+
+    `
+    DELETE
+    FROM warehouses
+    WHERE id=$1
+    RETURNING *
+    `,
+
+    [id]
+
+    );
+
+    if(result.rowCount===0){
+
+        throw new Error("Warehouse not found");
+
+    }
+
+    return{
+
+        message:"Warehouse deleted successfully"
+
+    };
+
+}

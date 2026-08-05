@@ -4,6 +4,8 @@ import {
   getWarehouseByIdRepo,
   listWarehousesRepo,
   updateWarehouseRepo,
+  checkWarehouseUsageRepo,
+deleteWarehouseRepo
 } from "./warehouse.repository.js";
 import {
   getNextWarehouseCodeRepo,
@@ -36,4 +38,16 @@ export async function listWarehouses(): Promise<Warehouse[]> {
 }
 export async function getNextWarehouseCode(): Promise<string> {
   return getNextWarehouseCodeRepo();
+}
+
+export async function deleteWarehouse(id: string) {
+  const usedIn = await checkWarehouseUsageRepo(id);
+
+  if (usedIn.length > 0) {
+    throw new Error(
+      `Warehouse is used in: ${usedIn.join(", ")}`
+    );
+  }
+
+  return deleteWarehouseRepo(id);
 }

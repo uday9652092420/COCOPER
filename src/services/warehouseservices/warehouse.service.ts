@@ -1,4 +1,4 @@
-const API = "http://localhost:4008/api";
+import { API } from "../../config/api";
 
 export interface CreateWarehouseResponse {
   id: string;

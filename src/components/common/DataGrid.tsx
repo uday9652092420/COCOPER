@@ -121,7 +121,7 @@ export function DataGrid<T>({
                 {col.label}
               </th>
             ))}
-            <th className="w-40 px-3 py-2 text-right font-medium text-slate-600">Actions</th>
+            {/* <th className="w-40 px-3 py-2 text-right font-medium text-slate-600">Actions</th> */}
           </tr>
         </thead>
 
@@ -147,7 +147,7 @@ export function DataGrid<T>({
                   </td>
                 ))}
 
-                <td className="px-3 py-3 text-right">
+                {/* <td className="px-3 py-3 text-right">
                   <div className="inline-flex items-center gap-2">
                     {onView ? (
                       <button
@@ -189,7 +189,7 @@ export function DataGrid<T>({
                       </button>
                     ) : null}
                   </div>
-                </td>
+                </td> */}
               </tr>
             ))
           )}

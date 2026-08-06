@@ -98,8 +98,8 @@ useEffect(() => {
     },
     {
       key: 'actions',
-      label: '',
-      width: '110px',
+      label: 'Actions',
+      width: '180px',
       render: (row: ItemResponse) => (
         <div className="flex items-center gap-2">
           <button

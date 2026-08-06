@@ -291,8 +291,8 @@ await createWarehouse(payload);
     },
     {
       key: 'actions',
-      label: '',
-      width: '130px',
+      label: 'Actions',
+      width: '180px',
       render: (row: Warehouse) => (
         <div className="flex items-center gap-2">
           <button

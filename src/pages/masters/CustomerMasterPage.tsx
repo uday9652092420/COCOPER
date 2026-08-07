@@ -6,7 +6,18 @@
 import type React from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { customers as dbCustomers, type Customer, type CustomerType } from '../../mock/db'
+import {
+  getCustomers,
+  createCustomer,
+ updateCustomer,
+  deleteCustomer,
+  getNextCustomerCode,
+} from "../../services/customerservices/customer.service";
+
+import type {
+  CustomerResponse,
+} from "../../services/customerservices/customer.service";
+
 import { PageHeader } from '../../components/common/PageHeader'
 import { Toolbar } from '../../components/common/Toolbar'
 import { SearchFilterPanel } from '../../components/common/SearchFilterPanel'
@@ -34,6 +45,71 @@ interface CustomerFormValues {
   contactPerson2?: string
   contactNo2?: string
 }
+interface Customer {
+  id: string;
+  code: string;
+  name: string;
+
+  type: "Premium" | "Local" | "Red";
+
+  state: string;
+  address: string;
+  mobile: string;
+  whatsapp: string;
+
+  contactPerson: string;
+  contactPerson1: string;
+  contactNo1: string;
+  contactPerson2: string;
+  contactNo2: string;
+
+  creditLimit: number;
+
+  status: "Active" | "Inactive";
+
+  createdAt: string;
+}
+type CustomerType =
+  | "Premium"
+  | "Local"
+  | "Red";
+const mapCustomer = (
+  item: CustomerResponse
+): Customer => ({
+
+  id: item.id,
+
+  code: item.code,
+
+  name: item.name,
+
+  type: item.type,
+
+  state: item.state ?? "",
+
+  address: item.address ?? "",
+
+  mobile: item.mobile ?? "",
+
+  whatsapp: item.whatsapp ?? "",
+
+  contactPerson: item.contact_person ?? "",
+
+  contactPerson1: item.contact_person1 ?? "",
+
+  contactNo1: item.contact_no1 ?? "",
+
+  contactPerson2: item.contact_person2 ?? "",
+
+  contactNo2: item.contact_no2 ?? "",
+
+  creditLimit: item.credit_limit,
+
+  status: item.status,
+
+  createdAt: item.created_at,
+
+});
 
 /**
  * @description Helper describing business rule for customer type.
@@ -59,16 +135,41 @@ const CustomerMasterPage: React.FC = () => {
   const [confirmDelete, setConfirmDelete] = useState<Customer | null>(null)
   const [currentType, setCurrentType] = useState<CustomerType | ''>('')
 
-  useEffect(() => {
-    const id = setTimeout(() => {
-      setRecords(dbCustomers)
-      setLoading(false)
-    }, 400)
-    return () => clearTimeout(id)
-  }, [])
+ const loadCustomers = async () => {
+
+  try {
+
+    setLoading(true);
+
+    const response =
+      await getCustomers();
+
+    setRecords(
+      response.map(mapCustomer)
+    );
+
+  } catch {
+
+    toast.error(
+      "Failed to load customers"
+    );
+
+  } finally {
+
+    setLoading(false);
+
+  }
+
+};
+
+useEffect(() => {
+
+  loadCustomers();
+
+}, []);
 
   const filtered = useMemo(
-    () =>
+    () => 
       records.filter((c) => {
         const q = search.toLowerCase()
         const matchesSearch =
@@ -134,7 +235,7 @@ const CustomerMasterPage: React.FC = () => {
   ]
 
   const fields: FormFieldConfig[] = [
-    { name: 'code', label: 'Customer Code', type: 'text', required: true },
+    { name: 'code', label: 'Customer Code', type: 'text', required: true, readOnly:true},
     { name: 'name', label: 'Customer Name', type: 'text', required: true },
     { name: 'contactPerson', label: 'Contact Person', type: 'text', required: false },
     // New extended contact fields
@@ -174,11 +275,66 @@ const CustomerMasterPage: React.FC = () => {
    * @function openAdd
    * @description Open modal to add a new customer.
    */
-  const openAdd = () => {
-    setEditing(null)
-    setCurrentType('')
-    setModalOpen(true)
+  const openAdd = async () => {
+
+  try {
+
+    setEditing(null);
+
+    const code =
+      await getNextCustomerCode();
+
+    setEditing({
+
+      id: "",
+
+      code,
+
+      name: "",
+
+      type: "Local",
+
+      state: "",
+
+      address: "",
+
+      mobile: "",
+
+      whatsapp: "",
+
+      contactPerson: "",
+
+      contactPerson1: "",
+
+      contactNo1: "",
+
+      contactPerson2: "",
+
+      contactNo2: "",
+
+      creditLimit: 0,
+
+      status: "Active",
+
+      createdAt: "",
+
+    });
+
+    setCurrentType("Local");
+
+    setModalOpen(true);
+
   }
+
+  catch (e: any) {
+
+    toast.error(
+      e.message
+    );
+
+  }
+
+};
 
   /**
    * @function openEdit
@@ -194,72 +350,178 @@ const CustomerMasterPage: React.FC = () => {
    * @function handleSave
    * @description Save or update customer record. Supports reset-after-add behavior.
    */
-  const handleSave = (values: CustomerFormValues, resetAfter: boolean) => {
-    if (values.type === 'Red' && values.creditLimit > 0) {
-      toast.warning('Red customers are cash-only. Credit limit will be set to 0.')
-      // Enforce rule: Red = cash only.
-      // eslint-disable-next-line no-param-reassign
-      values.creditLimit = 0
+ const handleSave = async (
+  values: CustomerFormValues,
+  resetAfter: boolean
+) => {
+
+  try {
+
+    const payload = {
+
+      code: values.code,
+
+      name: values.name,
+
+      type: values.type,
+
+      state: values.state,
+
+      address: values.address,
+
+      mobile: values.mobile,
+
+      whatsapp: values.whatsapp,
+
+      contact_person:
+        values.contactPerson,
+
+      contact_person1:
+        values.contactPerson1,
+
+      contact_no1:
+        values.contactNo1,
+
+      contact_person2:
+        values.contactPerson2,
+
+      contact_no2:
+        values.contactNo2,
+
+      credit_limit:
+        values.type === "Red"
+          ? 0
+          : Number(values.creditLimit),
+
+      status:
+        values.status as
+          | "Active"
+          | "Inactive",
+
+    };
+
+    if (editing?.id) {
+
+      await updateCustomer(
+        editing.id,
+        payload
+      );
+
+      toast.success(
+        "Customer updated successfully"
+      );
+
+    } else {
+
+      await createCustomer(
+        payload
+      );
+
+      toast.success(
+        "Customer created successfully"
+      );
+
     }
 
-    if (editing) {
-      setRecords((prev) =>
-        prev.map((c) =>
-          c.id === editing.id
-            ? {
-                ...c,
-                ...values,
-                contactPerson: (values as any).contactPerson ?? (c as any).contactPerson ?? '',
-                contactPerson1: (values as any).contactPerson1 ?? (c as any).contactPerson1 ?? '',
-                contactNo1: (values as any).contactNo1 ?? (c as any).contactNo1 ?? '',
-                contactPerson2: (values as any).contactPerson2 ?? (c as any).contactPerson2 ?? '',
-                contactNo2: (values as any).contactNo2 ?? (c as any).contactNo2 ?? '',
-                creditLimit: Number(values.creditLimit),
-              }
-            : c
-        )
-      )
-      toast.success('Customer updated.')
-    } else {
-      const newRecord: Customer = {
-        id: `CUST-${Date.now()}`,
-        code: values.code,
-        name: values.name,
-        type: values.type,
-        state: values.state,
-        address: values.address,
-        mobile: values.mobile,
-        whatsapp: values.whatsapp,
-        contactPerson: values.contactPerson ?? '',
-        contactPerson1: values.contactPerson1 ?? '',
-        contactNo1: values.contactNo1 ?? '',
-        contactPerson2: values.contactPerson2 ?? '',
-        contactNo2: values.contactNo2 ?? '',
-        creditLimit: Number(values.creditLimit),
-        status: values.status as Customer['status'],
-        createdAt: new Date().toISOString().slice(0, 10),
-      }
-      setRecords((prev) => [newRecord, ...prev])
-      toast.success('Customer added.')
-    }
+    await loadCustomers();
 
     if (!resetAfter) {
-      setModalOpen(false)
-      setEditing(null)
+
+      setModalOpen(false);
+
+      setEditing(null);
+
+      setCurrentType("");
+
+    } else {
+
+      const code =
+        await getNextCustomerCode();
+
+      setEditing({
+
+        id: "",
+
+        code,
+
+        name: "",
+
+        type: "Local",
+
+        state: "",
+
+        address: "",
+
+        mobile: "",
+
+        whatsapp: "",
+
+        contactPerson: "",
+
+        contactPerson1: "",
+
+        contactNo1: "",
+
+        contactPerson2: "",
+
+        contactNo2: "",
+
+        creditLimit: 0,
+
+        status: "Active",
+
+        createdAt: "",
+
+      });
+
     }
+
+  } catch (e: any) {
+
+    toast.error(
+      e.message ??
+      "Customer save failed"
+    );
+
   }
+
+};
 
   /**
    * @function handleDelete
    * @description Delete the customer stored in confirmDelete state.
    */
-  const handleDelete = () => {
-    if (!confirmDelete) return
-    setRecords((prev) => prev.filter((c) => c.id !== confirmDelete.id))
-    toast.success('Customer deleted.')
-    setConfirmDelete(null)
+  const handleDelete = async () => {
+
+  if (!confirmDelete)
+    return;
+
+  try {
+
+    await deleteCustomer(
+      confirmDelete.id
+    );
+
+    toast.success(
+      "Customer deleted"
+    );
+
+    setConfirmDelete(null);
+
+    loadCustomers();
+
   }
 
+  catch (e: any) {
+
+    toast.error(
+      e.message ??
+      "Delete failed"
+    );
+
+  }
+
+};
   return (
     <div>
       <PageHeader title="Customer Master" breadcrumb={['Masters', 'Customer Master']} />
@@ -273,15 +535,7 @@ const CustomerMasterPage: React.FC = () => {
       />
 
       {/* Add New button (non-destructive addition to existing toolbar behavior) */}
-      <div className="flex justify-end mb-3">
-        <button
-          type="button"
-          onClick={openAdd}
-          className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
-        >
-          Add New
-        </button>
-      </div>
+     
 
       <SearchFilterPanel onSearchChange={setSearch} onStatusChange={setStatusFilter} searchPlaceholder="Search by code, name, mobile..." />
 

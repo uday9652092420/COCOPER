@@ -3,63 +3,119 @@
  * @description Small search and filter panel used above lists/grids.
  */
 
-import type React from 'react'
-import { useState } from 'react'
+import React, { useState } from "react";
 
 /**
  * @interface SearchFilterPanelProps
- * @description Props for SearchFilterPanel component.
+ * @description Supports both old and new implementations.
  */
 export interface SearchFilterPanelProps {
-  placeholder?: string
-  onSearch: (query: string) => void
-  onClear?: () => void
+  // Old props (existing master screens)
+  placeholder?: string;
+  onSearch?: (query: string) => void;
+  onClear?: () => void;
+
+  // New props (Customer Master)
+  searchPlaceholder?: string;
+  onSearchChange?: (value: string) => void;
+  onStatusChange?: (value: string) => void;
 }
 
 /**
  * @component SearchFilterPanel
- * @description Renders a search input with actions. Calls onSearch when user submits.
  */
-export const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({ placeholder = 'Search...', onSearch, onClear }) => {
-  const [q, setQ] = useState('')
+export const SearchFilterPanel: React.FC<SearchFilterPanelProps> = ({
+  placeholder,
+  searchPlaceholder,
+
+  onSearch,
+  onClear,
+
+  onSearchChange,
+  onStatusChange,
+}) => {
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
 
   /**
-   * @function handleSubmit
-   * @description Submit handler that forwards current query to parent.
+   * Search
    */
   const handleSubmit = (e?: React.FormEvent) => {
-    e?.preventDefault()
-    onSearch(q.trim())
-  }
+    e?.preventDefault();
+
+    const value = q.trim();
+
+    // Old implementation
+    onSearch?.(value);
+
+    // New implementation
+    onSearchChange?.(value);
+  };
 
   /**
-   * @function handleClear
-   * @description Clears input and notifies parent.
+   * Clear
    */
   const handleClear = () => {
-    setQ('')
-    onClear?.()
-    onSearch('')
-  }
+    setQ("");
+    setStatus("");
+
+    // Old implementation
+    onClear?.();
+    onSearch?.("");
+
+    // New implementation
+    onSearchChange?.("");
+    onStatusChange?.("");
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="flex w-full items-center gap-2">
+    <form
+      onSubmit={handleSubmit}
+      className="mb-4 flex flex-wrap items-center gap-2"
+    >
       <input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder={placeholder}
+        placeholder={
+          searchPlaceholder ??
+          placeholder ??
+          "Search..."
+        }
         className="flex-1 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-200"
       />
-      <div className="flex gap-2">
-        <button type="button" onClick={() => handleSubmit()} className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700">
-          Search
-        </button>
-        <button type="button" onClick={handleClear} className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50">
-          Clear
-        </button>
-      </div>
-    </form>
-  )
-}
 
-export default SearchFilterPanel
+      {/* Optional Status Filter */}
+      {onStatusChange && (
+        <select
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            onStatusChange(e.target.value);
+          }}
+          className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-1 focus:ring-emerald-200"
+        >
+          <option value="">All Status</option>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      )}
+
+      <button
+        type="submit"
+        className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+      >
+        Search
+      </button>
+
+      <button
+        type="button"
+        onClick={handleClear}
+        className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+      >
+        Clear
+      </button>
+    </form>
+  );
+};
+
+export default SearchFilterPanel;

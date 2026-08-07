@@ -3,4 +3,6 @@
  * Change only this file when the backend URL changes.
  */
 //base api url
-export const API = process.env.BASE_API_URL ;
+// src/config/api.ts
+
+export const API = "http://localhost:4004/api";

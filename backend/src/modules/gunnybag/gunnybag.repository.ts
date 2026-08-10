@@ -1,18 +1,32 @@
-import { pool } from "../../config/db.js";
-import { GunnyBag, GunnyBagCreateDTO } from "./gunnybag.types.js";
 /**
+ * @file gunnybag.repository.ts
+ * @description Repository layer for Gunny Bag Master.
+ */
+
+import { pool } from "../../config/db.js";
+
+import {
+  GunnyBag,
+  GunnyBagCreateDTO,
+  GunnyBagBharthiType,
+  GunnyBagBharthiTypeCreateDTO,
+} from "./gunnybag.types.js";
+
+/**
+ * ============================================================
  * Get Next Gunny Bag Code
- * Example:
- * GB-001
- * GB-002
- * GB-003
+ * ============================================================
  */
 export async function getNextGunnyBagCodeRepo(): Promise<string> {
   const { rows } = await pool.query(`
     SELECT code
     FROM gunny_bags
     WHERE code LIKE 'GB-%'
-    ORDER BY CAST(SUBSTRING(code FROM 4) AS INTEGER) DESC
+    ORDER BY
+      CAST(
+        SUBSTRING(code FROM 4)
+        AS INTEGER
+      ) DESC
     LIMIT 1
   `);
 
@@ -20,7 +34,7 @@ export async function getNextGunnyBagCodeRepo(): Promise<string> {
     return "GB-001";
   }
 
-  const lastCode = rows[0].code;
+  const lastCode = String(rows[0].code);
 
   const lastNumber = parseInt(
     lastCode.replace("GB-", ""),
@@ -31,77 +45,336 @@ export async function getNextGunnyBagCodeRepo(): Promise<string> {
 }
 
 /**
- * Create Gunny Bag
+ * ============================================================
+ * Insert Bharthi Child Records
+ * ============================================================
+ *
+ * IMPORTANT:
+ *
+ * bharthi is now TEXT.
+ *
+ * Examples:
+ *   "120"
+ *   "150"
+ *   "200"
+ *   "Jute Bag"
+ *   "Large Bag"
+ *
+ * We store the value exactly as received.
+ *
+ * Current DB columns:
+ *
+ * id
+ * gunny_bag_id
+ * bharthi
+ * stock
+ * created_at
  */
-export async function createGunnyBagRepo(
-  payload: GunnyBagCreateDTO
-): Promise<GunnyBag> {
+async function insertBharthiTypes(
+  client: any,
+  gunnyBagId: string,
+  bharthiTypes?: GunnyBagBharthiTypeCreateDTO[]
+): Promise<void> {
+  if (!bharthiTypes || bharthiTypes.length === 0) {
+    return;
+  }
 
-  const id = payload.id || `GB-${Date.now()}`;
+  for (const item of bharthiTypes) {
+    const bharthi = String(
+      item.bharthi ?? ""
+    ).trim();
 
-  const code =
-    payload.code?.trim() ||
-    (await getNextGunnyBagCodeRepo());
+    /**
+     * Ignore completely empty rows.
+     */
+    if (!bharthi) {
+      continue;
+    }
 
-  const { rows } = await pool.query(
-    `
-    INSERT INTO gunny_bags
-    (
-      id,
-      code,
-      name,
-      size,
-      rate_per_bag,
-      opening_stock,
-      status,
-      created_at
-    )
-    VALUES
-    (
-      $1,$2,$3,$4,$5,$6,$7,CURRENT_DATE
-    )
-    RETURNING *
-    `,
-    [
-      id,
-      code,
-      payload.name,
-      payload.size ?? "",
-      payload.rate_per_bag ?? 0,
-      payload.opening_stock ?? 0,
-      payload.status ?? "Active",
-    ]
-  );
+    const stock = Number(item.stock);
 
-  return rows[0];
+    /**
+     * Generate child ID.
+     */
+    const id =
+      `GBT-${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 8)}`;
+
+    console.log(
+      "Inserting Bharthi:",
+      {
+        id,
+        gunnyBagId,
+        bharthi,
+        stock,
+      }
+    );
+
+    /**
+     * IMPORTANT:
+     *
+     * Do NOT insert bharthi_code.
+     *
+     * Your current table has:
+     *
+     * id
+     * gunny_bag_id
+     * bharthi
+     * stock
+     * created_at
+     */
+    await client.query(
+      `
+        INSERT INTO gunny_bag_bharthi_types
+        (
+          id,
+          gunny_bag_id,
+          bharthi,
+          stock,
+          created_at
+        )
+        VALUES
+        (
+          $1,
+          $2,
+          $3,
+          $4,
+          CURRENT_DATE
+        )
+      `,
+      [
+        id,
+        gunnyBagId,
+        bharthi,
+        Number.isNaN(stock) ? 0 : stock,
+      ]
+    );
+  }
 }
 
 /**
+ * ============================================================
+ * Get Bharthi Types For Gunny Bag
+ * ============================================================
+ */
+export async function getGunnyBagBharthiTypesRepo(
+  gunnyBagId: string
+): Promise<GunnyBagBharthiType[]> {
+  const { rows } = await pool.query(
+    `
+      SELECT
+        id,
+        gunny_bag_id,
+        bharthi,
+        stock,
+        created_at
+      FROM gunny_bag_bharthi_types
+      WHERE gunny_bag_id = $1
+      ORDER BY created_at ASC, id ASC
+    `,
+    [gunnyBagId]
+  );
+
+  return rows;
+}
+
+/**
+ * ============================================================
+ * Create Gunny Bag
+ * ============================================================
+ */
+export async function createGunnyBagRepo(
+  payload: GunnyBagCreateDTO
+): Promise<GunnyBag | null> {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    /**
+     * Generate Gunny Bag ID.
+     */
+    const id =
+      payload.id ||
+      `GB-${Date.now()}`;
+
+    /**
+     * Generate code when required.
+     */
+    const code =
+      payload.code?.trim() ||
+      (await getNextGunnyBagCodeRepo());
+
+    /**
+     * Insert parent.
+     */
+    const { rows } = await client.query(
+      `
+        INSERT INTO gunny_bags
+        (
+          id,
+          code,
+          name,
+          size,
+          rate_per_bag,
+          opening_stock,
+          status,
+          created_at
+        )
+        VALUES
+        (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          CURRENT_DATE
+        )
+        RETURNING *
+      `,
+      [
+        id,
+        code,
+        payload.name,
+        payload.size ?? "",
+        payload.rate_per_bag ?? 0,
+        payload.opening_stock ?? 0,
+        payload.status ?? "Active",
+      ]
+    );
+
+    const gunnyBag = rows[0];
+
+    /**
+     * Insert Bharthi child records.
+     */
+    await insertBharthiTypes(
+      client,
+      id,
+      payload.bharthi_types
+    );
+
+    /**
+     * Commit parent + children together.
+     */
+    await client.query("COMMIT");
+
+    /**
+     * Fetch children after commit.
+     *
+     * This uses the pool connection because
+     * the transaction has already committed.
+     */
+    const bharthiTypes =
+      await getGunnyBagBharthiTypesRepo(id);
+
+    return {
+      ...gunnyBag,
+      bharthi_types: bharthiTypes,
+    };
+  } catch (error) {
+    console.error(
+      "createGunnyBagRepo error:",
+      error
+    );
+
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Ignore rollback error.
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * ============================================================
  * List Gunny Bags
+ * ============================================================
  */
 export async function listGunnyBagsRepo(): Promise<GunnyBag[]> {
-
   const { rows } = await pool.query(`
-    SELECT *
-    FROM gunny_bags
-    ORDER BY created_at DESC
+    SELECT
+      gb.*,
+
+      COALESCE(
+        json_agg(
+          json_build_object(
+            'id', bt.id,
+            'gunny_bag_id', bt.gunny_bag_id,
+            'bharthi', bt.bharthi,
+            'stock', bt.stock,
+            'created_at', bt.created_at
+          )
+          ORDER BY
+            bt.created_at ASC,
+            bt.id ASC
+        )
+        FILTER (
+          WHERE bt.id IS NOT NULL
+        ),
+        '[]'::json
+      ) AS bharthi_types
+
+    FROM gunny_bags gb
+
+    LEFT JOIN gunny_bag_bharthi_types bt
+      ON bt.gunny_bag_id = gb.id
+
+    GROUP BY gb.id
+
+    ORDER BY gb.created_at DESC
   `);
 
   return rows;
 }
 
 /**
- * Get Gunny Bag By Id
+ * ============================================================
+ * Get Gunny Bag By ID
+ * ============================================================
  */
 export async function getGunnyBagByIdRepo(
   id: string
 ): Promise<GunnyBag | null> {
-
   const { rows } = await pool.query(
     `
-    SELECT *
-    FROM gunny_bags
-    WHERE id=$1
+      SELECT
+        gb.*,
+
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', bt.id,
+              'gunny_bag_id', bt.gunny_bag_id,
+              'bharthi', bt.bharthi,
+              'stock', bt.stock,
+              'created_at', bt.created_at
+            )
+            ORDER BY
+              bt.created_at ASC,
+              bt.id ASC
+          )
+          FILTER (
+            WHERE bt.id IS NOT NULL
+          ),
+          '[]'::json
+        ) AS bharthi_types
+
+      FROM gunny_bags gb
+
+      LEFT JOIN gunny_bag_bharthi_types bt
+        ON bt.gunny_bag_id = gb.id
+
+      WHERE gb.id = $1
+
+      GROUP BY gb.id
     `,
     [id]
   );
@@ -110,78 +383,171 @@ export async function getGunnyBagByIdRepo(
 }
 
 /**
+ * ============================================================
  * Update Gunny Bag
+ * ============================================================
  */
 export async function updateGunnyBagRepo(
   id: string,
   payload: GunnyBagCreateDTO
 ): Promise<GunnyBag | null> {
+  const client = await pool.connect();
 
-  const { rows } = await pool.query(
-    `
-    UPDATE gunny_bags
-    SET
-      code=$2,
-      name=$3,
-      size=$4,
-      rate_per_bag=$5,
-      opening_stock=$6,
-      status=$7
-    WHERE id=$1
-    RETURNING *
-    `,
-    [
+  try {
+    await client.query("BEGIN");
+
+    /**
+     * Update parent.
+     */
+    const { rows } = await client.query(
+      `
+        UPDATE gunny_bags
+        SET
+          code = $2,
+          name = $3,
+          size = $4,
+          rate_per_bag = $5,
+          opening_stock = $6,
+          status = $7
+        WHERE id = $1
+        RETURNING *
+      `,
+      [
+        id,
+        payload.code,
+        payload.name,
+        payload.size ?? "",
+        payload.rate_per_bag ?? 0,
+        payload.opening_stock ?? 0,
+        payload.status ?? "Active",
+      ]
+    );
+
+    if (rows.length === 0) {
+      await client.query("ROLLBACK");
+      return null;
+    }
+
+    /**
+     * Remove old Bharthi records.
+     */
+    await client.query(
+      `
+        DELETE FROM gunny_bag_bharthi_types
+        WHERE gunny_bag_id = $1
+      `,
+      [id]
+    );
+
+    /**
+     * Insert current Bharthi records.
+     */
+    await insertBharthiTypes(
+      client,
       id,
-      payload.code,
-      payload.name,
-      payload.size,
-      payload.rate_per_bag,
-      payload.opening_stock,
-      payload.status,
-    ]
-  );
+      payload.bharthi_types
+    );
 
-  return rows[0] ?? null;
+    await client.query("COMMIT");
+
+    return await getGunnyBagByIdRepo(id);
+  } catch (error) {
+    console.error(
+      "updateGunnyBagRepo error:",
+      error
+    );
+
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Ignore rollback error.
+    }
+
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**
+ * ============================================================
  * Delete Gunny Bag
+ * ============================================================
  */
 export async function deleteGunnyBagRepo(
   id: string
-) {
+): Promise<{ message: string }> {
+  const client = await pool.connect();
 
-  const result = await pool.query(
-    `
-    DELETE FROM gunny_bags
-    WHERE id=$1
-    RETURNING *
-    `,
-    [id]
-  );
+  try {
+    await client.query("BEGIN");
 
-  if (result.rowCount === 0) {
-    throw new Error("Gunny Bag not found");
+    /**
+     * Children are automatically deleted
+     * because the FK uses ON DELETE CASCADE.
+     *
+     * Explicit delete is still safe.
+     */
+    await client.query(
+      `
+        DELETE FROM gunny_bag_bharthi_types
+        WHERE gunny_bag_id = $1
+      `,
+      [id]
+    );
+
+    /**
+     * Delete parent.
+     */
+    const result = await client.query(
+      `
+        DELETE FROM gunny_bags
+        WHERE id = $1
+        RETURNING *
+      `,
+      [id]
+    );
+
+    if (result.rowCount === 0) {
+      await client.query("ROLLBACK");
+
+      throw new Error(
+        "Gunny Bag not found"
+      );
+    }
+
+    await client.query("COMMIT");
+
+    return {
+      message:
+        "Gunny Bag deleted successfully",
+    };
+  } catch (error) {
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Ignore rollback error.
+    }
+
+    throw error;
+  } finally {
+    client.release();
   }
-
-  return {
-    message: "Gunny Bag deleted successfully",
-  };
 }
 
 /**
- * Check Usage
- * (Future use for Purchase / Stock etc.)
+ * ============================================================
+ * Check Gunny Bag Usage
+ * ============================================================
  */
 export async function checkGunnyBagUsageRepo(
   id: string
-) {
-
+): Promise<string[]> {
   const usedIn: string[] = [];
 
-  // Example
-  // if referenced in bag_purchase table
-  // usedIn.push("Bag Purchase");
+  /**
+   * Add future module checks here.
+   */
 
   return usedIn;
 }

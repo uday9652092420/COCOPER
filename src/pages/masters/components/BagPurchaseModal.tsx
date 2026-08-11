@@ -1,327 +1,1851 @@
+
 /**
  * @file BagPurchaseModal.tsx
- * @description Modal used to create / edit a Bag Purchase. Header includes Date, Supplier and Remarks.
- *              Details section allows adding multiple lines each selecting a Gunny Bag, Quantity, Rate and
- *              computed Amount. Exposes onSave callback with the composed purchase object.
+ * @description Modal used to create / edit a Bag Purchase.
  */
 
-import React, { useEffect, useMemo } from 'react'
-import { useForm, useFieldArray, type FieldValues } from 'react-hook-form'
-import ResponsiveModal from '../../../components/common/ResponsiveModal'
-import { suppliers, gunnyBags, type Supplier } from '../../../mock/db'
-import { toast } from 'sonner'
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  useForm,
+  useFieldArray,
+} from "react-hook-form";
+
+import ResponsiveModal from "../../../components/common/ResponsiveModal";
+
+import {
+  getGunnyBags,
+  getGunnyBag,
+  type GunnyBagResponse,
+  type GunnyBagBharthiType,
+} from "../../../services/gunnybagservices/gunnybag.service";
+
+import {
+  getSuppliers,
+  type SupplierResponse,
+} from "../../../services/supplierservices/supplier.service";
+
+import { toast } from "sonner";
+
+import {
+  createBagPurchase,
+  updateBagPurchase,
+  type BagPurchaseResponse,
+  type BagPurchaseLineResponse,
+  type BagPurchaseSavePayload,
+} from "../../../services/bagpurchaseservices/bagpurchase.service";
 
 /**
- * @interface BagPurchaseLine
- * @description Single detail line in a Bag Purchase.
+ * ============================================================
+ * Single detail line displayed by the modal.
+ * ============================================================
  */
 export interface BagPurchaseLine {
-  id: string
-  bagId: string
-  bagName?: string
-  quantity: number
-  rate: number
-  amount: number
+  id: string;
+
+  /**
+   * Gunny Bag ID stored internally.
+   */
+  bagId: string;
+
+  /**
+   * Gunny Bag name used for display/reference.
+   */
+  bagName?: string;
+
+  /**
+   * Selected Bharthi numeric value.
+   *
+   * Example:
+   * 120
+   * 150
+   * 180
+   */
+  bharthi?: number;
+
+  /**
+   * Bharthi code returned by backend.
+   */
+  bharthiCode?: string;
+
+  quantity: number;
+
+  rate: number;
+
+  amount: number;
 }
 
 /**
- * @interface BagPurchase
- * @description Bag Purchase header + lines.
- */
-export interface BagPurchase {
-  id: string
-  date: string
-  supplierId: string
-  supplierName?: string
-  remarks?: string
-  lines: BagPurchaseLine[]
-  totalAmount: number
-}
-
-/**
- * @interface BagPurchaseModalProps
- * @description Props for BagPurchaseModal component.
+ * ============================================================
+ * Props
+ * ============================================================
  */
 export interface BagPurchaseModalProps {
-  open: boolean
-  onClose: () => void
-  onSave: (purchase: BagPurchase, resetAfter: boolean) => void
-  defaultValues?: Partial<BagPurchase>
+  open: boolean;
+
+  onClose: () => void;
+
+  onSave: (
+    resetAfter: boolean
+  ) => Promise<void>;
+
+  purchase?: BagPurchaseResponse | null;
 }
 
 /**
- * @component BagPurchaseModal
- * @description Modal form to add / edit bag purchase with multiple lines.
+ * ============================================================
+ * Form values
+ * ============================================================
  */
-export const BagPurchaseModal: React.FC<BagPurchaseModalProps> = ({ open, onClose, onSave, defaultValues }) => {
-  const { register, control, handleSubmit, reset, watch, setValue, formState } = useForm<FieldValues>({
-    defaultValues: {
-      date: new Date().toISOString().slice(0, 10),
-      supplierId: '',
-      remarks: '',
-      lines: [],
-      ...defaultValues,
-    },
-  })
+interface BagPurchaseFormValues {
+  date: string;
 
-  const { fields, append, remove, replace } = useFieldArray({
-    control,
-    name: 'lines',
-  })
+  supplierId: string;
 
-  useEffect(() => {
-    // initialize with at least one empty row when opening
-    if (open) {
-      const initial = defaultValues?.lines && defaultValues?.lines.length ? defaultValues.lines : [
-        { id: String(Date.now()), bagId: '', bagName: '', quantity: 0, rate: 0, amount: 0 },
-      ]
-      replace(initial)
-      reset({
-        date: defaultValues?.date ?? new Date().toISOString().slice(0, 10),
-        supplierId: defaultValues?.supplierId ?? '',
-        remarks: defaultValues?.remarks ?? '',
-        lines: initial,
-      })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  remarks: string;
 
-  const watchedLines = watch('lines') as BagPurchaseLine[] | undefined
-  const watchedDate = watch('date') as string
-  const watchedSupplierId = watch('supplierId') as string
+  lines: BagPurchaseLine[];
+}
 
-  /**
-   * @function computeLineAmount
-   * @description Compute amount for a single line and update form value.
-   */
-  const computeLineAmount = (index: number) => {
-    const l = (watch('lines') as BagPurchaseLine[])[index]
-    const qty = Number(l?.quantity || 0)
-    const rate = Number(l?.rate || 0)
-    const amt = qty * rate
-    setValue(`lines.${index}.amount`, amt, { shouldValidate: true, shouldDirty: true })
+/**
+ * ============================================================
+ * Create empty purchase line.
+ * ============================================================
+ */
+const createEmptyLine =
+  (): BagPurchaseLine => ({
+    id:
+      `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`,
+
+    bagId: "",
+
+    bagName: "",
+
+    bharthi: undefined,
+
+    bharthiCode: "",
+
+    quantity: 0,
+
+    rate: 0,
+
+    amount: 0,
+  });
+
+/**
+ * ============================================================
+ * Normalize Bharthi value.
+ *
+ * Supports:
+ *
+ * 120
+ * "120"
+ * "120-Bharthi"
+ * "150-Bharthi"
+ *
+ * Returns numeric value for API/form.
+ * ============================================================
+ */
+const normalizeBharthiValue = (
+  value: string | number | null | undefined
+): number | undefined => {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return undefined;
   }
 
-  useEffect(() => {
-    // recompute all line amounts when lines change
-    (watchedLines || []).forEach((_, i) => computeLineAmount(i))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watch('lines')])
+  if (typeof value === "number") {
+    return Number.isFinite(value)
+      ? value
+      : undefined;
+  }
 
-  const modalTotal = useMemo(() => {
-    return (watchedLines || []).reduce((s, r) => s + Number(r?.amount || 0), 0)
-  }, [watchedLines])
+  const match =
+    String(value).match(/\d+/);
+
+  if (!match) {
+    return undefined;
+  }
+
+  const numericValue =
+    Number(match[0]);
+
+  return Number.isFinite(
+    numericValue
+  )
+    ? numericValue
+    : undefined;
+};
+
+/**
+ * ============================================================
+ * Component
+ * ============================================================
+ */
+const BagPurchaseModal: React.FC<
+  BagPurchaseModalProps
+> = ({
+  open,
+  onClose,
+  onSave,
+  purchase,
+}) => {
+  /**
+   * ==========================================================
+   * Bharthi options grouped by Gunny Bag ID.
+   * ==========================================================
+   */
+  const [
+    bharthiOptions,
+    setBharthiOptions,
+  ] = useState<
+    Record<
+      string,
+      GunnyBagBharthiType[]
+    >
+  >({});
 
   /**
-   * @function addLine
-   * @description Append a new empty detail line.
+   * ==========================================================
+   * Supplier options.
+   * ==========================================================
+   */
+  const [
+    supplierOptions,
+    setSupplierOptions,
+  ] = useState<SupplierResponse[]>(
+    []
+  );
+
+  /**
+   * ==========================================================
+   * Gunny Bag options.
+   * ==========================================================
+   */
+  const [
+    bagOptions,
+    setBagOptions,
+  ] = useState<GunnyBagResponse[]>(
+    []
+  );
+
+  /**
+   * ==========================================================
+   * Loading states.
+   * ==========================================================
+   */
+  const [
+    bagLoading,
+    setBagLoading,
+  ] = useState(false);
+
+  const [
+    supplierLoading,
+    setSupplierLoading,
+  ] = useState(false);
+
+  const [
+    bharthiLoading,
+    setBharthiLoading,
+  ] = useState<
+    Record<string, boolean>
+  >({});
+
+  /**
+   * ==========================================================
+   * React Hook Form
+   * ==========================================================
+   */
+  const {
+    register,
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    setValue,
+  } = useForm<BagPurchaseFormValues>({
+    defaultValues: {
+      date: new Date()
+        .toISOString()
+        .slice(0, 10),
+
+      supplierId: "",
+
+      remarks: "",
+
+      lines: [
+        createEmptyLine(),
+      ],
+    },
+  });
+
+  /**
+   * ==========================================================
+   * Field Array
+   * ==========================================================
+   */
+  const {
+    fields,
+    append,
+    remove,
+    replace,
+  } = useFieldArray({
+    control,
+
+    name: "lines",
+  });
+
+  /**
+   * ==========================================================
+   * Load Suppliers
+   * ==========================================================
+   */
+  const loadSuppliers = async () => {
+    try {
+      setSupplierLoading(true);
+
+      const data =
+        await getSuppliers();
+
+      setSupplierOptions(
+        Array.isArray(data)
+          ? data
+          : []
+      );
+    } catch (error: unknown) {
+      console.error(
+        "Load Suppliers error:",
+        error
+      );
+
+      toast.error(
+        "Failed to load suppliers."
+      );
+    } finally {
+      setSupplierLoading(false);
+    }
+  };
+
+  /**
+   * ==========================================================
+   * Load Gunny Bags
+   *
+   * GET /gunny-bags
+   *
+   * Expected response:
+   *
+   * [
+   *   {
+   *     id: "...",
+   *     code: "GB-001",
+   *     name: "Gunny Bag Name",
+   *     rate_per_bag: 25,
+   *     bharthi_types: [...]
+   *   }
+   * ]
+   * ==========================================================
+   */
+  const loadGunnyBags = async () => {
+    try {
+      setBagLoading(true);
+
+      const data =
+        await getGunnyBags();
+
+      const bags =
+        Array.isArray(data)
+          ? data
+          : [];
+
+      setBagOptions(bags);
+
+      /**
+       * Prepare Bharthi options
+       * grouped by Gunny Bag ID.
+       */
+      const optionsByBagId: Record<
+        string,
+        GunnyBagBharthiType[]
+      > = {};
+
+      bags.forEach(
+        (bag) => {
+          optionsByBagId[bag.id] =
+            bag.bharthi_types ?? [];
+        }
+      );
+
+      setBharthiOptions(
+        optionsByBagId
+      );
+    } catch (error: unknown) {
+      console.error(
+        "Load Gunny Bags error:",
+        error
+      );
+
+      toast.error(
+        "Failed to load Gunny Bags."
+      );
+    } finally {
+      setBagLoading(false);
+    }
+  };
+
+  /**
+   * ==========================================================
+   * Load Bharthi Types
+   *
+   * First uses Bharthi types already returned by
+   * GET /gunny-bags.
+   *
+   * If unavailable, falls back to:
+   *
+   * GET /gunny-bags/:id
+   * ==========================================================
+   */
+  const loadBharthiTypes = async (
+    bagId: string
+  ): Promise<
+    GunnyBagBharthiType[]
+  > => {
+    if (!bagId) {
+      return [];
+    }
+
+    /**
+     * Check cached options first.
+     */
+    const cached =
+      bharthiOptions[bagId];
+
+    if (
+      cached &&
+      cached.length > 0
+    ) {
+      return cached;
+    }
+
+    /**
+     * Find selected Gunny Bag.
+     */
+    const bag =
+      bagOptions.find(
+        (item) =>
+          item.id === bagId
+      );
+
+    /**
+     * Use Bharthi types already
+     * returned by Gunny Bag list.
+     */
+    if (
+      bag?.bharthi_types &&
+      bag.bharthi_types.length > 0
+    ) {
+      const types =
+        bag.bharthi_types;
+
+      setBharthiOptions(
+        (previous) => ({
+          ...previous,
+
+          [bagId]: types,
+        })
+      );
+
+      return types;
+    }
+
+    /**
+     * Fallback to Gunny Bag details API.
+     */
+    try {
+      setBharthiLoading(
+        (previous) => ({
+          ...previous,
+
+          [bagId]: true,
+        })
+      );
+
+      const details =
+        await getGunnyBag(
+          bagId
+        );
+
+      const types =
+        details.bharthi_types ?? [];
+
+      setBharthiOptions(
+        (previous) => ({
+          ...previous,
+
+          [bagId]: types,
+        })
+      );
+
+      return types;
+    } catch (error: unknown) {
+      console.error(
+        "Load Bharthi Types error:",
+        error
+      );
+
+      toast.error(
+        "Failed to load Bharthi Types."
+      );
+
+      return [];
+    } finally {
+      setBharthiLoading(
+        (previous) => ({
+          ...previous,
+
+          [bagId]: false,
+        })
+      );
+    }
+  };
+
+  /**
+   * ==========================================================
+   * Initialize form when modal opens.
+   * ==========================================================
+   */
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    /**
+     * Load dropdown master data.
+     */
+    void loadSuppliers();
+
+    void loadGunnyBags();
+
+    /**
+     * Edit existing purchase.
+     */
+    if (purchase) {
+      const initialLines:
+        BagPurchaseLine[] =
+        (
+          purchase.lines ?? []
+        ).map(
+          (
+            line: BagPurchaseLineResponse
+          ) => {
+            const bharthiValue =
+              normalizeBharthiValue(
+                line.bharthi
+              );
+
+            return {
+              id: line.id,
+
+              bagId:
+                line.gunny_bag_id ??
+                line.bag_type_id ??
+                "",
+
+              bagName:
+                line.gunny_bag_name ??
+                line.gunny_bag_code ??
+                line.bag_name ??
+                line.bag_code ??
+                "",
+
+              bharthi:
+                bharthiValue,
+
+              bharthiCode:
+                line.bharthi_code ??
+                (
+                  bharthiValue !==
+                  undefined
+                    ? `B${bharthiValue}`
+                    : ""
+                ),
+
+              quantity:
+                Number(
+                  line.quantity ?? 0
+                ),
+
+              rate:
+                Number(
+                  line.rate ?? 0
+                ),
+
+              amount:
+                Number(
+                  line.amount ?? 0
+                ),
+            };
+          }
+        );
+
+      const lines =
+        initialLines.length > 0
+          ? initialLines
+          : [
+              createEmptyLine(),
+            ];
+
+      replace(lines);
+
+      reset({
+        date:
+          purchase.purchase_date ??
+          new Date()
+            .toISOString()
+            .slice(0, 10),
+
+        supplierId:
+          purchase.supplier_id ??
+          "",
+
+        remarks:
+          purchase.remarks ??
+          "",
+
+        lines,
+      });
+
+      /**
+       * Load Bharthi options for
+       * existing purchase lines.
+       */
+      lines.forEach(
+        (line) => {
+          if (line.bagId) {
+            void loadBharthiTypes(
+              line.bagId
+            );
+          }
+        }
+      );
+    } else {
+      /**
+       * New purchase.
+       */
+      const lines = [
+        createEmptyLine(),
+      ];
+
+      replace(lines);
+
+      reset({
+        date: new Date()
+          .toISOString()
+          .slice(0, 10),
+
+        supplierId: "",
+
+        remarks: "",
+
+        lines,
+      });
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    open,
+    purchase,
+    reset,
+    replace,
+  ]);
+
+  /**
+   * ==========================================================
+   * Watched Lines
+   * ==========================================================
+   */
+  const watchedLines =
+    watch("lines") ?? [];
+
+  /**
+   * ==========================================================
+   * Compute Line Amount
+   * ==========================================================
+   */
+  const computeLineAmount = (
+    index: number
+  ) => {
+    const line =
+      watchedLines[index];
+
+    if (!line) {
+      return;
+    }
+
+    const quantity =
+      Number(
+        line.quantity ?? 0
+      );
+
+    const rate =
+      Number(
+        line.rate ?? 0
+      );
+
+    const amount =
+      quantity * rate;
+
+    setValue(
+      `lines.${index}.amount`,
+      amount,
+      {
+        shouldDirty: true,
+      }
+    );
+  };
+
+  /**
+   * ==========================================================
+   * Total Amount
+   * ==========================================================
+   */
+  const modalTotal = useMemo(
+    () =>
+      watchedLines.reduce(
+        (
+          total: number,
+          line: BagPurchaseLine
+        ) =>
+          total +
+          Number(
+            line.amount ?? 0
+          ),
+        0
+      ),
+    [watchedLines]
+  );
+
+  /**
+   * ==========================================================
+   * Add Line
+   * ==========================================================
    */
   const addLine = () => {
-    append({ id: String(Date.now()) + Math.random().toString(36).slice(2, 8), bagId: '', bagName: '', quantity: 0, rate: 0, amount: 0 })
-  }
+    append(
+      createEmptyLine()
+    );
+  };
 
   /**
-   * @function handleBagSelect
-   * @description When bag is selected, populate rate from gunny master.
+   * ==========================================================
+   * Select Gunny Bag
+   *
+   * IMPORTANT:
+   *
+   * Dropdown value = Gunny Bag ID
+   *
+   * Dropdown label = Gunny Bag NAME
+   *
+   * Example:
+   *
+   * <option value="GB1">
+   *   HD Gunny Bag
+   * </option>
+   *
+   * Internally:
+   *
+   * bagId = "GB1"
+   *
+   * UI:
+   *
+   * HD Gunny Bag
+   *
+   * After selection:
+   *
+   * 1. Rate is automatically loaded.
+   * 2. Bharthi types are automatically loaded.
+   * 3. Bharthi dropdown becomes enabled.
+   * ==========================================================
    */
-  const handleBagSelect = (index: number, bagId: string) => {
-    const bag = gunnyBags.find((b) => b.id === bagId)
-    if (bag) {
-      setValue(`lines.${index}.rate`, bag.defaultRate ?? 0, { shouldDirty: true })
-      setValue(`lines.${index}.bagName`, (bag as any).code ?? (bag as any).id ?? '', { shouldDirty: true })
-      // compute amount after setting rate
-      setTimeout(() => computeLineAmount(index), 0)
+  const handleBagSelect = async (
+  index: number,
+  bagId: string
+) => {
+  const selectedBagId =
+    String(bagId ?? "").trim();
+
+  console.log(
+    `Selected Gunny Bag [line ${index + 1}]:`,
+    selectedBagId
+  );
+
+  /**
+   * Store Gunny Bag ID.
+   */
+  setValue(
+    `lines.${index}.bagId`,
+    selectedBagId,
+    {
+      shouldDirty: true,
+      shouldValidate: true,
     }
+  );
+
+  /**
+   * Clear old Bharthi.
+   */
+  setValue(
+    `lines.${index}.bharthi`,
+    undefined,
+    {
+      shouldDirty: true,
+    }
+  );
+
+  setValue(
+    `lines.${index}.bharthiCode`,
+    "",
+    {
+      shouldDirty: true,
+    }
+  );
+
+  /**
+   * No bag selected.
+   */
+  if (!selectedBagId) {
+    setValue(
+      `lines.${index}.bagName`,
+      "",
+      {
+        shouldDirty: true,
+      }
+    );
+
+    setValue(
+      `lines.${index}.rate`,
+      0,
+      {
+        shouldDirty: true,
+      }
+    );
+
+    setValue(
+      `lines.${index}.amount`,
+      0,
+      {
+        shouldDirty: true,
+      }
+    );
+
+    return;
   }
 
   /**
-   * @function submit
-   * @description Validates and emits the composed BagPurchase object.
+   * Find selected Gunny Bag.
    */
-  const submit = (values: FieldValues, resetAfter = false) => {
-    const supplier = suppliers.find((s) => s.id === values.supplierId) as Supplier | undefined
+  const bag = bagOptions.find(
+    (item) =>
+      String(item.id) ===
+      selectedBagId
+  );
+
+  if (!bag) {
+    console.error(
+      "Selected Gunny Bag not found:",
+      selectedBagId
+    );
+
+    return;
+  }
+
+  /**
+   * Store Gunny Bag name.
+   */
+  setValue(
+    `lines.${index}.bagName`,
+    bag.name,
+    {
+      shouldDirty: true,
+    }
+  );
+
+  /**
+   * Automatically populate rate.
+   */
+  const rate = Number(
+    bag.rate_per_bag ?? 0
+  );
+
+  setValue(
+    `lines.${index}.rate`,
+    rate,
+    {
+      shouldDirty: true,
+    }
+  );
+
+  /**
+   * Load Bharthi types.
+   */
+  const types =
+    await loadBharthiTypes(
+      selectedBagId
+    );
+
+  /**
+   * Get latest quantity from form.
+   */
+  const quantity = Number(
+    watch(
+      `lines.${index}.quantity`
+    ) ?? 0
+  );
+
+  setValue(
+    `lines.${index}.amount`,
+    quantity * rate,
+    {
+      shouldDirty: true,
+    }
+  );
+
+  /**
+   * No Bharthi types.
+   */
+  if (types.length === 0) {
+    setValue(
+      `lines.${index}.bharthi`,
+      undefined,
+      {
+        shouldDirty: true,
+      }
+    );
+
+    setValue(
+      `lines.${index}.bharthiCode`,
+      "",
+      {
+        shouldDirty: true,
+      }
+    );
+  }
+};
+
+  /**
+   * ==========================================================
+   * Select Bharthi
+   *
+   * UI examples:
+   *
+   * 120-Bharthi
+   * 150-Bharthi
+   * 180-Bharthi
+   * 200-Bharthi
+   *
+   * Internally stored:
+   *
+   * 120
+   * 150
+   * 180
+   * 200
+   * ==========================================================
+   */
+  const handleBharthiSelect = (
+    index: number,
+    value: string
+  ) => {
+    /**
+     * Clear selection.
+     */
+    if (!value) {
+      setValue(
+        `lines.${index}.bharthi`,
+        undefined,
+        {
+          shouldDirty: true,
+        }
+      );
+
+      setValue(
+        `lines.${index}.bharthiCode`,
+        "",
+        {
+          shouldDirty: true,
+        }
+      );
+
+      return;
+    }
+
+    /**
+     * Convert:
+     *
+     * "120-Bharthi"
+     *
+     * to:
+     *
+     * 120
+     */
+    const bharthi =
+      normalizeBharthiValue(
+        value
+      );
+
+    if (
+      bharthi === undefined
+    ) {
+      return;
+    }
+
+    /**
+     * Current Gunny Bag ID.
+     */
+    const bagId =
+      watchedLines[index]
+        ?.bagId ?? "";
+
+    /**
+     * Bharthi options for
+     * selected Gunny Bag.
+     */
+    const options =
+      bharthiOptions[
+        bagId
+      ] ?? [];
+
+    /**
+     * Find selected Bharthi row.
+     */
+    const selected =
+      options.find(
+        (item) =>
+          normalizeBharthiValue(
+            item.bharthi
+          ) === bharthi
+      );
+
+    /**
+     * Store numeric Bharthi.
+     */
+    setValue(
+      `lines.${index}.bharthi`,
+      bharthi,
+      {
+        shouldDirty: true,
+      }
+    );
+
+    /**
+     * Store Bharthi code.
+     */
+    setValue(
+      `lines.${index}.bharthiCode`,
+      selected?.bharthi_code ??
+        `B${bharthi}`,
+      {
+        shouldDirty: true,
+      }
+    );
+  };
+
+  /**
+   * ==========================================================
+   * Submit
+   * ==========================================================
+   */
+  /**
+ * ==========================================================
+ * Submit
+ * ==========================================================
+ */
+const submit = async (
+  values: BagPurchaseFormValues,
+  resetAfter = false
+) => {
+  try {
+    /**
+     * ==========================================================
+     * Supplier validation
+     * ==========================================================
+     */
     if (!values.supplierId) {
-      toast.error('Please choose a supplier.')
-      return
-    }
-    const lines: BagPurchaseLine[] = (values.lines || [])
-      .map((ln: any) => {
-        const bag = gunnyBags.find((b) => b.id === ln.bagId)
-        const qty = Number(ln.quantity || 0)
-        if (!ln.bagId || qty <= 0) return null
-        return {
-          id: ln.id ?? String(Date.now()) + Math.random().toString(36).slice(2, 8),
-          bagId: ln.bagId,
-          bagName: bag ? (bag as any).code ?? (bag as any).id : '',
-          quantity: qty,
-          rate: Number(ln.rate || 0),
-          amount: Number((qty * Number(ln.rate || 0)) || 0),
-        } as BagPurchaseLine
-      })
-      .filter(Boolean) as BagPurchaseLine[]
+      toast.error(
+        "Please choose a supplier."
+      );
 
-    if (lines.length === 0) {
-      toast.error('Add at least one line with a bag and positive quantity.')
-      return
+      return;
     }
 
-    const total = lines.reduce((s, l) => s + l.amount, 0)
-    const purchase: BagPurchase = {
-      id: `BP-${Date.now()}`,
-      date: values.date ?? new Date().toISOString().slice(0, 10),
-      supplierId: values.supplierId,
-      supplierName: supplier?.name ?? '',
-      remarks: values.remarks ?? '',
-      lines,
-      totalAmount: total,
+    /**
+     * ==========================================================
+     * Validate form lines first.
+     * ==========================================================
+     */
+    if (
+      !values.lines ||
+      values.lines.length === 0
+    ) {
+      toast.error(
+        "Add at least one purchase line."
+      );
+
+      return;
     }
-    onSave(purchase, resetAfter)
+
+    /**
+     * Validate every line.
+     */
+    for (
+      let index = 0;
+      index < values.lines.length;
+      index++
+    ) {
+      const line =
+        values.lines[index];
+
+      const gunnyBagId =
+        String(
+          line.bagId ?? ""
+        ).trim();
+
+      const quantity =
+        Number(
+          line.quantity ?? 0
+        );
+
+      /**
+       * Gunny Bag required.
+       */
+      if (!gunnyBagId) {
+        toast.error(
+          `Gunny Bag is required for line ${index + 1}.`
+        );
+
+        return;
+      }
+
+      /**
+       * Quantity required.
+       */
+      if (
+        !Number.isFinite(quantity) ||
+        quantity <= 0
+      ) {
+        toast.error(
+          `Quantity must be greater than 0 for line ${index + 1}.`
+        );
+
+        return;
+      }
+
+      /**
+       * Bharthi options for selected bag.
+       */
+      const options =
+        bharthiOptions[
+          gunnyBagId
+        ] ?? [];
+
+      /**
+       * Bharthi required if bag
+       * has Bharthi types.
+       */
+      if (
+        options.length > 0 &&
+        (
+          line.bharthi ===
+            undefined ||
+          line.bharthi === null ||
+          Number.isNaN(
+            Number(line.bharthi)
+          )
+        )
+      ) {
+        toast.error(
+          `Please select Bharthi Type for line ${index + 1}.`
+        );
+
+        return;
+      }
+    }
+
+    /**
+     * ==========================================================
+     * Build API lines AFTER validation.
+     * ==========================================================
+     */
+    const lines: BagPurchaseSavePayload["lines"] =
+      values.lines.map(
+        (
+          line: BagPurchaseLine
+        ) => {
+          const gunnyBagId =
+            String(
+              line.bagId ?? ""
+            ).trim();
+
+          const quantity =
+            Number(
+              line.quantity ?? 0
+            );
+
+          const rate =
+            Number(
+              line.rate ?? 0
+            );
+
+          const bharthi =
+            line.bharthi !==
+              undefined &&
+            line.bharthi !== null &&
+            !Number.isNaN(
+              Number(line.bharthi)
+            )
+              ? Number(
+                  line.bharthi
+                )
+              : undefined;
+
+          return {
+            id: line.id,
+
+            gunny_bag_id:
+              gunnyBagId,
+
+            bharthi,
+
+            quantity,
+
+            rate,
+          };
+        }
+      );
+
+    /**
+     * ==========================================================
+     * Final payload
+     * ==========================================================
+     */
+    const payload:
+      BagPurchaseSavePayload = {
+        purchase_date:
+          values.date,
+
+        supplier_id:
+          values.supplierId,
+
+        remarks:
+          values.remarks?.trim()
+            ? values.remarks.trim()
+            : undefined,
+
+        lines,
+      };
+
+    /**
+     * IMPORTANT DEBUG
+     */
+    console.log(
+      "======================================"
+    );
+
+    console.log(
+      "FINAL BAG PURCHASE PAYLOAD:"
+    );
+
+    console.log(
+      JSON.stringify(
+        payload,
+        null,
+        2
+      )
+    );
+
+    console.log(
+      "LINE 1 GUNNY BAG ID:",
+      payload.lines[0]
+        ?.gunny_bag_id
+    );
+
+    console.log(
+      "======================================"
+    );
+
+    /**
+     * ==========================================================
+     * API call
+     * ==========================================================
+     */
+    if (purchase?.id) {
+      await updateBagPurchase(
+        purchase.id,
+        payload
+      );
+    } else {
+      await createBagPurchase(
+        payload
+      );
+    }
+
+    /**
+     * ==========================================================
+     * Parent reload
+     * ==========================================================
+     */
+    await onSave(
+      resetAfter
+    );
+
+    /**
+     * ==========================================================
+     * Save & New
+     * ==========================================================
+     */
     if (resetAfter) {
-      // reset to a fresh form for new entry
+      const newLine =
+        createEmptyLine();
+
       reset({
-        date: new Date().toISOString().slice(0, 10),
-        supplierId: '',
-        remarks: '',
-        lines: [{ id: String(Date.now()), bagId: '', bagName: '', quantity: 0, rate: 0, amount: 0 }],
-      })
+        date: new Date()
+          .toISOString()
+          .slice(0, 10),
+
+        supplierId: "",
+
+        remarks: "",
+
+        lines: [
+          newLine,
+        ],
+      });
+
+      replace([
+        newLine,
+      ]);
+
+      setBharthiOptions({});
+
+      setBharthiLoading({});
     }
+  } catch (error: unknown) {
+    console.error(
+      "Save Bag Purchase error:",
+      error
+    );
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to save Bag Purchase";
+
+    toast.error(message);
+  }
+};
+  /**
+   * ==========================================================
+   * Do not render when closed.
+   * ==========================================================
+   */
+  if (!open) {
+    return null;
   }
 
-  if (!open) return null
-
+  /**
+   * ==========================================================
+   * Render
+   * ==========================================================
+   */
   return (
-    <ResponsiveModal open={open} onClose={onClose} title="Bag Purchase">
+    <ResponsiveModal
+      open={open}
+      onClose={onClose}
+      title={
+        purchase
+          ? "Edit Bag Purchase"
+          : "New Bag Purchase"
+      }
+    >
       <form
-        onSubmit={handleSubmit((vals) => submit(vals, false))}
+        onSubmit={handleSubmit(
+          (
+            values: BagPurchaseFormValues
+          ) =>
+            void submit(
+              values,
+              false
+            )
+        )}
         className="space-y-3 text-xs"
       >
-        <div className="grid md:grid-cols-3 gap-3">
-          <div>
-            <label className="mb-1 block text-[11px] font-medium text-slate-700">Date</label>
-            <input type="date" className="w-full rounded-full border border-slate-200 px-3 py-1.5" {...register('date', { required: true })} />
-          </div>
+        {/* HEADER */}
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          {/* PURCHASE DATE */}
 
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-slate-700">Supplier</label>
-            <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-[13px]" {...register('supplierId', { required: true })} defaultValue={defaultValues?.supplierId ?? ''}>
-              <option value="">Select supplier</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.code})
-                </option>
-              ))}
+            <label className="mb-1 block text-[11px] font-medium text-slate-700">
+              Purchase Date
+            </label>
+
+            <input
+              type="date"
+              className="w-full rounded-full border border-slate-200 px-3 py-1.5"
+              {...register(
+                "date",
+                {
+                  required: true,
+                }
+              )}
+            />
+          </div>
+
+          {/* SUPPLIER */}
+
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-slate-700">
+              Supplier
+            </label>
+
+            <select
+              className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-[13px]"
+              {...register(
+                "supplierId",
+                {
+                  required: true,
+                }
+              )}
+              disabled={
+                supplierLoading
+              }
+            >
+              <option value="">
+                {supplierLoading
+                  ? "Loading suppliers..."
+                  : "Select supplier"}
+              </option>
+
+              {supplierOptions.map(
+                (
+                  supplier: SupplierResponse
+                ) => (
+                  <option
+                    key={
+                      supplier.id
+                    }
+                    value={
+                      supplier.id
+                    }
+                  >
+                    {supplier.name} (
+                    {
+                      supplier.code
+                    }
+                    )
+                  </option>
+                )
+              )}
             </select>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-[11px] font-medium text-slate-700">Remarks</label>
-            <input type="text" className="w-full rounded-full border border-slate-200 px-3 py-1.5" {...register('remarks')} />
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-100 overflow-x-auto">
+        {/* REMARKS */}
+
+        <div>
+          <label className="mb-1 block text-[11px] font-medium text-slate-700">
+            Remarks
+          </label>
+
+          <input
+            type="text"
+            className="w-full rounded-full border border-slate-200 px-3 py-1.5"
+            {...register(
+              "remarks"
+            )}
+          />
+        </div>
+
+        {/* DETAILS */}
+
+        <div className="overflow-x-auto rounded-2xl border border-slate-100">
           <table className="min-w-full text-[12px]">
             <thead className="bg-slate-50 text-slate-600">
               <tr>
-                <th className="px-3 py-2 text-left">Bag</th>
-                <th className="px-3 py-2 text-left w-28">Qty</th>
-                <th className="px-3 py-2 text-left w-28">Rate</th>
-                <th className="px-3 py-2 text-left w-36">Amount</th>
-                <th className="px-3 py-2 text-right w-28">Actions</th>
+                <th className="min-w-[180px] px-3 py-2 text-left">
+                  Bag
+                </th>
+
+                <th className="min-w-[170px] px-3 py-2 text-left">
+                  Bharthi Type
+                </th>
+
+                <th className="w-28 px-3 py-2 text-left">
+                  Qty
+                </th>
+
+                <th className="w-28 px-3 py-2 text-left">
+                  Rate
+                </th>
+
+                <th className="w-36 px-3 py-2 text-left">
+                  Amount
+                </th>
+
+                <th className="w-28 px-3 py-2 text-right">
+                  Actions
+                </th>
               </tr>
             </thead>
+
             <tbody>
-              {fields.map((f, idx) => {
-                const line = (watchedLines && watchedLines[idx]) || {}
-                return (
-                  <tr key={f.id} className="border-t border-slate-100">
-                    <td className="px-3 py-2">
-                      <select
-                        className="w-full rounded-full border border-slate-200 px-2 py-1 text-[13px]"
-                        {...register(`lines.${idx}.bagId` as const)}
-                        defaultValue={line?.bagId ?? ''}
-                        onChange={(e) => handleBagSelect(idx, e.target.value)}
-                      >
-                        <option value="">Select bag</option>
-                        {gunnyBags.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {(b as any).code ?? b.id} - {b.bharthi} bharthi
+              {fields.map(
+                (
+                  field,
+                  index
+                ) => {
+                  /**
+                   * Current form line.
+                   */
+                  const currentLine:
+                    BagPurchaseLine =
+                    watchedLines[
+                      index
+                    ] ??
+                    createEmptyLine();
+
+                  /**
+                   * Bharthi options for
+                   * selected Gunny Bag.
+                   */
+                  const options =
+                    bharthiOptions[
+                      currentLine
+                        .bagId
+                    ] ?? [];
+
+                  /**
+                   * Loading state.
+                   */
+                  const isLoading =
+                    bharthiLoading[
+                      currentLine
+                        .bagId
+                    ] ?? false;
+
+                  return (
+                    <tr
+                      key={
+                        field.id
+                      }
+                      className="border-t border-slate-100"
+                    >
+                      {/* BAG */}
+<td className="px-3 py-2">
+  <select
+    className="w-full rounded-full border border-slate-200 px-2 py-1 text-[13px]"
+    {...register(`lines.${index}.bagId`, {
+      required: true,
+      onChange: (
+        event: React.ChangeEvent<HTMLSelectElement>
+      ) => {
+        void handleBagSelect(
+          index,
+          event.target.value
+        );
+      },
+    })}
+    value={currentLine.bagId ?? ""}
+    disabled={bagLoading}
+  >
+    <option value="">
+      {bagLoading
+        ? "Loading bags..."
+        : "Select bag"}
+    </option>
+
+    {bagOptions.map(
+      (bag: GunnyBagResponse) => (
+        <option
+          key={bag.id}
+          value={bag.id}
+        >
+          {bag.name}
+        </option>
+      )
+    )}
+  </select>
+</td>
+
+                      {/* BHARTHI */}
+
+                      <td className="px-3 py-2">
+                        <select
+                          className="w-full rounded-full border border-slate-200 px-2 py-1 text-[13px]"
+                          value={
+                            currentLine.bharthi !==
+                            undefined
+                              ? String(
+                                  currentLine.bharthi
+                                )
+                              : ""
+                          }
+                          disabled={
+                            !currentLine.bagId ||
+                            isLoading
+                          }
+                          onChange={(
+                            event
+                          ) =>
+                            handleBharthiSelect(
+                              index,
+                              event
+                                .target
+                                .value
+                            )
+                          }
+                        >
+                          <option value="">
+                            {isLoading
+                              ? "Loading..."
+                              : currentLine.bagId
+                              ? "Select Bharthi"
+                              : "Select bag first"}
                           </option>
-                        ))}
-                      </select>
-                    </td>
 
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        className="w-20 rounded-full border border-slate-200 px-2 py-1"
-                        {...register(`lines.${idx}.quantity` as const, { valueAsNumber: true })}
-                        defaultValue={line?.quantity ?? 0}
-                        onBlur={() => computeLineAmount(idx)}
-                      />
-                    </td>
+                          {options.map(
+                            (
+                              item
+                            ) => {
+                              /**
+                               * Display value.
+                               *
+                               * Supports:
+                               *
+                               * 120
+                               * "120"
+                               * "120-Bharthi"
+                               */
+                              const numericBharthi =
+                                normalizeBharthiValue(
+                                  item.bharthi
+                                );
 
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="w-24 rounded-full border border-slate-200 px-2 py-1"
-                        {...register(`lines.${idx}.rate` as const, { valueAsNumber: true })}
-                        defaultValue={line?.rate ?? 0}
-                        onBlur={() => computeLineAmount(idx)}
-                      />
-                    </td>
+                              const displayBharthi =
+                                String(
+                                  item.bharthi
+                                ).toLowerCase()
+                                  .includes(
+                                    "bharthi"
+                                  )
+                                  ? String(
+                                      item.bharthi
+                                    )
+                                  : `${item.bharthi}-Bharthi`;
 
-                    <td className="px-3 py-2">
-                      <div className="w-28 rounded-full border border-slate-200 px-2 py-1 bg-slate-50 text-right">
-                        {Number(line?.amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                      </div>
-                    </td>
+                              return (
+                                <option
+                                  key={
+                                    item.id
+                                  }
+                                  value={
+                                    numericBharthi !==
+                                    undefined
+                                      ? String(
+                                          numericBharthi
+                                        )
+                                      : String(
+                                          item.bharthi
+                                        )
+                                  }
+                                >
+                                  {
+                                    displayBharthi
+                                  }
+                                </option>
+                              );
+                            }
+                          )}
+                        </select>
+                      </td>
 
-                    <td className="px-3 py-2 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button type="button" onClick={() => remove(idx)} className="rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-[11px] text-rose-700 hover:bg-rose-100">
-                          Remove
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
+                      {/* QUANTITY */}
+
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          className="w-20 rounded-full border border-slate-200 px-2 py-1"
+                          {...register(
+                            `lines.${index}.quantity`,
+                            {
+                              valueAsNumber:
+                                true,
+                            }
+                          )}
+                          onBlur={() =>
+                            computeLineAmount(
+                              index
+                            )
+                          }
+                        />
+                      </td>
+
+                      {/* RATE */}
+
+                      <td className="px-3 py-2">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="w-24 rounded-full border border-slate-200 px-2 py-1"
+                          {...register(
+                            `lines.${index}.rate`,
+                            {
+                              valueAsNumber:
+                                true,
+                            }
+                          )}
+                          onBlur={() =>
+                            computeLineAmount(
+                              index
+                            )
+                          }
+                        />
+                      </td>
+
+                      {/* AMOUNT */}
+
+                      <td className="px-3 py-2">
+                        <div className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-right">
+                          {Number(
+                            currentLine.amount
+                          ).toLocaleString(
+                            "en-IN",
+                            {
+                              maximumFractionDigits: 2,
+                            }
+                          )}
+                        </div>
+                      </td>
+
+                      {/* ACTIONS */}
+
+                      <td className="px-3 py-2 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              remove(
+                                index
+                              )
+                            }
+                            disabled={
+                              fields.length ===
+                              1
+                            }
+                            className="rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-[11px] text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+              )}
             </tbody>
           </table>
         </div>
 
+        {/* FOOTER */}
+
         <div className="flex items-center justify-between border-t border-slate-100 pt-3">
           <div className="text-[12px] text-slate-600">
-            <div>Lines: {(watchedLines || []).length}</div>
-            <div className="mt-1 font-medium">Total: ₹ {modalTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</div>
+            <div>
+              Lines:{" "}
+              {
+                watchedLines.length
+              }
+            </div>
+
+            <div className="mt-1 font-medium">
+              Total: ₹{" "}
+              {modalTotal.toLocaleString(
+                "en-IN",
+                {
+                  maximumFractionDigits: 2,
+                }
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button type="button" onClick={addLine} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-100">
+            {/* ADD LINE */}
+
+            <button
+              type="button"
+              onClick={addLine}
+              className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-100"
+            >
               Add Line
             </button>
 
-            <button type="button" onClick={handleSubmit((vals) => submit(vals, true))} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-100">
-              Save & New
+            {/* SAVE & NEW */}
+
+            {!purchase && (
+              <button
+                type="button"
+                onClick={handleSubmit(
+                  (
+                    values: BagPurchaseFormValues
+                  ) =>
+                    void submit(
+                      values,
+                      true
+                    )
+                )}
+                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-100"
+              >
+                Save & New
+              </button>
+            )}
+
+            {/* SAVE / UPDATE */}
+
+            <button
+              type="submit"
+              className="rounded-full bg-[#2E7D32] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#256427]"
+            >
+              {purchase
+                ? "Update"
+                : "Save"}
             </button>
 
-            <button type="submit" className="rounded-full bg-[#2E7D32] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#256427]">
-              Save
-            </button>
+            {/* CLOSE */}
 
-            <button type="button" onClick={onClose} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
+            <button
+              type="button"
+              onClick={
+                onClose
+              }
+              className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
               Close
             </button>
           </div>
         </div>
       </form>
     </ResponsiveModal>
-  )
-}
+  );
+};
 
-export default BagPurchaseModal
+export default BagPurchaseModal;

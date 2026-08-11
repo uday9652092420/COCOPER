@@ -5,6 +5,7 @@ import gunnyBagRoutes from "../modules/gunnybag/gunnybag.routes.js";
 import supplierRoutes from "../modules/suppliers/supplier.routes.js";
 import customerRoutes from "../modules/customer/customer.routes.js";
 import labourStaffRoutes from "../modules/labourstaff/labourstaff.routes.js";
+import bagPurchaseRoutes from "../modules/bagpurchase/bagpurchase.routes.js";
 
 const router = Router();
 
@@ -15,5 +16,8 @@ router.use("/gunny-bags", gunnyBagRoutes);
 router.use("/suppliers", supplierRoutes);
 router.use("/customers", customerRoutes);
 router.use( "/labour-staff",labourStaffRoutes);
-
+router.use(
+  "/bag-purchases",
+  bagPurchaseRoutes
+);
 export default router;

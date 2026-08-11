@@ -15,6 +15,7 @@ export interface GunnyBagResponse {
   opening_stock: number;
   status: "Active" | "Inactive";
   created_at: string;
+  bharthi_types?: GunnyBagBharthiType[];
 }
 
 /**

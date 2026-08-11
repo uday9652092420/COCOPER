@@ -1,70 +1,257 @@
 /**
  * @file BagPurchasePage.tsx
- * @description Master screen to manage Bag Purchases. Allows creating purchases via a modal
- *              (multiple lines) and viewing the list in a grid with row actions.
+ * @description Master screen to manage Bag Purchases.
  */
 
-import React, { useState } from 'react'
-import { PageHeader } from '../../components/common/PageHeader'
-import Toolbar from '../../components/common/Toolbar'
-import DataGrid, { type ColumnDef } from '../../components/common/DataGrid'
-import { ConfirmDialog } from '../../components/common/ConfirmDialog'
-import BagPurchaseModal, { type BagPurchase } from './components/BagPurchaseModal'
-import { toast } from 'sonner'
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 
-/**
- * @component BagPurchasePage
- * @description Page that lists bag purchases and provides Add New flow using BagPurchaseModal.
- */
+import { toast } from "sonner";
+
+import { PageHeader } from "../../components/common/PageHeader";
+import Toolbar from "../../components/common/Toolbar";
+
+import DataGrid, {
+  type ColumnDef,
+} from "../../components/common/DataGrid";
+
+import { ConfirmDialog } from "../../components/common/ConfirmDialog";
+
+import BagPurchaseModal from "./components/BagPurchaseModal";
+
+import {
+  getBagPurchases,
+  deleteBagPurchase,
+  type BagPurchaseResponse,
+} from "../../services/bagpurchaseservices/bagpurchase.service";
 const BagPurchasePage: React.FC = () => {
-  const [purchases, setPurchases] = useState<BagPurchase[]>([])
-  const [modalOpen, setModalOpen] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState<BagPurchase | null>(null)
+  const [purchases, setPurchases] = useState<
+    BagPurchaseResponse[]
+  >([]);
+
+  const [modalOpen, setModalOpen] =
+    useState(false);
+
+  const [editingPurchase, setEditingPurchase] =
+    useState<BagPurchaseResponse | null>(null);
+
+  const [confirmDelete, setConfirmDelete] =
+    useState<BagPurchaseResponse | null>(null);
+
+  const [loading, setLoading] =
+    useState(false);
 
   /**
-   * @function handleSave
-   * @description Save a new bag purchase to local state.
+   * Load purchases from backend.
    */
-  const handleSave = (purchase: BagPurchase, resetAfter: boolean) => {
-    setPurchases((prev) => [purchase, ...prev])
-    toast.success('Bag purchase saved.')
+  const loadPurchases = useCallback(
+    async () => {
+      try {
+        setLoading(true);
+
+        const data = await getBagPurchases();
+
+        setPurchases(data);
+      } catch (error: unknown) {
+        console.error(
+          "Load Bag Purchases error:",
+          error
+        );
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to load Bag Purchases";
+
+        toast.error(message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  /**
+   * Initial load.
+   */
+  useEffect(() => {
+    void loadPurchases();
+  }, [loadPurchases]);
+
+  /**
+   * Open Add.
+   */
+  const handleAdd = () => {
+    setEditingPurchase(null);
+    setModalOpen(true);
+  };
+
+  /**
+   * Open Edit.
+   */
+  const handleEdit = (
+    purchase: BagPurchaseResponse
+  ) => {
+    setEditingPurchase(purchase);
+    setModalOpen(true);
+  };
+
+  /**
+   * Called after modal successfully saves.
+   */
+  const handleSave = async (
+    resetAfter: boolean
+  ) => {
+    await loadPurchases();
+
+    toast.success(
+      editingPurchase
+        ? "Bag purchase updated."
+        : "Bag purchase saved."
+    );
+
     if (!resetAfter) {
-      setModalOpen(false)
+      setModalOpen(false);
+      setEditingPurchase(null);
     }
-  }
+  };
 
   /**
-   * @function handleDelete
-   * @description Delete a purchase after confirmation.
+   * Delete purchase.
    */
-  const handleDelete = () => {
-    if (!confirmDelete) return
-    setPurchases((prev) => prev.filter((p) => p.id !== confirmDelete.id))
-    toast.success('Purchase deleted.')
-    setConfirmDelete(null)
-  }
+  const handleDelete = async () => {
+    if (!confirmDelete) {
+      return;
+    }
 
-  const columns: ColumnDef<BagPurchase>[] = [
-    { key: 'date', label: 'Date', render: (r) => r.date },
-    { key: 'supplier', label: 'Supplier', render: (r) => r.supplierName ?? r.supplierId },
-    { key: 'remarks', label: 'Remarks', render: (r) => (r.remarks ? String(r.remarks).slice(0, 80) : '') },
-    { key: 'lines', label: 'Lines', render: (r) => String((r.lines || []).length) },
-    { key: 'totalAmount', label: 'Total Amount', render: (r) => `₹ ${Number(r.totalAmount || 0).toLocaleString('en-IN')}` },
+    try {
+      await deleteBagPurchase(
+        confirmDelete.id
+      );
+
+      toast.success(
+        "Purchase deleted."
+      );
+
+      setConfirmDelete(null);
+
+      await loadPurchases();
+    } catch (error: unknown) {
+      console.error(
+        "Delete Bag Purchase error:",
+        error
+      );
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to delete purchase";
+
+      toast.error(message);
+    }
+  };
+
+  /**
+   * DataGrid columns.
+   *
+   * IMPORTANT:
+   * ColumnDef is generic, so it must receive
+   * BagPurchaseResponse as its type argument.
+   */
+  const columns: ColumnDef<BagPurchaseResponse>[] = [
     {
-      key: 'actions',
-      label: 'Actions',
-      render: (r: BagPurchase) => (
-        <div className="flex gap-2">
+      key: "purchase_no",
+      label: "Purchase No",
+      render: (
+        r: BagPurchaseResponse
+      ) => r.purchase_no,
+    },
+
+    {
+  key: "purchase_date",
+  label: "Date",
+  render: (
+    r: BagPurchaseResponse
+  ) =>
+    r.purchase_date
+      ? new Date(r.purchase_date).toLocaleDateString("en-IN")
+      : "",
+},
+
+    {
+      key: "supplier",
+      label: "Supplier",
+      render: (
+        r: BagPurchaseResponse
+      ) =>
+        r.supplier_name ??
+        r.supplier_code ??
+        r.supplier_id,
+    },
+
+    {
+      key: "remarks",
+      label: "Remarks",
+      render: (
+        r: BagPurchaseResponse
+      ) =>
+        r.remarks
+          ? String(r.remarks).slice(
+              0,
+              80
+            )
+          : "",
+    },
+
+    {
+      key: "lines",
+      label: "Lines",
+      render: (
+        r: BagPurchaseResponse
+      ) =>
+        String(
+          r.lines?.length ?? 0
+        ),
+    },
+
+    {
+      key: "total_amount",
+      label: "Total Amount",
+      render: (
+        r: BagPurchaseResponse
+      ) =>
+        `₹ ${Number(
+          r.total_amount ?? 0
+        ).toLocaleString("en-IN", {
+          maximumFractionDigits: 2,
+        })}`,
+    },
+
+    {
+      key: "actions",
+      label: "Actions",
+      render: (
+        r: BagPurchaseResponse
+      ) => (
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => toast.info(`Viewing ${r.id} (mock).`)}
+            onClick={() =>
+              handleEdit(r)
+            }
             className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
           >
-            View
+            Edit
           </button>
+
           <button
             type="button"
-            onClick={() => setConfirmDelete(r)}
+            onClick={() =>
+              setConfirmDelete(r)
+            }
             className="rounded-full bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
           >
             Delete
@@ -72,33 +259,59 @@ const BagPurchasePage: React.FC = () => {
         </div>
       ),
     },
-  ]
+  ];
 
   return (
     <div>
-      <PageHeader title="Bag Purchase" breadcrumb={['Masters', 'Bag Purchase']} />
-      <Toolbar title="Bag Purchase" onAdd={() => setModalOpen(true)} />
-      <div className="mb-3 flex justify-end">
-        <button type="button" onClick={() => setModalOpen(true)} className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700">
-          New Purchase
-        </button>
-      </div>
+      <PageHeader
+        title="Bag Purchase"
+        breadcrumb={[
+          "Masters",
+          "Bag Purchase",
+        ]}
+      />
 
-      <DataGrid<BagPurchase> data={purchases} columns={columns} rowKey={(r) => r.id} />
+      <Toolbar
+        title="Bag Purchase"
+        onAdd={handleAdd}
+      />
 
-      <BagPurchaseModal open={modalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} />
+      <DataGrid<BagPurchaseResponse>
+        data={purchases}
+        columns={columns}
+        rowKey={(
+          r: BagPurchaseResponse
+        ) => r.id}
+        loading={loading}
+      />
+
+      <BagPurchaseModal
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false);
+          setEditingPurchase(null);
+        }}
+        onSave={handleSave}
+        purchase={editingPurchase}
+      />
 
       <ConfirmDialog
         open={!!confirmDelete}
         title="Delete purchase?"
-        description={confirmDelete ? `Delete purchase ${confirmDelete.id}? This cannot be undone.` : ''}
+        description={
+          confirmDelete
+            ? `Delete purchase ${confirmDelete.purchase_no}? This cannot be undone.`
+            : ""
+        }
         confirmLabel="Delete"
         cancelLabel="Cancel"
         onConfirm={handleDelete}
-        onCancel={() => setConfirmDelete(null)}
+        onCancel={() =>
+          setConfirmDelete(null)
+        }
       />
     </div>
-  )
-}
+  );
+};
 
-export default BagPurchasePage
+export default BagPurchasePage;

@@ -120,7 +120,7 @@ export const Sidebar: React.FC = () => {
       }`}
     >
       {/* Logo area (small when collapsed) */}
-      <div className="mb-3 flex items-center justify-center px-3">
+      {/* <div className="mb-3 flex items-center justify-center px-3">
         <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-lime-400 text-xs font-bold text-white shadow-md">
           CO
         </div>
@@ -130,7 +130,7 @@ export const Sidebar: React.FC = () => {
             <span className="text-[10px] text-slate-500">Coconut Management</span>
           </div>
         )}
-      </div>
+      </div> */}
 
       <nav className="flex-1 space-y-4 overflow-y-auto px-2">
         {/* Primary */}

@@ -373,7 +373,7 @@ const RegisterPage: React.FC = () => {
 
             <div className="hidden flex-col sm:flex">
               <span className="text-sm font-semibold tracking-wide">
-                COCOPER ERP
+                COCOPER
               </span>
 
               <span className="text-[10px] text-emerald-100">

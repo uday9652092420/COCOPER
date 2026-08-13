@@ -36,6 +36,7 @@ export const TopBar: React.FC = () => {
     selectedOrganizationId,
     setSelectedOrganization,
   } = useAuthStore()
+
   const { language, setLanguage } = useUIStore()
 
   const [organizations, setOrganizations] = useState<
@@ -53,12 +54,22 @@ export const TopBar: React.FC = () => {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-100 bg-white/80 px-3 backdrop-blur md:px-5">
       <div className="flex items-center gap-2 md:gap-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-lime-400 text-xs font-bold text-white shadow-md">
-          CO
+        {/* Logo */}
+        <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md">
+          <img
+            src="/logo.jpg"
+            alt="COCOPER Logo"
+            className="h-full w-full object-cover"
+          />
         </div>
+
         <div className="flex flex-col leading-tight">
-          <span className="text-xs font-semibold text-slate-900 md:text-sm">COCOS</span>
-          <span className="text-[10px] text-slate-500 md:text-[11px]">Coconut Wholesale Management System</span>
+          <span className="text-xs font-semibold text-slate-900 md:text-sm">
+            COCOPER
+          </span>
+          <span className="text-[10px] text-slate-500 md:text-[11px]">
+            Coconut Wholesale Management System
+          </span>
         </div>
       </div>
 
@@ -80,6 +91,7 @@ export const TopBar: React.FC = () => {
           className="relative flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 shadow-sm hover:bg-emerald-100"
         >
           <Bell className="h-4 w-4" />
+
           <span className="absolute -right-0.5 -top-0.5 inline-flex h-3 w-3 items-center justify-center rounded-full bg-red-500 text-[8px] text-white">
             3
           </span>
@@ -117,9 +129,14 @@ export const TopBar: React.FC = () => {
         ) : null}
 
         <div className="hidden flex-col text-right leading-tight md:flex">
-          <span className="text-[11px] font-medium text-slate-800">{user?.username ?? 'Guest'}</span>
+          <span className="text-[11px] font-medium text-slate-800">
+            {user?.username ?? 'Guest'}
+          </span>
+
           <span className="text-[10px] text-slate-400">
-            {user?.isSuperAdmin ? 'Super Admin' : user?.role ?? 'Administrator'}
+            {user?.isSuperAdmin
+              ? 'Super Admin'
+              : user?.role ?? 'Administrator'}
           </span>
         </div>
 

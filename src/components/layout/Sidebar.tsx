@@ -5,12 +5,15 @@
 
 import type React from 'react'
 import {
-  Home,
   LayoutDashboard,
+  Building2,
+  ShieldCheck,
+  Users,
+  KeyRound,
+  Network,
   Warehouse,
   Package,
   PackageOpen,
-  Users,
   ShoppingCart,
   ReceiptIndianRupee,
   FileText,
@@ -38,8 +41,12 @@ interface NavItem {
  * @description Top-level navigation items.
  */
 const primaryItems: NavItem[] = [
-  { to: '/', label: 'Home', icon: <Home className="h-4 w-4" /> },
   { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
+  { to: '/organization-master', label: 'Organization Master', icon: <Building2 className="h-4 w-4" /> },
+  { to: '/masters/roles', label: 'Roles Master', icon: <ShieldCheck className="h-4 w-4" /> },
+  { to: '/masters/users', label: 'User Master', icon: <Users className="h-4 w-4" /> },
+  { to: '/masters/user-permissions', label: 'User Permission', icon: <KeyRound className="h-4 w-4" /> },
+  { to: '/masters/branches', label: 'User Branches', icon: <Network className="h-4 w-4" /> },
 ]
 
 /**

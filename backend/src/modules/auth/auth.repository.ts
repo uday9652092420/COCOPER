@@ -1,0 +1,91 @@
+/**
+ * @file auth.repository.ts
+ * @description Repository for application authentication.
+ */
+
+import { pool } from '../../config/db.js';
+import type { AuthUserResult } from './auth.types.js';
+
+interface SuperUserRow {
+  id: string;
+  username: string;
+  password_hash: string;
+  full_name: string | null;
+  role: string;
+  status: string;
+}
+
+export async function findSuperUserByUsername(username: string): Promise<SuperUserRow | null> {
+  const { rows } = await pool.query(
+    `
+    SELECT id, username, password_hash, full_name, role, status
+    FROM app_users
+    WHERE LOWER(username) = LOWER($1) AND LOWER(status) = 'active'
+    LIMIT 1
+    `,
+    [username]
+  );
+  return rows[0] ?? null;
+}
+
+interface OrgUserRow {
+  id: string;
+  username: string;
+  password_hash: string;
+  full_name: string | null;
+  role: string;
+  status: string;
+  organization_id: string;
+}
+
+export async function findOrgUserByUsername(username: string): Promise<OrgUserRow | null> {
+  const { rows } = await pool.query(
+    `
+    SELECT
+      ou.id,
+      ou.username,
+      ou.password_hash,
+      ou.full_name,
+      ou.role,
+      ou.status,
+      ou.organization_id
+    FROM organization_users ou
+    WHERE LOWER(ou.username) = LOWER($1) AND LOWER(ou.status) = 'active'
+    LIMIT 1
+    `,
+    [username]
+  );
+  return rows[0] ?? null;
+}
+
+export async function updateSuperUserLastLogin(id: string): Promise<void> {
+  await pool.query(
+    `UPDATE app_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1`,
+    [id]
+  );
+}
+
+export async function updateOrgUserLastLogin(id: string): Promise<void> {
+  await pool.query(
+    `UPDATE organization_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1`,
+    [id]
+  );
+}
+
+export function toAuthUserResult(
+  id: string,
+  username: string,
+  fullName: string | null,
+  role: string,
+  isSuperAdmin: boolean,
+  organizationId: string | null
+): AuthUserResult {
+  return {
+    id,
+    username,
+    full_name: fullName,
+    role,
+    is_super_admin: isSuperAdmin,
+    organization_id: organizationId,
+  };
+}

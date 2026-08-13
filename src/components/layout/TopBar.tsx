@@ -4,9 +4,15 @@
  */
 
 import type React from 'react'
-import { Bell, LogOut } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Bell, Building2, LogOut } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore, type LanguageCode } from '../../store/uiStore'
+import {
+  getOrganizations,
+  type OrganizationSummary,
+} from '../../services/organizationservices/organization.service'
+import { ProfileMenu } from './ProfileMenu'
 
 /**
  * @description Language option representation.
@@ -24,8 +30,25 @@ const languageOptions: { code: LanguageCode; label: string }[] = [
  * @description Top navigation bar used inside MainLayout.
  */
 export const TopBar: React.FC = () => {
-  const { user, logout } = useAuthStore()
+  const {
+    user,
+    logout,
+    selectedOrganizationId,
+    setSelectedOrganization,
+  } = useAuthStore()
   const { language, setLanguage } = useUIStore()
+
+  const [organizations, setOrganizations] = useState<
+    OrganizationSummary[]
+  >([])
+
+  useEffect(() => {
+    if (!user?.isSuperAdmin) return
+
+    getOrganizations()
+      .then(setOrganizations)
+      .catch(() => setOrganizations([]))
+  }, [user?.isSuperAdmin])
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-100 bg-white/80 px-3 backdrop-blur md:px-5">
@@ -62,19 +85,45 @@ export const TopBar: React.FC = () => {
           </span>
         </button>
 
-        <div className="flex items-center gap-2">
-          <div className="hidden flex-col text-right leading-tight md:flex">
-            <span className="text-[11px] font-medium text-slate-800">{user?.username ?? 'Guest'}</span>
-            <span className="text-[10px] text-slate-400">Administrator</span>
+        {user?.isSuperAdmin ? (
+          <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/60 px-2 py-1">
+            <Building2 className="h-3.5 w-3.5 text-emerald-600" />
+
+            <select
+              value={selectedOrganizationId ?? ''}
+              onChange={(e) =>
+                setSelectedOrganization(
+                  e.target.value || null
+                )
+              }
+              className="max-w-[220px] rounded-full border-0 bg-transparent text-[11px] font-medium text-slate-700 focus:outline-none"
+              title="Select organization"
+            >
+              <option value="">
+                All Organizations
+              </option>
+
+              {organizations.map((org) => (
+                <option
+                  key={org.id}
+                  value={org.id}
+                >
+                  {org.organization_code} -{' '}
+                  {org.organization_name}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="h-8 w-8 overflow-hidden rounded-full border border-emerald-100 bg-emerald-50">
-            <img
-              src="https://pub-cdn.sider.ai/u/U0VEH8VKN6G/web-coder/6a61c625388e2f3cd0e01060/resource/b02b3ed2-19f2-4acf-94db-7870bd977184.jpg"
-              alt="Profile"
-              className="h-full w-full object-cover"
-            />
-          </div>
+        ) : null}
+
+        <div className="hidden flex-col text-right leading-tight md:flex">
+          <span className="text-[11px] font-medium text-slate-800">{user?.username ?? 'Guest'}</span>
+          <span className="text-[10px] text-slate-400">
+            {user?.isSuperAdmin ? 'Super Admin' : user?.role ?? 'Administrator'}
+          </span>
         </div>
+
+        <ProfileMenu />
 
         <button
           type="button"

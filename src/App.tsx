@@ -5,11 +5,11 @@
 
 import React from 'react'
 import { HashRouter, Route, Routes, Navigate } from 'react-router'
+import { Toaster } from 'sonner'
 import { useAuthStore } from './store/authStore'
 import { MainLayout } from './layouts/MainLayout'
 import LoginPage from './pages/Auth/LoginPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
-import HomePage from './pages/Home'
 import NotFoundPage from './pages/NotFoundPage'
 import WarehouseMasterPage from './pages/masters/WarehouseMasterPage'
 import ItemMasterPage from './pages/masters/ItemMasterPage'
@@ -33,6 +33,14 @@ import LabourAttendanceReportPage from './pages/reports/LabourAttendanceReportPa
 import PendingDispatchReportPage from './pages/reports/PendingDispatchReportPage'
 import OutstandingReportPage from './pages/reports/OutstandingReportPage'
 import BagPurchasePage from './pages/masters/BagPurchasePage'
+import OrganizationMasterPage from './pages/masters/OrganizationMasterPage'
+import RolesMasterPage from './pages/masters/RolesMasterPage'
+import UserMasterPage from './pages/masters/UserMasterPage'
+import UserPermissionPage from './pages/masters/UserPermissionPage'
+import BranchesMasterPage from './pages/masters/BranchesMasterPage'
+import EditProfilePage from './pages/Profile/EditProfilePage'
+import ChangePasswordPage from './pages/Profile/ChangePasswordPage'
+import RegisterPage from './pages/Auth/RegisterPage'
 
 
 
@@ -55,8 +63,10 @@ const RequireAuth: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 export default function App() {
   return (
     <HashRouter>
+      <Toaster position="top-right" richColors />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+         <Route path="/register" element={<RegisterPage />} />
 
         <Route
           path="/"
@@ -66,10 +76,18 @@ export default function App() {
             </RequireAuth>
           }
         >
-          <Route index element={<HomePage />} />
+          <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="organization-master" element={<OrganizationMasterPage />} />
+          <Route path="masters/roles" element={<RolesMasterPage />} />
+          <Route path="masters/users" element={<UserMasterPage />} />
+          <Route path="masters/user-permissions" element={<UserPermissionPage />} />
+          <Route path="masters/branches" element={<BranchesMasterPage />} />
+          <Route path="profile" element={<EditProfilePage />} />
+          <Route path="profile/password" element={<ChangePasswordPage />} />
 
           {/* Masters */}
+         
           <Route path="masters/warehouses" element={<WarehouseMasterPage />} />
           <Route path="masters/items" element={<ItemMasterPage />} />
           <Route path="masters/gunny-bags" element={<GunnyBagMasterPage />} />

@@ -6,6 +6,13 @@ import supplierRoutes from "../modules/suppliers/supplier.routes.js";
 import customerRoutes from "../modules/customer/customer.routes.js";
 import labourStaffRoutes from "../modules/labourstaff/labourstaff.routes.js";
 import bagPurchaseRoutes from "../modules/bagpurchase/bagpurchase.routes.js";
+import registerRoutes from "../modules/register/register.routes.js";
+import organizationRoutes from "../modules/organization/organization.routes.js";
+import authRoutes from "../modules/auth/auth.routes.js";
+import rolesRoutes from "../modules/roles/roles.routes.js";
+import branchesRoutes from "../modules/branches/branches.routes.js";
+import usersRoutes from "../modules/users/users.routes.js";
+import profileRoutes from "../modules/profile/profile.routes.js";
 
 const router = Router();
 
@@ -19,5 +26,33 @@ router.use( "/labour-staff",labourStaffRoutes);
 router.use(
   "/bag-purchases",
   bagPurchaseRoutes
+);
+router.use(
+  "/auth",
+  registerRoutes
+);
+router.use(
+  "/auth",
+  authRoutes
+);
+router.use(
+  "/organizations",
+  organizationRoutes
+);
+router.use(
+  "/roles",
+  rolesRoutes
+);
+router.use(
+  "/branches",
+  branchesRoutes
+);
+router.use(
+  "/users",
+  usersRoutes
+);
+router.use(
+  "/profile",
+  profileRoutes
 );
 export default router;

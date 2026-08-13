@@ -40,11 +40,11 @@ const LoginPage: React.FC = () => {
     },
   })
 
-  const onSubmit = (values: LoginFormValues) => {
+  const onSubmit = async (values: LoginFormValues) => {
     setError(null)
-    const success = login(values.username, values.password, values.rememberMe)
-    if (!success) {
-      setError('Invalid credentials. Please use admin / admin123.')
+    const result = await login(values.username, values.password)
+    if (!result.success) {
+      setError(result.message || 'Invalid credentials. Please try again.')
       return
     }
     navigate('/dashboard')
@@ -59,7 +59,7 @@ const LoginPage: React.FC = () => {
               CO
             </div>
             <div className="flex flex-col">
-              <span className="text-lg font-semibold tracking-wide">COCOS</span>
+              <span className="text-lg font-semibold tracking-wide">COCOPER</span>
               <span className="text-xs text-emerald-100">Coconut Wholesale Management System</span>
             </div>
           </div>
@@ -102,7 +102,7 @@ const LoginPage: React.FC = () => {
                 <input
                   {...register('username', { required: true })}
                   className="w-full rounded-full border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
-                  placeholder="Enter username (admin)"
+                  placeholder="Enter username"
                 />
               </div>
             </div>
@@ -115,7 +115,7 @@ const LoginPage: React.FC = () => {
                   {...register('password', { required: true })}
                   type="password"
                   className="w-full rounded-full border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
-                  placeholder="Enter password (admin123)"
+                  placeholder="Enter password"
                 />
               </div>
             </div>
@@ -140,8 +140,16 @@ const LoginPage: React.FC = () => {
               {isSubmitting ? 'Signing in...' : 'Login'}
             </button>
 
+            <button
+  type="button"
+  onClick={() => navigate('/register')}
+  className="mt-2 inline-flex w-full items-center justify-center rounded-full border border-[#2E7D32] bg-white px-4 py-2 text-xs font-semibold text-[#2E7D32] transition hover:bg-emerald-50"
+>
+  Register Organization
+</button>
+
             <p className="mt-3 text-[10px] text-slate-400">
-              Demo credentials: <span className="font-medium text-slate-600">admin / admin123</span>
+              Super admin: <span className="font-medium text-slate-600">Uday / Uday123</span>
             </p>
           </form>
         </div>

@@ -14,24 +14,49 @@ await rimraf('dist')
  */
 const esbuildOpts = {
   color: true,
-  entryPoints: ['src/main.tsx', 'index.html'],
+
+  entryPoints: [
+    'src/main.tsx',
+    'index.html',
+    'src/public/logo.jpg',
+  ],
+
   outdir: 'dist',
+
   entryNames: '[name]',
+
+  assetNames: '[name]',
+
   write: true,
+
   bundle: true,
+
   format: 'iife',
-  sourcemap: isProd ? false : 'linked',
+
+  sourcemap: isProd
+    ? false
+    : 'linked',
+
   minify: isProd,
+
   treeShaking: true,
+
   jsx: 'automatic',
+
   loader: {
     '.html': 'copy',
     '.png': 'file',
+    '.jpg': 'file',
+    '.jpeg': 'file',
   },
+
   plugins: [
     stylePlugin({
       postcss: {
-        plugins: [tailwindcss, autoprefixer],
+        plugins: [
+          tailwindcss,
+          autoprefixer,
+        ],
       },
     }),
   ],
@@ -40,11 +65,19 @@ const esbuildOpts = {
 if (isProd) {
   await esbuild.build(esbuildOpts)
 } else {
-  const ctx = await esbuild.context(esbuildOpts)
+  const ctx =
+    await esbuild.context(esbuildOpts)
+
   await ctx.watch()
-  const { hosts, port } = await ctx.serve()
+
+  const { hosts, port } =
+    await ctx.serve()
+
   console.log(`Running on:`)
+
   hosts.forEach((host) => {
-    console.log(`http://${host}:${port}`)
+    console.log(
+      `http://${host}:${port}`
+    )
   })
 }

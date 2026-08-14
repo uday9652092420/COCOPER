@@ -254,9 +254,9 @@ export async function updateSupplierService(
 /**
  * List Suppliers
  */
-export async function listSuppliersService(){
+export async function listSuppliersService(organizationId?: string | null){
 
-  return await listSuppliersRepo();
+  return await listSuppliersRepo(organizationId ?? null);
 
 }
 

@@ -21,6 +21,13 @@ interface IdParams {
   id: string;
 }
 
+function resolveOrganizationId(req: Request): string | undefined {
+  return (
+    (req.query.organizationId as string | undefined) ||
+    req.header("x-organization-id")
+  );
+}
+
 /**
  * GET Next Customer Code
  *
@@ -57,8 +64,17 @@ export async function createCustomerHandler(
   res: Response
 ): Promise<Response> {
   try {
+    const organizationId =
+      resolveOrganizationId(req);
+
     const customer = await createCustomerService(
-      req.body
+      {
+        ...req.body,
+        organization_id:
+          req.body.organization_id ??
+          organizationId ??
+          null,
+      }
     );
 
     return res.status(201).json({
@@ -90,7 +106,9 @@ export async function listCustomersHandler(
 ): Promise<Response> {
   try {
     const customers =
-      await listCustomersService();
+      await listCustomersService(
+        resolveOrganizationId(req)
+      );
 
     return res.status(200).json({
       success: true,

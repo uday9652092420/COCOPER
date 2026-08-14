@@ -15,6 +15,18 @@ export function getOrgHeader(): Record<string, string> {
 }
 
 /**
+ * Returns the `x-branch-id` header for the currently selected branch.
+ * Used to scope branch-specific master modules (items, gunny bags,
+ * bag purchase) in addition to the organization scope.
+ */
+export function getBranchHeader(): Record<string, string> {
+  if (typeof window === 'undefined') return {}
+
+  const branchId = localStorage.getItem('cocoper_branch_id')
+  return branchId ? { 'x-branch-id': branchId } : {}
+}
+
+/**
  * Returns headers identifying the currently logged-in user for
  * profile-scoped APIs (no auth token exists yet).
  */

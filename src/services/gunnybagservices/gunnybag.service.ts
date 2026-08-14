@@ -1,5 +1,6 @@
 
 import { API } from "../../config/api";
+import { getOrgHeader, getBranchHeader } from "../../utils/apiHeaders";
 
 /**
  * ============================================================
@@ -157,6 +158,8 @@ export async function createGunnyBag(
       headers: {
         "Content-Type":
           "application/json",
+        ...getOrgHeader(),
+        ...getBranchHeader(),
       },
       body: JSON.stringify(payload),
     }
@@ -205,7 +208,8 @@ export async function getGunnyBags(): Promise<
   GunnyBagResponse[]
 > {
   const response = await fetch(
-    `${API}/gunny-bags`
+    `${API}/gunny-bags`,
+    { headers: { ...getOrgHeader(), ...getBranchHeader() } }
   );
 
   const data =

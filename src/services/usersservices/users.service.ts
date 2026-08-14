@@ -67,3 +67,41 @@ export async function deleteUser(id: string): Promise<void> {
   const response = await fetch(`${API}/users/${id}`, { method: "DELETE" });
   if (!response.ok) throw await response.json().catch(() => ({ message: "Failed to delete user" }));
 }
+
+export interface PermissionModule {
+  code: string;
+  name: string;
+}
+
+export interface PermissionAction {
+  code: string;
+  name: string;
+}
+
+export interface PermissionOptions {
+  modules: PermissionModule[];
+  actions: PermissionAction[];
+}
+
+export async function getPermissionOptions(): Promise<PermissionOptions> {
+  const response = await fetch(`${API}/users/permission-options`);
+  if (!response.ok) throw await response.json().catch(() => ({ message: "Failed to load permission options" }));
+  return response.json();
+}
+
+export async function getUserPermissions(userId: string): Promise<string[]> {
+  const response = await fetch(`${API}/users/${userId}/permissions`);
+  if (!response.ok) throw await response.json().catch(() => ({ message: "Failed to load user permissions" }));
+  return response.json();
+}
+
+export async function setUserPermissions(userId: string, permissions: string[]): Promise<string[]> {
+  const response = await fetch(`${API}/users/${userId}/permissions`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ permissions }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw data;
+  return data;
+}

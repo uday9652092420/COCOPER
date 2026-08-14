@@ -11,7 +11,7 @@ import { MainLayout } from './layouts/MainLayout'
 import LoginPage from './pages/Auth/LoginPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import NotFoundPage from './pages/NotFoundPage'
-import WarehouseMasterPage from './pages/masters/WarehouseMasterPage'
+import BranchMasterPage from './pages/masters/BranchMasterPage'
 import ItemMasterPage from './pages/masters/ItemMasterPage'
 import GunnyBagMasterPage from './pages/masters/GunnyBagMasterPage'
 import SupplierMasterPage from './pages/masters/SupplierMasterPage'
@@ -88,7 +88,7 @@ export default function App() {
 
           {/* Masters */}
          
-          <Route path="masters/warehouses" element={<WarehouseMasterPage />} />
+          <Route path="masters/branch-master" element={<BranchMasterPage />} />
           <Route path="masters/items" element={<ItemMasterPage />} />
           <Route path="masters/gunny-bags" element={<GunnyBagMasterPage />} />
           <Route path="masters/suppliers" element={<SupplierMasterPage />} />

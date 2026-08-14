@@ -54,7 +54,7 @@ const primaryItems: NavItem[] = [
  * @description Master data section items.
  */
 const masterItems: NavItem[] = [
-  { to: '/masters/warehouses', label: 'Warehouses', icon: <Warehouse className="h-4 w-4" /> },
+  { to: '/masters/branch-master', label: 'Branch Master', icon: <Network className="h-4 w-4" /> },
   { to: '/masters/items', label: 'Items', icon: <Package className="h-4 w-4" /> },
   { to: '/masters/gunny-bags', label: 'Gunny Bags', icon: <PackageOpen className="h-4 w-4" /> },
   { to: '/masters/suppliers', label: 'Suppliers', icon: <Users className="h-4 w-4" /> },

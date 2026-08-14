@@ -13,6 +13,9 @@ import {
   deleteBagPurchaseRepo,
 } from "./bagpurchase.repository.js";
 
+
+
+
 import {
   validateBagPurchasePayload,
 } from "./bagpurchase.validation.js";
@@ -35,8 +38,8 @@ export async function getNextBagPurchaseNoService() {
  * Get All Purchases
  * ============================================================
  */
-export async function getBagPurchasesService() {
-  return getBagPurchasesRepo();
+export async function getBagPurchasesService(organizationId?: string | null, branchId?: string | null) {
+  return getBagPurchasesRepo(organizationId ?? null, branchId ?? null);
 }
 
 /**

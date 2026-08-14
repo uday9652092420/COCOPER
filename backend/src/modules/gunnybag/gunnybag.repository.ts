@@ -220,6 +220,8 @@ export async function createGunnyBagRepo(
           rate_per_bag,
           opening_stock,
           status,
+          organization_id,
+          branch_id,
           created_at
         )
         VALUES
@@ -231,6 +233,8 @@ export async function createGunnyBagRepo(
           $5,
           $6,
           $7,
+          $8,
+          $9,
           CURRENT_DATE
         )
         RETURNING *
@@ -243,6 +247,8 @@ export async function createGunnyBagRepo(
         payload.rate_per_bag ?? 0,
         payload.opening_stock ?? 0,
         payload.status ?? "Active",
+        payload.organization_id ?? null,
+        payload.branch_id ?? null,
       ]
     );
 
@@ -298,7 +304,22 @@ export async function createGunnyBagRepo(
  * List Gunny Bags
  * ============================================================
  */
-export async function listGunnyBagsRepo(): Promise<GunnyBag[]> {
+export async function listGunnyBagsRepo(organizationId?: string | null, branchId?: string | null): Promise<GunnyBag[]> {
+  const params: string[] = [];
+  const conditions: string[] = [];
+
+  if (organizationId) {
+    params.push(organizationId);
+    conditions.push(`(gb.organization_id = $${params.length} OR gb.organization_id IS NULL)`);
+  }
+
+  if (branchId) {
+    params.push(branchId);
+    conditions.push(`(gb.branch_id = $${params.length} OR gb.branch_id IS NULL)`);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
   const { rows } = await pool.query(`
     SELECT
       gb.*,
@@ -327,10 +348,12 @@ export async function listGunnyBagsRepo(): Promise<GunnyBag[]> {
     LEFT JOIN gunny_bag_bharthi_types bt
       ON bt.gunny_bag_id = gb.id
 
+    ${where}
+
     GROUP BY gb.id
 
     ORDER BY gb.created_at DESC
-  `);
+  `, params);
 
   return rows;
 }

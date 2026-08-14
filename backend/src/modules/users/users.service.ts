@@ -10,8 +10,10 @@ import {
   createUserRepo,
   deleteUserRepo,
   getUserByIdRepo,
+  getUserPermissionsRepo,
   isUsernameExistsRepo,
   listUsersRepo,
+  setUserPermissionsRepo,
   updateUserRepo,
 } from './users.repository.js';
 
@@ -78,4 +80,13 @@ export async function updateUser(id: string, payload: UserUpdateDTO): Promise<Or
 
 export async function deleteUser(id: string): Promise<boolean> {
   return deleteUserRepo(id);
+}
+
+export async function getUserPermissions(userId: string): Promise<string[]> {
+  return getUserPermissionsRepo(userId);
+}
+
+export async function setUserPermissions(userId: string, permissionCodes: string[]): Promise<string[]> {
+  const unique = Array.from(new Set(permissionCodes.map((c) => String(c).trim()).filter(Boolean)));
+  return setUserPermissionsRepo(userId, unique);
 }

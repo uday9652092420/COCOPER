@@ -47,6 +47,8 @@ export async function createItemRepo(
     payload.category ?? null,
     payload.uom ?? null,
     payload.status ?? "Active",
+    payload.organization_id ?? null,
+    payload.branch_id ?? null,
   ];
 
   const { rows } = await pool.query(
@@ -59,6 +61,8 @@ export async function createItemRepo(
       category,
       uom,
       status,
+      organization_id,
+      branch_id,
       created_at
     )
     VALUES
@@ -69,6 +73,8 @@ export async function createItemRepo(
       $4,
       $5,
       $6,
+      $7,
+      $8,
       CURRENT_DATE
     )
     RETURNING
@@ -78,6 +84,8 @@ export async function createItemRepo(
       category,
       uom,
       status,
+      organization_id,
+      branch_id,
       created_at
     `,
     values
@@ -89,7 +97,22 @@ export async function createItemRepo(
 /**
  * List Items
  */
-export async function listItemsRepo(): Promise<Item[]> {
+export async function listItemsRepo(organizationId?: string | null, branchId?: string | null): Promise<Item[]> {
+  const params: string[] = [];
+  const conditions: string[] = [];
+
+  if (organizationId) {
+    params.push(organizationId);
+    conditions.push(`organization_id = $${params.length} OR organization_id IS NULL`);
+  }
+
+  if (branchId) {
+    params.push(branchId);
+    conditions.push(`branch_id = $${params.length} OR branch_id IS NULL`);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
   const { rows } = await pool.query(
     `
     SELECT
@@ -99,10 +122,14 @@ export async function listItemsRepo(): Promise<Item[]> {
       category,
       uom,
       status,
+      organization_id,
+      branch_id,
       created_at
     FROM items
+    ${where}
     ORDER BY created_at DESC
-    `
+    `,
+    params
   );
 
   return rows;
@@ -123,6 +150,8 @@ export async function getItemByIdRepo(
       category,
       uom,
       status,
+      organization_id,
+      branch_id,
       created_at
     FROM items
     WHERE id=$1
@@ -157,6 +186,8 @@ export async function updateItemRepo(
       category,
       uom,
       status,
+      organization_id,
+      branch_id,
       created_at
     `,
     [

@@ -33,8 +33,8 @@ export async function getNextCustomerCodeService(): Promise<string> {
 /**
  * List Customers
  */
-export async function listCustomersService(): Promise<Customer[]> {
-  return listCustomersRepository();
+export async function listCustomersService(organizationId?: string | null): Promise<Customer[]> {
+  return listCustomersRepository(organizationId ?? null);
 }
 
 /**

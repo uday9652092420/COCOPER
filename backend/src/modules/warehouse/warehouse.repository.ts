@@ -38,12 +38,13 @@ const values = [
     payload.manager ?? null,
     payload.contact_number ?? null,
     payload.status ?? 'Active',
+    payload.organization_id ?? null,
   ];
 
   const { rows } = await pool.query(
-    `INSERT INTO warehouses (id, code, name, address, manager, contact_number, status, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,CURRENT_DATE)
-     RETURNING id, code, name, address, manager, contact_number, status, created_at`,
+    `INSERT INTO warehouses (id, code, name, address, manager, contact_number, status, organization_id, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,CURRENT_DATE)
+     RETURNING id, code, name, address, manager, contact_number, status, organization_id, created_at`,
     values,
   );
 
@@ -52,15 +53,24 @@ const values = [
 
 export async function getWarehouseByIdRepo(id: string): Promise<Warehouse | null> {
   const { rows } = await pool.query(
-    `SELECT id, code, name, address, manager, contact_number, status, created_at FROM warehouses WHERE id = $1`,
+    `SELECT id, code, name, address, manager, contact_number, status, organization_id, created_at FROM warehouses WHERE id = $1`,
     [id],
   );
   return rows[0] ?? null;
 }
 
-export async function listWarehousesRepo(): Promise<Warehouse[]> {
+export async function listWarehousesRepo(organizationId?: string | null): Promise<Warehouse[]> {
+  const params: string[] = [];
+  let where = '';
+
+  if (organizationId) {
+    params.push(organizationId);
+    where = 'WHERE organization_id = $1 OR organization_id IS NULL';
+  }
+
   const { rows } = await pool.query(
-    `SELECT id, code, name, address, manager, contact_number, status, created_at FROM warehouses ORDER BY created_at DESC`,
+    `SELECT id, code, name, address, manager, contact_number, status, organization_id, created_at FROM warehouses ${where} ORDER BY created_at DESC`,
+    params,
   );
   return rows;
 }
@@ -87,6 +97,7 @@ export async function updateWarehouseRepo(
       manager,
       contact_number,
       status,
+      organization_id,
       created_at
     `,
     [

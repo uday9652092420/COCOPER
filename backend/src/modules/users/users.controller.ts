@@ -8,9 +8,12 @@ import {
   createUser as createUserService,
   deleteUser as deleteUserService,
   getUserById as getUserByIdService,
+  getUserPermissions as getUserPermissionsService,
   listUsers as listUsersService,
+  setUserPermissions as setUserPermissionsService,
   updateUser as updateUserService,
 } from './users.service.js';
+import { PERMISSION_ACTIONS, PERMISSION_MODULES } from './permissions.js';
 import { AppError } from '../../utils/AppError.js';
 
 interface UserParams {
@@ -88,5 +91,47 @@ export async function deleteUserHandler(
     return res.status(200).json({ message: 'User deleted successfully' });
   } catch (error) {
     return next(new AppError('Failed to delete user', 500, { cause: error }));
+  }
+}
+
+export async function getPermissionOptionsHandler(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    return res.status(200).json({
+      modules: PERMISSION_MODULES,
+      actions: PERMISSION_ACTIONS,
+    });
+  } catch (error) {
+    return next(new AppError('Failed to load permission options', 500, { cause: error }));
+  }
+}
+
+export async function getUserPermissionsHandler(
+  req: Request<UserParams>,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const codes = await getUserPermissionsService(req.params.id);
+    return res.status(200).json(codes);
+  } catch (error) {
+    return next(new AppError('Failed to retrieve user permissions', 500, { cause: error }));
+  }
+}
+
+export async function setUserPermissionsHandler(
+  req: Request<UserParams>,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const codes = Array.isArray(req.body?.permissions) ? req.body.permissions : [];
+    const updated = await setUserPermissionsService(req.params.id, codes);
+    return res.status(200).json(updated);
+  } catch (error) {
+    return next(new AppError('Failed to update user permissions', 500, { cause: error }));
   }
 }

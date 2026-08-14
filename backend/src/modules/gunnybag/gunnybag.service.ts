@@ -224,8 +224,8 @@ export async function updateGunnyBagService(
  *
  * Returns Gunny Bags with their Bharthi child records.
  */
-export async function listGunnyBagsService() {
-  return await listGunnyBagsRepo();
+export async function listGunnyBagsService(organizationId?: string | null, branchId?: string | null) {
+  return await listGunnyBagsRepo(organizationId ?? null, branchId ?? null);
 }
 
 /**

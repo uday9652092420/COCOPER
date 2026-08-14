@@ -49,6 +49,8 @@ export interface Customer {
 
   created_at: string;
 
+  organization_id?: string | null;
+
 }
 
 /**
@@ -83,6 +85,8 @@ export interface CreateCustomerInput {
   credit_limit: number;
 
   status: CustomerStatus;
+
+  organization_id?: string | null;
 
 }
 

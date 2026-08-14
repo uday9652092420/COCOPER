@@ -5,13 +5,14 @@
 
 import type React from 'react'
 import { useEffect, useState } from 'react'
-import { Bell, Building2, LogOut } from 'lucide-react'
+import { Bell, Building2, LogOut, Network } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore, type LanguageCode } from '../../store/uiStore'
 import {
   getOrganizations,
   type OrganizationSummary,
 } from '../../services/organizationservices/organization.service'
+import { getBranches, type Branch } from '../../services/branchesservices/branches.service'
 import { ProfileMenu } from './ProfileMenu'
 
 /**
@@ -43,6 +44,12 @@ export const TopBar: React.FC = () => {
     OrganizationSummary[]
   >([])
 
+  const [branches, setBranches] = useState<Branch[]>([])
+
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    () => localStorage.getItem('cocoper_branch_id') ?? ''
+  )
+
   useEffect(() => {
     if (!user?.isSuperAdmin) return
 
@@ -50,6 +57,24 @@ export const TopBar: React.FC = () => {
       .then(setOrganizations)
       .catch(() => setOrganizations([]))
   }, [user?.isSuperAdmin])
+
+  useEffect(() => {
+    if (!user) return
+
+    getBranches()
+      .then(setBranches)
+      .catch(() => setBranches([]))
+  }, [user?.id])
+
+  const handleBranchChange = (value: string) => {
+    setSelectedBranchId(value)
+
+    if (value) {
+      localStorage.setItem('cocoper_branch_id', value)
+    } else {
+      localStorage.removeItem('cocoper_branch_id')
+    }
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-slate-100 bg-white/80 px-3 backdrop-blur md:px-5">
@@ -96,6 +121,25 @@ export const TopBar: React.FC = () => {
             3
           </span>
         </button>
+
+        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1">
+          <Network className="h-3.5 w-3.5 text-emerald-600" />
+
+          <select
+            value={selectedBranchId}
+            onChange={(e) => handleBranchChange(e.target.value)}
+            className="max-w-[180px] rounded-full border-0 bg-transparent text-[11px] font-medium text-slate-700 focus:outline-none"
+            title="Select branch"
+          >
+            <option value="">All Branches</option>
+
+            {branches.map((branch) => (
+              <option key={branch.id} value={branch.id}>
+                {branch.branch_name}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {user?.isSuperAdmin ? (
           <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/60 px-2 py-1">

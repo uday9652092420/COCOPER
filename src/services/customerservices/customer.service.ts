@@ -4,6 +4,7 @@
  */
 
 import { API } from "../../config/api";
+import { getOrgHeader } from "../../utils/apiHeaders";
 
 export interface CustomerResponse {
   id: string;
@@ -90,6 +91,7 @@ export async function createCustomer(
 
       headers: {
         "Content-Type": "application/json",
+        ...getOrgHeader(),
       },
 
       body: JSON.stringify(payload),
@@ -127,7 +129,8 @@ export async function getNextCustomerCode(): Promise<string> {
  */
 export async function getCustomers(): Promise<CustomerResponse[]> {
   const response = await fetch(
-    `${API}/customers`
+    `${API}/customers`,
+    { headers: getOrgHeader() }
   );
 
   const data = await response.json();

@@ -6,6 +6,8 @@ export type Item = {
  uom?: string;
   status?: "Active" | "Inactive";
   created_at?: string;
+  organization_id?: string | null;
+  branch_id?: string | null;
 };
 
 export type ItemCreateDTO = Omit<Item, "id" | "created_at"> & {

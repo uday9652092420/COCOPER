@@ -91,6 +91,11 @@ export const customerSchema = z
       "Active",
       "Inactive",
     ]),
+
+    organization_id: z
+      .string()
+      .nullable()
+      .optional(),
   })
 
   /**

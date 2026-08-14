@@ -8,7 +8,10 @@ import {
   createBranch as createBranchService,
   deleteBranch as deleteBranchService,
   getBranchById as getBranchByIdService,
+  getNextBranchCode as getNextBranchCodeService,
+  getUserBranches as getUserBranchesService,
   listBranches as listBranchesService,
+  setUserBranches as setUserBranchesService,
   updateBranch as updateBranchService,
 } from './branches.service.js';
 import { AppError } from '../../utils/AppError.js';
@@ -31,6 +34,19 @@ export async function listBranchesHandler(
     return res.status(200).json(rows);
   } catch (error) {
     return next(new AppError('Failed to list branches', 500, { cause: error }));
+  }
+}
+
+export async function getNextBranchCodeHandler(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const code = await getNextBranchCodeService();
+    return res.status(200).json({ code });
+  } catch (error) {
+    return next(new AppError('Failed to generate branch code', 500, { cause: error }));
   }
 }
 
@@ -58,7 +74,13 @@ export async function createBranchHandler(
   }
 
   try {
-    const created = await createBranchService(req.body);
+    const organizationId = resolveOrganizationId(req);
+
+    const created = await createBranchService({
+      ...req.body,
+      organization_id: req.body.organization_id ?? organizationId ?? null,
+    });
+
     return res.status(201).json(created);
   } catch (error) {
     return next(new AppError('Failed to create branch', 500, { cause: error }));
@@ -94,5 +116,43 @@ export async function deleteBranchHandler(
     return res.status(200).json({ message: 'Branch deleted successfully' });
   } catch (error) {
     return next(new AppError('Failed to delete branch', 500, { cause: error }));
+  }
+}
+
+interface UserBranchParams {
+  userId: string;
+}
+
+export async function getUserBranchesHandler(
+  req: Request<UserBranchParams>,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const result = await getUserBranchesService(req.params.userId);
+    return res.status(200).json(result);
+  } catch (error) {
+    return next(new AppError('Failed to load user branches', 500, { cause: error }));
+  }
+}
+
+export async function setUserBranchesHandler(
+  req: Request<UserBranchParams>,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const branchIds = Array.isArray(req.body?.branchIds) ? req.body.branchIds : [];
+    const defaultBranchId = req.body?.defaultBranchId ?? null;
+
+    const result = await setUserBranchesService(
+      req.params.userId,
+      branchIds,
+      defaultBranchId
+    );
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return next(new AppError('Failed to save user branches', 500, { cause: error }));
   }
 }

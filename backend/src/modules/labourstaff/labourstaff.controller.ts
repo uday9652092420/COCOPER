@@ -20,6 +20,13 @@ interface IdParams {
   id: string;
 }
 
+function resolveOrganizationId(req: Request): string | undefined {
+  return (
+    (req.query.organizationId as string | undefined) ||
+    req.header("x-organization-id")
+  );
+}
+
 /**
  * CREATE Labour
  *
@@ -30,7 +37,16 @@ export async function createLabourStaffHandler(
   res: Response
 ): Promise<void> {
   try {
-    const labour = await createLabourStaffService(req.body);
+    const organizationId =
+      resolveOrganizationId(req);
+
+    const labour = await createLabourStaffService({
+      ...req.body,
+      organization_id:
+        req.body.organization_id ??
+        organizationId ??
+        null,
+    });
 
     res.status(201).json({
       success: true,
@@ -56,7 +72,9 @@ export async function listLabourStaffHandler(
   res: Response
 ): Promise<void> {
   try {
-    const labours = await listLabourStaffService();
+    const labours = await listLabourStaffService(
+      resolveOrganizationId(req)
+    );
 
     res.status(200).json({
       success: true,

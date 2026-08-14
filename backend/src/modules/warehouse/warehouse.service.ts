@@ -33,8 +33,8 @@ export async function getWarehouseById(id: string): Promise<Warehouse | null> {
   return getWarehouseByIdRepo(id);
 }
 
-export async function listWarehouses(): Promise<Warehouse[]> {
-  return listWarehousesRepo();
+export async function listWarehouses(organizationId?: string | null): Promise<Warehouse[]> {
+  return listWarehousesRepo(organizationId ?? null);
 }
 export async function getNextWarehouseCode(): Promise<string> {
   return getNextWarehouseCodeRepo();

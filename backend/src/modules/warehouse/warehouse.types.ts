@@ -7,6 +7,7 @@ export type Warehouse = {
   contact_number?: string;
   status?: 'Active' | 'Inactive';
   created_at?: string;
+  organization_id?: string | null;
 };
 
 export type WarehouseCreateDTO = Omit<Warehouse, 'id' | 'created_at'> & { id?: string };

@@ -1,4 +1,5 @@
 import { API } from "../../config/api";
+import { getOrgHeader } from "../../utils/apiHeaders";
 
 export interface CreateWarehouseResponse {
   id: string;
@@ -26,6 +27,7 @@ export async function createWarehouse(payload: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      ...getOrgHeader(),
     },
     body: JSON.stringify(payload),
   });
@@ -68,7 +70,7 @@ export interface WarehouseResponse {
 
 
 export async function getWarehouses(): Promise<WarehouseResponse[]> {
-  const response = await fetch(`${API}/warehouses`);
+  const response = await fetch(`${API}/warehouses`, { headers: getOrgHeader() });
 
   if (!response.ok) {
     throw new Error("Failed to load warehouses");

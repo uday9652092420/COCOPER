@@ -367,9 +367,11 @@ const RegisterPage: React.FC = () => {
           </button>
 
           <div className="flex items-center gap-3 text-white">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10 text-sm font-bold shadow-lg">
-              CO
-            </div>
+            <img
+  src="/logo.jpg"
+  alt="COCOPER Logo"
+  className="h-10 w-10nded-2xl object-cover"
+/>
 
             <div className="hidden flex-col sm:flex">
               <span className="text-sm font-semibold tracking-wide">

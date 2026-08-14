@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS bag_purchases (
   purchase_date DATE NOT NULL DEFAULT CURRENT_DATE,
   total_amount NUMERIC DEFAULT 0,
   remarks TEXT,
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
   created_at DATE DEFAULT CURRENT_DATE
 );
 
@@ -38,6 +40,8 @@ CREATE TABLE IF NOT EXISTS bag_purchase_lines (
 -- Indexes to speed lookups
 CREATE INDEX IF NOT EXISTS idx_bag_purchases_purchase_no ON bag_purchases(purchase_no);
 CREATE INDEX IF NOT EXISTS idx_bag_purchases_supplier ON bag_purchases(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_bag_purchases_organization ON bag_purchases(organization_id);
+CREATE INDEX IF NOT EXISTS idx_bag_purchases_branch ON bag_purchases(branch_id);
 CREATE INDEX IF NOT EXISTS idx_bag_purchase_lines_purchase_id ON bag_purchase_lines(purchase_id);
 
 -- Sample data

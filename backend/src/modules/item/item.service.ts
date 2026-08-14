@@ -71,8 +71,8 @@ export async function getItemById(
 /**
  * List All Items
  */
-export async function listItems(): Promise<Item[]> {
-  return listItemsRepo();
+export async function listItems(organizationId?: string | null, branchId?: string | null): Promise<Item[]> {
+  return listItemsRepo(organizationId ?? null, branchId ?? null);
 }
 
 /**

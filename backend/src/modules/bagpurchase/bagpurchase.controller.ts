@@ -18,6 +18,20 @@ import {
   deleteBagPurchaseService,
 } from "./bagpurchase.service.js";
 
+function resolveOrganizationId(req: Request): string | undefined {
+  return (
+    (req.query.organizationId as string | undefined) ||
+    req.header("x-organization-id")
+  );
+}
+
+function resolveBranchId(req: Request): string | undefined {
+  return (
+    (req.query.branchId as string | undefined) ||
+    req.header("x-branch-id")
+  );
+}
+
 /**
  * ============================================================
  * Get Next Purchase Number
@@ -61,7 +75,10 @@ export async function getBagPurchases(
 ) {
   try {
     const data =
-      await getBagPurchasesService();
+      await getBagPurchasesService(
+        resolveOrganizationId(req),
+        resolveBranchId(req)
+      );
 
     return res.json({
       success: true,
@@ -139,10 +156,23 @@ export async function createBagPurchase(
   res: Response
 ) {
   try {
+    const organizationId =
+      resolveOrganizationId(req);
+    const branchId =
+      resolveBranchId(req);
+
     const data =
-      await createBagPurchaseService(
-        req.body
-      );
+      await createBagPurchaseService({
+        ...req.body,
+        organization_id:
+          req.body.organization_id ??
+          organizationId ??
+          null,
+        branch_id:
+          req.body.branch_id ??
+          branchId ??
+          null,
+      });
 
     return res.status(201).json({
       success: true,

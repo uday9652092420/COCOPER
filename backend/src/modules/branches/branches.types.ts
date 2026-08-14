@@ -31,3 +31,8 @@ export interface BranchUpdateDTO {
   contact_no?: string | null;
   status?: string;
 }
+
+export interface UserBranchAssignment {
+  branch_ids: string[];
+  default_branch_id: string | null;
+}

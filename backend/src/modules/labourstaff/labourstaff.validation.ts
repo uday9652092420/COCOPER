@@ -45,6 +45,11 @@ export const createLabourSchema = z.object({
   loading_amount: z.coerce.number().min(0),
 
   status: statusEnum,
+
+  organization_id: z
+    .string()
+    .nullable()
+    .optional(),
 });
 
 /**

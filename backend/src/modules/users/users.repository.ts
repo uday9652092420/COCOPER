@@ -130,3 +130,41 @@ export async function deleteUserRepo(id: string): Promise<boolean> {
   const result = await pool.query(`DELETE FROM organization_users WHERE id = $1`, [id]);
   return (result.rowCount ?? 0) > 0;
 }
+
+export async function getUserPermissionsRepo(userId: string): Promise<string[]> {
+  const { rows } = await pool.query(
+    `SELECT permission_code FROM user_permissions WHERE user_id = $1 ORDER BY permission_code`,
+    [userId]
+  );
+  return rows.map((r) => r.permission_code);
+}
+
+export async function setUserPermissionsRepo(userId: string, permissionCodes: string[]): Promise<string[]> {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM user_permissions WHERE user_id = $1`, [userId]);
+
+    for (const code of permissionCodes) {
+      await client.query(
+        `INSERT INTO user_permissions (user_id, permission_code) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [userId, code]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    const { rows } = await client.query(
+      `SELECT permission_code FROM user_permissions WHERE user_id = $1 ORDER BY permission_code`,
+      [userId]
+    );
+
+    return rows.map((r) => r.permission_code);
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}

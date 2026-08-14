@@ -26,8 +26,8 @@ import type {
 /**
  * List Labour Staff
  */
-export async function listLabourStaffService(): Promise<LabourStaff[]> {
-  return await listLabourStaffRepository();
+export async function listLabourStaffService(organizationId?: string | null): Promise<LabourStaff[]> {
+  return await listLabourStaffRepository(organizationId ?? null);
 }
 
 /**

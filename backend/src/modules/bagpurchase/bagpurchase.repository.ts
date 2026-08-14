@@ -401,9 +401,24 @@ function getGunnyBagId(
  * Get All Bag Purchases
  * ============================================================
  */
-export async function getBagPurchasesRepo(): Promise<
+export async function getBagPurchasesRepo(organizationId?: string | null, branchId?: string | null): Promise<
   BagPurchaseResponse[]
 > {
+  const params: string[] = [];
+  const conditions: string[] = [];
+
+  if (organizationId) {
+    params.push(organizationId);
+    conditions.push(`(bp.organization_id = $${params.length} OR bp.organization_id IS NULL)`);
+  }
+
+  if (branchId) {
+    params.push(branchId);
+    conditions.push(`(bp.branch_id = $${params.length} OR bp.branch_id IS NULL)`);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
   const result =
     await pool.query<BagPurchaseDbRow>(
       `
@@ -425,10 +440,13 @@ export async function getBagPurchasesRepo(): Promise<
         LEFT JOIN suppliers s
           ON s.id = bp.supplier_id
 
+        ${where}
+
         ORDER BY
           bp.created_at DESC,
           bp.purchase_no DESC
-      `
+      `,
+      params
     );
 
   const purchases =
@@ -956,7 +974,9 @@ export async function createBagPurchaseRepo(
           purchase_date,
           supplier_id,
           remarks,
-          total_amount
+          total_amount,
+          organization_id,
+          branch_id
         )
         VALUES (
           $1,
@@ -964,7 +984,9 @@ export async function createBagPurchaseRepo(
           $3,
           $4,
           $5,
-          $6
+          $6,
+          $7,
+          $8
         )
       `,
       [
@@ -980,6 +1002,12 @@ export async function createBagPurchaseRepo(
           null,
 
         totalAmount,
+
+        payload.organization_id ??
+          null,
+
+        payload.branch_id ??
+          null,
       ]
     );
 

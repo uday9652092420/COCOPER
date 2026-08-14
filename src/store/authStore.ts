@@ -4,6 +4,7 @@
  */
 
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { login as loginApi } from '../services/authservices/auth.service'
 
 /**
@@ -41,7 +42,9 @@ interface AuthState {
 /**
  * @description Zustand store for authentication backed by the backend API.
  */
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
   user: null,
   selectedOrganizationId: null,
 
@@ -98,4 +101,12 @@ export const useAuthStore = create<AuthState>((set) => ({
     set((state) =>
       state.user ? { user: { ...state.user, ...partial } } : state
     ),
-}))
+  }),
+  {
+    name: 'cocoper_auth',
+    partialize: (state) => ({
+      user: state.user,
+      selectedOrganizationId: state.selectedOrganizationId,
+    }),
+  }
+))

@@ -14,7 +14,15 @@ import type {
 /**
  * Get all labour staff
  */
-export async function listLabourStaffRepository(): Promise<LabourStaff[]> {
+export async function listLabourStaffRepository(organizationId?: string | null): Promise<LabourStaff[]> {
+  const params: string[] = [];
+  let where = "";
+
+  if (organizationId) {
+    params.push(organizationId);
+    where = "WHERE organization_id = $1 OR organization_id IS NULL";
+  }
+
   const { rows } = await pool.query(
     `
     SELECT
@@ -32,10 +40,13 @@ export async function listLabourStaffRepository(): Promise<LabourStaff[]> {
       overtime_7p_10p,
       loading_amount,
       status,
+      organization_id,
       created_at
     FROM labours
+    ${where}
     ORDER BY created_at DESC, labour_name ASC
-    `
+    `,
+    params
   );
 
   return rows;
@@ -64,6 +75,7 @@ export async function getLabourStaffRepository(
       overtime_7p_10p,
       loading_amount,
       status,
+      organization_id,
       created_at
     FROM labours
     WHERE id = $1
@@ -115,14 +127,15 @@ export async function createLabourStaffRepository(
       overtime_7p_9p,
       overtime_7p_10p,
       loading_amount,
-      status
+      status,
+      organization_id
     )
     VALUES
     (
       gen_random_uuid()::text,
       $1,$2,$3,$4,$5,$6,
       $7,$8,$9,$10,$11,
-      $12,$13
+      $12,$13,$14
     )
     RETURNING *
     `,
@@ -140,6 +153,7 @@ export async function createLabourStaffRepository(
       payload.overtime_7p_10p,
       payload.loading_amount,
       payload.status,
+      payload.organization_id ?? null,
     ]
   );
 

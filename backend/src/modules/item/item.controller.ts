@@ -16,6 +16,20 @@ interface ItemParams {
   id: string;
 }
 
+function resolveOrganizationId(req: Request): string | undefined {
+  return (
+    (req.query.organizationId as string | undefined) ||
+    req.header("x-organization-id")
+  );
+}
+
+function resolveBranchId(req: Request): string | undefined {
+  return (
+    (req.query.branchId as string | undefined) ||
+    req.header("x-branch-id")
+  );
+}
+
 /**
  * Create Item
  */
@@ -37,7 +51,14 @@ export async function createItemHandler(
   }
 
   try {
-    const created = await createItemService(payload);
+    const organizationId = resolveOrganizationId(req);
+    const branchId = resolveBranchId(req);
+
+    const created = await createItemService({
+      ...payload,
+      organization_id: payload.organization_id ?? organizationId ?? null,
+      branch_id: payload.branch_id ?? branchId ?? null,
+    });
 
     return res.status(201).json(created);
   } catch (error) {
@@ -53,12 +74,12 @@ export async function createItemHandler(
  * List Items
  */
 export async function listItemsHandler(
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const rows = await listItemsService();
+    const rows = await listItemsService(resolveOrganizationId(req), resolveBranchId(req));
 
     return res.status(200).json(rows);
   } catch (error) {

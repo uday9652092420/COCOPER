@@ -16,6 +16,13 @@ interface WarehouseParams {
   id: string;
 }
 
+function resolveOrganizationId(req: Request): string | undefined {
+  return (
+    (req.query.organizationId as string | undefined) ||
+    req.header("x-organization-id")
+  );
+}
+
 export async function createWarehouseHandler(
   req: Request,
   res: Response,
@@ -29,7 +36,13 @@ export async function createWarehouseHandler(
   }
 
   try {
-    const created = await createWarehouseService(payload);
+    const organizationId = resolveOrganizationId(req);
+
+    const created = await createWarehouseService({
+      ...payload,
+      organization_id: payload.organization_id ?? organizationId ?? null,
+    });
+
     return res.status(201).json(created);
   } catch (error) {
     return next(
@@ -41,12 +54,12 @@ export async function createWarehouseHandler(
 }
 
 export async function listWarehousesHandler(
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const rows = await listWarehousesService();
+    const rows = await listWarehousesService(resolveOrganizationId(req));
     return res.json(rows);
   } catch (error) {
     return next(

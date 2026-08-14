@@ -4,6 +4,7 @@
  */
 
 import { API } from "../../config/api";
+import { getOrgHeader } from "../../utils/apiHeaders";
 
 /**
  * Labour Response
@@ -80,6 +81,7 @@ export async function createLabour(
 
       headers: {
         "Content-Type": "application/json",
+        ...getOrgHeader(),
       },
 
       body: JSON.stringify(payload),
@@ -101,7 +103,8 @@ export async function createLabour(
 export async function getLabours(): Promise<LabourResponse[]> {
 
   const response = await fetch(
-    `${API}/labour-staff`
+    `${API}/labour-staff`,
+    { headers: getOrgHeader() }
   );
 
   const data = await response.json();

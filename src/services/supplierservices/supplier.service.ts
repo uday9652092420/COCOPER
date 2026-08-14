@@ -1,4 +1,5 @@
 import { API } from "../../config/api";
+import { getOrgHeader } from "../../utils/apiHeaders";
 
 
 export interface SupplierResponse {
@@ -88,6 +89,7 @@ export async function createSupplier(
 
       headers:{
         "Content-Type":"application/json",
+        ...getOrgHeader(),
       },
 
       body:JSON.stringify(payload),
@@ -145,7 +147,8 @@ export async function getSuppliers()
 
 
   const response = await fetch(
-    `${API}/suppliers`
+    `${API}/suppliers`,
+    { headers: getOrgHeader() }
   );
 
 

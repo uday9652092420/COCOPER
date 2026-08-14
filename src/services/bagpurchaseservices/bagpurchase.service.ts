@@ -1,4 +1,5 @@
 import { API } from "../../config/api";
+import { getOrgHeader, getBranchHeader } from "../../utils/apiHeaders";
 
 /**
  * Bag Purchase line sent to backend.
@@ -166,7 +167,8 @@ export async function getBagPurchases(): Promise<
   BagPurchaseResponse[]
 > {
   const response = await fetch(
-    `${API}/bag-purchases`
+    `${API}/bag-purchases`,
+    { headers: { ...getOrgHeader(), ...getBranchHeader() } }
   );
 
   const data =
@@ -229,6 +231,8 @@ export async function createBagPurchase(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...getOrgHeader(),
+        ...getBranchHeader(),
       },
       body: JSON.stringify(payload),
     }

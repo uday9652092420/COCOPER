@@ -25,6 +25,8 @@ export type GunnyBag = {
   opening_stock?: number;
   status?: "Active" | "Inactive";
   created_at?: string;
+  organization_id?: string | null;
+  branch_id?: string | null;
 
   bharthi_types?: GunnyBagBharthiType[];
 };

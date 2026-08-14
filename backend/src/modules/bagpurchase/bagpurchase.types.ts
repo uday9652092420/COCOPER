@@ -51,6 +51,10 @@ export interface BagPurchaseCreatePayload {
 
   remarks?: string | null;
 
+  organization_id?: string | null;
+
+  branch_id?: string | null;
+
   lines: BagPurchaseLinePayload[];
 }
 
@@ -143,6 +147,10 @@ export interface BagPurchaseResponse {
   total_amount: number;
 
   created_at: string;
+
+  organization_id?: string | null;
+
+  branch_id?: string | null;
 
   lines: BagPurchaseLineResponse[];
 }

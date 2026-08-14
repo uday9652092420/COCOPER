@@ -14,7 +14,15 @@ import type {
 /**
  * Get all customers
  */
-export async function listCustomersRepository(): Promise<Customer[]> {
+export async function listCustomersRepository(organizationId?: string | null): Promise<Customer[]> {
+  const params: string[] = [];
+  let where = "";
+
+  if (organizationId) {
+    params.push(organizationId);
+    where = "WHERE organization_id = $1 OR organization_id IS NULL";
+  }
+
   const { rows } = await pool.query(
     `
     SELECT
@@ -33,10 +41,13 @@ export async function listCustomersRepository(): Promise<Customer[]> {
       contact_no2,
       credit_limit,
       status,
+      organization_id,
       created_at
     FROM customers
+    ${where}
     ORDER BY created_at DESC, code ASC
-    `
+    `,
+    params
   );
 
   return rows;
@@ -66,6 +77,7 @@ export async function getCustomerRepository(
       contact_no2,
       credit_limit,
       status,
+      organization_id,
       created_at
     FROM customers
     WHERE id = $1
@@ -118,14 +130,15 @@ export async function createCustomerRepository(
       contact_person2,
       contact_no2,
       credit_limit,
-      status
+      status,
+      organization_id
     )
     VALUES
     (
       gen_random_uuid()::text,
       $1,$2,$3,$4,$5,$6,$7,
       $8,$9,$10,$11,$12,
-      $13,$14
+      $13,$14,$15
     )
     RETURNING *
     `,
@@ -144,6 +157,7 @@ export async function createCustomerRepository(
       payload.contact_no2 ?? "",
       payload.credit_limit,
       payload.status,
+      payload.organization_id ?? null,
     ]
   );
 

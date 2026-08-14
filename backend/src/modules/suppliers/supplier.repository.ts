@@ -100,13 +100,14 @@ export async function createSupplierRepo(
       contact_no2,
       opening_balance,
       status,
+      organization_id,
       created_at
     )
 
     VALUES
     (
       $1,$2,$3,$4,$5,$6,$7,$8,
-      $9,$10,$11,$12,$13,$14,$15,
+      $9,$10,$11,$12,$13,$14,$15,$16,
       CURRENT_DATE
     )
 
@@ -142,7 +143,9 @@ export async function createSupplierRepo(
 
       payload.opening_balance ?? 0,
 
-      payload.status ?? "Active"
+      payload.status ?? "Active",
+
+      payload.organization_id ?? null
 
     ]
   );
@@ -162,15 +165,23 @@ export async function createSupplierRepo(
 /**
  * List Suppliers
  */
-export async function listSuppliersRepo()
+export async function listSuppliersRepo(organizationId?: string | null)
 : Promise<Supplier[]> {
 
+  const params: string[] = [];
+  let where = "";
+
+  if (organizationId) {
+    params.push(organizationId);
+    where = "WHERE organization_id = $1 OR organization_id IS NULL";
+  }
 
   const { rows } = await pool.query(`
     SELECT *
     FROM suppliers
+    ${where}
     ORDER BY created_at DESC
-  `);
+  `, params);
 
 
 

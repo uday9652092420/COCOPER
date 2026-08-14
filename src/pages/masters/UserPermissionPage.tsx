@@ -1,78 +1,131 @@
 /**
  * @file UserPermissionPage.tsx
- * @description Assign permissions to roles.
+ * @description Assign permissions to individual users (scoped by role).
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { Save, ShieldCheck } from 'lucide-react'
+import { Save, ShieldCheck, UserRound } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { LoadingSpinner } from '../../components/common/LoadingSpinner'
+import { getRoles, type Role } from '../../services/rolesservices/roles.service'
 import {
-  getRoles,
-  getPermissions,
-  getRolePermissions,
-  setRolePermissions,
-  type Role,
-  type PermissionDef,
-} from '../../services/rolesservices/roles.service'
+  getUsers,
+  getPermissionOptions,
+  getUserPermissions,
+  setUserPermissions,
+  type OrgUser,
+  type PermissionOptions,
+} from '../../services/usersservices/users.service'
 
 const UserPermissionPage: React.FC = () => {
   const [roles, setRoles] = useState<Role[]>([])
-  const [permissions, setPermissions] = useState<PermissionDef[]>([])
-  const [selectedRoleId, setSelectedRoleId] = useState('')
+  const [users, setUsers] = useState<OrgUser[]>([])
+  const [options, setOptions] = useState<PermissionOptions>({
+    modules: [],
+    actions: [],
+  })
+
+  const [selectedRole, setSelectedRole] = useState('')
+  const [selectedUserId, setSelectedUserId] = useState('')
   const [selectedCodes, setSelectedCodes] = useState<string[]>([])
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    Promise.all([getRoles(), getPermissions()])
-      .then(([rolesList, perms]) => {
+    Promise.all([getRoles(), getUsers(), getPermissionOptions()])
+      .then(([rolesList, usersList, optionsList]) => {
         setRoles(rolesList)
-        setPermissions(perms)
+        setUsers(usersList)
+        setOptions(optionsList)
+
         if (rolesList.length > 0) {
-          setSelectedRoleId(rolesList[0].id)
+          setSelectedRole(rolesList[0].role_name)
         }
       })
       .catch(() => toast.error('Failed to load permission data'))
       .finally(() => setLoading(false))
   }, [])
 
+  const filteredUsers = useMemo(
+    () =>
+      selectedRole
+        ? users.filter((u) => u.role === selectedRole)
+        : users,
+    [users, selectedRole]
+  )
+
+  // Reset user + permissions whenever the role changes.
   useEffect(() => {
-    if (!selectedRoleId) {
+    setSelectedUserId('')
+    setSelectedCodes([])
+  }, [selectedRole])
+
+  useEffect(() => {
+    if (!selectedUserId) {
       setSelectedCodes([])
       return
     }
 
-    getRolePermissions(selectedRoleId)
+    getUserPermissions(selectedUserId)
       .then(setSelectedCodes)
       .catch(() => setSelectedCodes([]))
-  }, [selectedRoleId])
-
-  const groupedPermissions = useMemo(() => {
-    const map = new Map<string, PermissionDef[]>()
-    permissions.forEach((p) => {
-      if (!map.has(p.module)) map.set(p.module, [])
-      map.get(p.module)!.push(p)
-    })
-    return Array.from(map.entries())
-  }, [permissions])
+  }, [selectedUserId])
 
   const togglePermission = (code: string) => {
     setSelectedCodes((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+      prev.includes(code)
+        ? prev.filter((c) => c !== code)
+        : [...prev, code]
     )
   }
 
+  const toggleModule = (moduleCode: string) => {
+    const codes = options.actions.map(
+      (a) => `${moduleCode}.${a.code}`
+    )
+
+    setSelectedCodes((prev) => {
+      const allChecked = codes.every((c) =>
+        prev.includes(c)
+      )
+
+      if (allChecked) {
+        return prev.filter((c) => !codes.includes(c))
+      }
+
+      return Array.from(new Set([...prev, ...codes]))
+    })
+  }
+
+  const toggleAction = (actionCode: string) => {
+    const codes = options.modules.map(
+      (m) => `${m.code}.${actionCode}`
+    )
+
+    setSelectedCodes((prev) => {
+      const allChecked = codes.every((c) =>
+        prev.includes(c)
+      )
+
+      if (allChecked) {
+        return prev.filter((c) => !codes.includes(c))
+      }
+
+      return Array.from(new Set([...prev, ...codes]))
+    })
+  }
+
   const handleSave = async () => {
-    if (!selectedRoleId) {
-      toast.error('Please select a role')
+    if (!selectedUserId) {
+      toast.error('Please select a user')
       return
     }
 
     try {
       setSaving(true)
-      await setRolePermissions(selectedRoleId, selectedCodes)
+      await setUserPermissions(selectedUserId, selectedCodes)
       toast.success('Permissions saved successfully')
     } catch (error: any) {
       console.error(error)
@@ -85,7 +138,10 @@ const UserPermissionPage: React.FC = () => {
   if (loading) {
     return (
       <div>
-        <PageHeader title="User Permission" breadcrumb={['Masters', 'User Permission']} />
+        <PageHeader
+          title="User Permission"
+          breadcrumb={['Masters', 'User Permission']}
+        />
         <LoadingSpinner label="Loading permissions..." />
       </div>
     )
@@ -93,23 +149,46 @@ const UserPermissionPage: React.FC = () => {
 
   return (
     <div>
-      <PageHeader title="User Permission" breadcrumb={['Masters', 'User Permission']} />
+      <PageHeader
+        title="User Permission"
+        breadcrumb={['Masters', 'User Permission']}
+      />
 
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-lime-400 text-white">
-            <ShieldCheck className="h-4 w-4" />
-          </div>
+      {/* Role + User selectors */}
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Select Role</p>
+            <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              <ShieldCheck className="h-3 w-3" />
+              Select Role
+            </p>
             <select
-              value={selectedRoleId}
-              onChange={(e) => setSelectedRoleId(e.target.value)}
-              className="mt-1 w-full min-w-[200px] rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32] md:w-auto"
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              className="w-full min-w-[200px] rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
             >
               {roles.map((role) => (
-                <option key={role.id} value={role.id}>
+                <option key={role.id} value={role.role_name}>
                   {role.role_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              <UserRound className="h-3 w-3" />
+              Select User
+            </p>
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="w-full min-w-[200px] rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
+            >
+              <option value="">Select User</option>
+              {filteredUsers.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.full_name || user.username} ({user.username})
                 </option>
               ))}
             </select>
@@ -119,7 +198,7 @@ const UserPermissionPage: React.FC = () => {
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving}
+          disabled={saving || !selectedUserId}
           className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
         >
           <Save className="h-3.5 w-3.5" />
@@ -127,29 +206,105 @@ const UserPermissionPage: React.FC = () => {
         </button>
       </div>
 
-      <div className="space-y-4">
-        {groupedPermissions.map(([module, perms]) => (
-          <div key={module} className="rounded-2xl border border-slate-100 bg-white/90 p-4 shadow-sm">
-            <h3 className="mb-3 text-sm font-semibold text-slate-800">{module}</h3>
-            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-              {perms.map((p) => (
-                <label
-                  key={p.code}
-                  className="flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedCodes.includes(p.code)}
-                    onChange={() => togglePermission(p.code)}
-                    className="h-3.5 w-3.5 rounded border-slate-300 text-[#2E7D32] focus:ring-[#2E7D32]"
-                  />
-                  {p.name}
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+      {!selectedUserId ? (
+        <div className="rounded-2xl border border-slate-100 bg-white/90 p-8 text-center text-xs text-slate-500 shadow-sm">
+          Select a role and a user to manage their permissions.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white/90 shadow-sm">
+          <table className="w-full min-w-[720px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50/70">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Module/Feature
+                </th>
+
+                {options.actions.map((action) => {
+                  const actionCodes = options.modules.map(
+                    (m) => `${m.code}.${action.code}`
+                  )
+                  const allChecked = actionCodes.every((c) =>
+                    selectedCodes.includes(c)
+                  )
+
+                  return (
+                    <th
+                      key={action.code}
+                      className="px-3 py-3 text-center"
+                    >
+                      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        {action.name}
+                      </div>
+
+                      <input
+                        type="checkbox"
+                        checked={allChecked}
+                        onChange={() =>
+                          toggleAction(action.code)
+                        }
+                        className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[#2E7D32] focus:ring-[#2E7D32]"
+                      />
+                    </th>
+                  )
+                })}
+              </tr>
+            </thead>
+
+            <tbody>
+              {options.modules.map((module) => {
+                const moduleCodes = options.actions.map(
+                  (a) => `${module.code}.${a.code}`
+                )
+                const allChecked = moduleCodes.every((c) =>
+                  selectedCodes.includes(c)
+                )
+
+                return (
+                  <tr
+                    key={module.code}
+                    className="border-b border-slate-50 transition-colors hover:bg-slate-50/60"
+                  >
+                    <td className="px-4 py-3 text-xs font-medium text-slate-700">
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={allChecked}
+                          onChange={() =>
+                            toggleModule(module.code)
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-[#2E7D32] focus:ring-[#2E7D32]"
+                        />
+                        {module.name}
+                      </label>
+                    </td>
+
+                    {options.actions.map((action) => {
+                      const code = `${module.code}.${action.code}`
+                      const checked = selectedCodes.includes(code)
+
+                      return (
+                        <td
+                          key={code}
+                          className="px-3 py-3 text-center"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              togglePermission(code)
+                            }
+                            className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[#2E7D32] focus:ring-[#2E7D32]"
+                          />
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }

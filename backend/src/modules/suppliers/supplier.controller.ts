@@ -37,6 +37,14 @@ interface IdParams {
 }
 
 
+function resolveOrganizationId(req: Request): string | undefined {
+  return (
+    (req.query.organizationId as string | undefined) ||
+    req.header("x-organization-id")
+  );
+}
+
+
 
 
 
@@ -119,9 +127,18 @@ export async function createSupplierHandler(
   try{
 
 
+    const organizationId =
+      resolveOrganizationId(req);
+
     const supplier =
       await createSupplierService(
-        req.body
+        {
+          ...req.body,
+          organization_id:
+            req.body.organization_id ??
+            organizationId ??
+            null,
+        }
       );
 
 
@@ -189,7 +206,9 @@ export async function listSuppliersHandler(
 
 
     const suppliers =
-      await listSuppliersService();
+      await listSuppliersService(
+        resolveOrganizationId(req)
+      );
 
 
 

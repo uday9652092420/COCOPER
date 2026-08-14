@@ -59,6 +59,9 @@ export type Supplier = {
 
   created_at?: string;
 
+
+  organization_id?: string | null;
+
 };
 
 

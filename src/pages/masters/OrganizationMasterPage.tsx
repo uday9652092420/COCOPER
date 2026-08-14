@@ -18,6 +18,8 @@ import {
   FileText,
   Eye,
   Trash2,
+  X,
+  Download,
 } from 'lucide-react'
 
 import { PageHeader } from '../../components/common/PageHeader'
@@ -38,12 +40,6 @@ import {
 } from '../../services/organizationservices/organization.service'
 
 import { INDIAN_STATES } from '../../constants/indianStates'
-
-const REQUIRED_DOCS: { type: string; label: string }[] = [
-  { type: 'GST_CERTIFICATE', label: 'GST Certificate' },
-  { type: 'PAN_CARD', label: 'PAN Card' },
-  { type: 'REGISTRATION_CERTIFICATE', label: 'Registration Certificate' },
-]
 
 /**
  * @description Organization form values (frontend camelCase).
@@ -163,16 +159,18 @@ const OrganizationMasterPage: React.FC = () => {
   const [createdAt, setCreatedAt] = useState('')
 
   const [documents, setDocuments] = useState<
-    Record<string, OrganizationDocument>
-  >({})
+    OrganizationDocument[]
+  >([])
 
-  const [uploadingDoc, setUploadingDoc] = useState<
-    string | null
-  >(null)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
 
-  const docInputRefs = useRef<
-    Record<string, HTMLInputElement | null>
-  >({})
+  const docInputRef = useRef<HTMLInputElement | null>(null)
+
+  const [previewDoc, setPreviewDoc] =
+    useState<OrganizationDocument | null>(null)
+
+  const [isDragging, setIsDragging] =
+    useState(false)
 
   const {
     register,
@@ -313,28 +311,18 @@ const OrganizationMasterPage: React.FC = () => {
   const loadDocuments = async (orgId: string) => {
     try {
       const rows = await getOrganizationDocuments(orgId)
-      const map: Record<string, OrganizationDocument> = {}
-      rows.forEach((doc) => {
-        map[doc.doc_type] = doc
-      })
-      setDocuments(map)
+      setDocuments(rows)
     } catch (error) {
       console.error(error)
     }
   }
 
   /**
-   * @function handleDocFileChange
-   * @description Validate, read and upload a selected document file.
+   * @function processFile
+   * @description Validate, read and upload a single document file.
    */
-  const handleDocFileChange = async (
-    docType: string,
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-
-    if (!file || !organizationId) return
+  const processFile = async (file: File) => {
+    if (!organizationId) return
 
     const allowed = [
       'image/jpeg',
@@ -354,7 +342,7 @@ const OrganizationMasterPage: React.FC = () => {
     }
 
     try {
-      setUploadingDoc(docType)
+      setUploadingDoc(true)
 
       const fileData = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader()
@@ -363,25 +351,69 @@ const OrganizationMasterPage: React.FC = () => {
         reader.readAsDataURL(file)
       })
 
+      const docType = `DOC_${Date.now()}`
       const uploaded = await uploadOrganizationDocument(organizationId, docType, {
         file_name: file.name,
         mime_type: file.type,
         file_data: fileData,
       })
 
-      setDocuments((prev) => ({ ...prev, [docType]: { ...uploaded, file_data: fileData } }))
+      setDocuments((prev) => [...prev, { ...uploaded, file_data: fileData }])
       toast.success('Document uploaded successfully')
     } catch (error: any) {
       console.error(error)
       toast.error(error?.message || 'Failed to upload document')
     } finally {
-      setUploadingDoc(null)
+      setUploadingDoc(false)
     }
   }
 
   /**
+   * @function handleDocFileChange
+   * @description Handle document selection from the file input.
+   */
+  const handleDocFileChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+
+    if (file) processFile(file)
+  }
+
+  /**
+   * @function handleDragOver
+   * @description Highlight the drop zone while dragging a file over it.
+   */
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  /**
+   * @function handleDragLeave
+   * @description Remove drop zone highlight when the file leaves.
+   */
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  /**
+   * @function handleDrop
+   * @description Upload a file dropped onto the documents section.
+   */
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    setIsDragging(false)
+
+    const file = e.dataTransfer.files?.[0]
+    if (file) processFile(file)
+  }
+
+  /**
    * @function handleDocView
-   * @description Open the stored document in a new tab.
+   * @description Open the stored document in an in-app preview modal.
    */
   const handleDocView = async (docType: string) => {
     if (!organizationId) return
@@ -389,7 +421,7 @@ const OrganizationMasterPage: React.FC = () => {
     try {
       const doc = await getOrganizationDocument(organizationId, docType)
       if (doc.file_data) {
-        window.open(doc.file_data, '_blank')
+        setPreviewDoc(doc)
       } else {
         toast.error('No document file found')
       }
@@ -407,11 +439,7 @@ const OrganizationMasterPage: React.FC = () => {
 
     try {
       await deleteOrganizationDocument(organizationId, docType)
-      setDocuments((prev) => {
-        const next = { ...prev }
-        delete next[docType]
-        return next
-      })
+      setDocuments((prev) => prev.filter((d) => d.doc_type !== docType))
       toast.success('Document removed successfully')
     } catch (error: any) {
       console.error(error)
@@ -915,96 +943,101 @@ const OrganizationMasterPage: React.FC = () => {
         </div>
 
         {/* Required Documents */}
-        <div className="rounded-2xl border border-slate-100 bg-white/90 p-4 shadow-sm md:p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <FileText className="h-4 w-4 text-[#2E7D32]" />
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`rounded-2xl border bg-white/90 p-4 shadow-sm transition-colors md:p-5 ${
+            isDragging
+              ? 'border-emerald-400 bg-emerald-50/50'
+              : 'border-slate-100'
+          }`}
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-[#2E7D32]" />
 
-            <h2 className="text-sm font-semibold text-slate-800">
-              Required Documents
-            </h2>
+              <h2 className="text-sm font-semibold text-slate-800">
+                Required Documents
+              </h2>
+            </div>
+
+            <input
+              ref={docInputRef}
+              type="file"
+              accept=".jpg,.jpeg,.png,.pdf"
+              className="hidden"
+              onChange={handleDocFileChange}
+            />
+
+            <button
+              type="button"
+              onClick={() => docInputRef.current?.click()}
+              disabled={uploadingDoc}
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {uploadingDoc ? 'Uploading...' : 'Upload Document'}
+            </button>
           </div>
 
           <p className="mb-4 text-[11px] text-slate-500">
-            Upload supporting documents (JPG, PNG or PDF, max 5MB).
+            Upload supporting documents in JPG, PNG or PDF format (max 5MB each).
+            Drag &amp; drop a file anywhere in this section or use the
+            Upload Document button.
           </p>
 
-          <div className="grid gap-3 md:grid-cols-3">
-            {REQUIRED_DOCS.map((doc) => {
-              const uploaded = documents[doc.type]
-
-              return (
+          {documents.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center text-xs text-slate-400">
+              {isDragging
+                ? 'Drop the file here to upload'
+                : 'No documents uploaded yet. Drag & drop a file here.'}
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {documents.map((doc) => (
                 <div
-                  key={doc.type}
-                  className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-4"
+                  key={doc.id}
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/50 p-3"
                 >
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-800">
-                      {doc.label}
-                    </p>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                      <FileText className="h-4 w-4" />
+                    </div>
 
-                    <input
-                      ref={(el) => {
-                        docInputRefs.current[doc.type] = el
-                      }}
-                      type="file"
-                      accept=".jpg,.jpeg,.png,.pdf"
-                      className="hidden"
-                      onChange={(e) =>
-                        handleDocFileChange(doc.type, e)
-                      }
-                    />
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-slate-700">
+                        {doc.file_name || 'Document'}
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        {(doc.mime_type ?? '').split('/').pop()?.toUpperCase()}
+                      </p>
+                    </div>
                   </div>
 
-                  {uploaded ? (
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-[11px] font-medium text-slate-700">
-                          {uploaded.file_name || 'Document'}
-                        </p>
-                        <p className="text-[10px] text-emerald-600">
-                          Uploaded
-                        </p>
-                      </div>
-
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleDocView(doc.type)}
-                          className="rounded-full p-1.5 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700"
-                          title="View"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDocRemove(doc.type)}
-                          className="rounded-full p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-700"
-                          title="Remove"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
+                  <div className="flex shrink-0 items-center gap-1">
                     <button
                       type="button"
-                      onClick={() =>
-                        docInputRefs.current[doc.type]?.click()
-                      }
-                      disabled={uploadingDoc === doc.type}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+                      onClick={() => handleDocView(doc.doc_type)}
+                      className="rounded-full p-1.5 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700"
+                      title="View"
                     >
-                      <Upload className="h-3.5 w-3.5" />
-                      {uploadingDoc === doc.type
-                        ? 'Uploading...'
-                        : 'Upload'}
+                      <Eye className="h-3.5 w-3.5" />
                     </button>
-                  )}
+
+                    <button
+                      type="button"
+                      onClick={() => handleDocRemove(doc.doc_type)}
+                      className="rounded-full p-1.5 text-slate-500 hover:bg-rose-50 hover:text-rose-700"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
-              )
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Footer actions */}
@@ -1043,6 +1076,61 @@ const OrganizationMasterPage: React.FC = () => {
           </div>
         </div>
       </form>
+
+      {/* Document preview modal */}
+      {previewDoc ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setPreviewDoc(null)}
+        >
+          <div
+            className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+              <p className="truncate text-sm font-semibold text-slate-800">
+                {previewDoc.file_name || 'Document'}
+              </p>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <a
+                  href={previewDoc.file_data ?? '#'}
+                  download={previewDoc.file_name || 'document'}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => setPreviewDoc(null)}
+                  className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100"
+                  title="Close"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-1 items-center justify-center overflow-auto bg-slate-100 p-4">
+              {previewDoc.mime_type === 'application/pdf' ? (
+                <iframe
+                  src={previewDoc.file_data ?? ''}
+                  title={previewDoc.file_name || 'document'}
+                  className="h-[78vh] w-full rounded-xl border border-slate-200 bg-white"
+                />
+              ) : (
+                <img
+                  src={previewDoc.file_data ?? ''}
+                  alt={previewDoc.file_name || 'document'}
+                  className="max-h-[78vh] max-w-full rounded-xl object-contain"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

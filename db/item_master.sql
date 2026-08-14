@@ -26,12 +26,16 @@ CREATE TABLE IF NOT EXISTS items (
   category TEXT,
   uom TEXT,
   status item_status DEFAULT 'Active',
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
   created_at DATE DEFAULT CURRENT_DATE
 );
 
 -- Helpful indexes
 CREATE INDEX IF NOT EXISTS idx_items_code ON items(code);
 CREATE INDEX IF NOT EXISTS idx_items_category ON items(category);
+CREATE INDEX IF NOT EXISTS idx_items_organization ON items(organization_id);
+CREATE INDEX IF NOT EXISTS idx_items_branch ON items(branch_id);
 
 -- Sample data
 INSERT INTO items (id, code, name, category, uom, status, created_at) VALUES

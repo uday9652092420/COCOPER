@@ -33,6 +33,14 @@ router.get(
 );
 
 /**
+ * Backward-compatible alias used by the frontend service.
+ */
+router.get(
+  "/next-no",
+  getNextBagPurchaseNo
+);
+
+/**
  * ============================================================
  * Get All Purchases
  * ============================================================

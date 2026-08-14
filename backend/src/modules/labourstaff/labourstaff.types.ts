@@ -39,6 +39,8 @@ export interface LabourStaff {
   status: LabourStatus;
 
   created_at: string;
+
+  organization_id?: string | null;
 }
 
 /**
@@ -64,6 +66,8 @@ export interface CreateLabourRequest {
   loading_amount: number;
 
   status: LabourStatus;
+
+  organization_id?: string | null;
 }
 
 /**

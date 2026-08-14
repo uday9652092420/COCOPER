@@ -27,12 +27,16 @@ CREATE TABLE IF NOT EXISTS gunny_bags (
   rate_per_bag NUMERIC DEFAULT 0,
   opening_stock INTEGER DEFAULT 0,
   status gunny_bag_status DEFAULT 'Active',
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+  branch_id UUID REFERENCES branches(id) ON DELETE SET NULL,
   created_at DATE DEFAULT CURRENT_DATE
 );
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_gunny_bags_code ON gunny_bags(code);
 CREATE INDEX IF NOT EXISTS idx_gunny_bags_name ON gunny_bags(name);
+CREATE INDEX IF NOT EXISTS idx_gunny_bags_organization ON gunny_bags(organization_id);
+CREATE INDEX IF NOT EXISTS idx_gunny_bags_branch ON gunny_bags(branch_id);
 
 -- Sample data
 INSERT INTO gunny_bags (id, code, name, size, rate_per_bag, opening_stock, status, created_at) VALUES

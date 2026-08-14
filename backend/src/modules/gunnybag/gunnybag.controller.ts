@@ -31,6 +31,20 @@ interface IdParams {
   id: string;
 }
 
+function resolveOrganizationId(req: Request): string | undefined {
+  return (
+    (req.query.organizationId as string | undefined) ||
+    req.header("x-organization-id")
+  );
+}
+
+function resolveBranchId(req: Request): string | undefined {
+  return (
+    (req.query.branchId as string | undefined) ||
+    req.header("x-branch-id")
+  );
+}
+
 /**
  * --------------------------------------------------------------------------
  * Get Next Gunny Bag Code
@@ -116,10 +130,23 @@ export async function createGunnyBagHandler(
   res: Response
 ): Promise<Response> {
   try {
+    const organizationId =
+      resolveOrganizationId(req);
+    const branchId =
+      resolveBranchId(req);
+
     const gunnyBag =
-      await createGunnyBagService(
-        req.body
-      );
+      await createGunnyBagService({
+        ...req.body,
+        organization_id:
+          req.body.organization_id ??
+          organizationId ??
+          null,
+        branch_id:
+          req.body.branch_id ??
+          branchId ??
+          null,
+      });
 
     return res.status(201).json({
       success: true,
@@ -158,7 +185,10 @@ export async function listGunnyBagsHandler(
 ): Promise<Response> {
   try {
     const gunnyBags =
-      await listGunnyBagsService();
+      await listGunnyBagsService(
+        resolveOrganizationId(req),
+        resolveBranchId(req)
+      );
 
     return res.status(200).json({
       success: true,

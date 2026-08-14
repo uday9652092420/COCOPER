@@ -8,7 +8,10 @@ import {
   createBranchRepo,
   deleteBranchRepo,
   getBranchByIdRepo,
+  getNextBranchCodeRepo,
+  getUserBranchesRepo,
   listBranchesRepo,
+  setUserBranchesRepo,
   updateBranchRepo,
 } from './branches.repository.js';
 
@@ -41,8 +44,18 @@ export async function getBranchById(id: string): Promise<Branch | null> {
   return getBranchByIdRepo(id);
 }
 
+export async function getNextBranchCode(): Promise<string> {
+  return getNextBranchCodeRepo();
+}
+
 export async function createBranch(payload: BranchCreateDTO): Promise<Branch> {
-  return createBranchRepo(normalizeCreate(payload));
+  const normalized = normalizeCreate(payload);
+
+  if (!normalized.branch_code) {
+    normalized.branch_code = await getNextBranchCodeRepo();
+  }
+
+  return createBranchRepo(normalized);
 }
 
 export async function updateBranch(id: string, payload: BranchUpdateDTO): Promise<Branch | null> {
@@ -51,4 +64,25 @@ export async function updateBranch(id: string, payload: BranchUpdateDTO): Promis
 
 export async function deleteBranch(id: string): Promise<boolean> {
   return deleteBranchRepo(id);
+}
+
+export async function getUserBranches(userId: string): Promise<{ branch_ids: string[]; default_branch_id: string | null }> {
+  return getUserBranchesRepo(userId);
+}
+
+export async function setUserBranches(
+  userId: string,
+  branchIds: string[],
+  defaultBranchId: string | null
+): Promise<{ branch_ids: string[]; default_branch_id: string | null }> {
+  const unique = Array.from(new Set(branchIds.map((id) => String(id).trim()).filter(Boolean)));
+
+  // A default branch must be one of the assigned branches.
+  const resolvedDefault =
+    defaultBranchId && unique.includes(defaultBranchId)
+      ? defaultBranchId
+      : null;
+
+  await setUserBranchesRepo(userId, unique, resolvedDefault);
+  return getUserBranchesRepo(userId);
 }

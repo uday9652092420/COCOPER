@@ -122,7 +122,8 @@ export async function getNextSupplierCode()
 
 
   const response = await fetch(
-    `${API}/suppliers/next-code`
+    `${API}/suppliers/next-code`,
+    { headers: getOrgHeader() }
   );
 
 

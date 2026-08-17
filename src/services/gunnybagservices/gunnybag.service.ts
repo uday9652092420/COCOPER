@@ -184,7 +184,8 @@ export async function createGunnyBag(
  */
 export async function getNextGunnyBagCode(): Promise<string> {
   const response = await fetch(
-    `${API}/gunny-bags/next-code`
+    `${API}/gunny-bags/next-code`,
+    { headers: { ...getOrgHeader(), ...getBranchHeader() } }
   );
 
   const data =

@@ -112,7 +112,8 @@ export async function createCustomer(
  */
 export async function getNextCustomerCode(): Promise<string> {
   const response = await fetch(
-    `${API}/customers/next-code`
+    `${API}/customers/next-code`,
+    { headers: getOrgHeader() }
   );
 
   const data = await response.json();

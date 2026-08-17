@@ -6,6 +6,7 @@
 import React, {
   useCallback,
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -20,6 +21,8 @@ import DataGrid, {
 
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 
+import { SearchFilterPanel } from "../../components/common/SearchFilterPanel";
+
 import BagPurchaseModal from "./components/BagPurchaseModal";
 
 import {
@@ -27,7 +30,12 @@ import {
   deleteBagPurchase,
   type BagPurchaseResponse,
 } from "../../services/bagpurchaseservices/bagpurchase.service";
+
+import { onScopeChange } from "../../utils/scopeEvents";
+import { usePermissions } from "../../hooks/usePermissions";
 const BagPurchasePage: React.FC = () => {
+  const { can } = usePermissions();
+
   const [purchases, setPurchases] = useState<
     BagPurchaseResponse[]
   >([]);
@@ -43,6 +51,9 @@ const BagPurchasePage: React.FC = () => {
 
   const [loading, setLoading] =
     useState(false);
+
+  const [search, setSearch] =
+    useState("");
 
   /**
    * Load purchases from backend.
@@ -75,10 +86,12 @@ const BagPurchasePage: React.FC = () => {
   );
 
   /**
-   * Initial load.
+   * Initial load + re-fetch when organization/branch changes.
    */
   useEffect(() => {
     void loadPurchases();
+
+    return onScopeChange(() => void loadPurchases());
   }, [loadPurchases]);
 
   /**
@@ -153,6 +166,37 @@ const BagPurchasePage: React.FC = () => {
       toast.error(message);
     }
   };
+
+  /**
+   * Filtered purchases based on the search query.
+   */
+  const filteredPurchases = useMemo(() => {
+    const q = search.toLowerCase();
+
+    if (!q) {
+      return purchases;
+    }
+
+    return purchases.filter((p) => {
+      const supplier =
+        p.supplier_name ??
+        p.supplier_code ??
+        p.supplier_id ??
+        "";
+
+      return (
+        String(p.purchase_no ?? "")
+          .toLowerCase()
+          .includes(q) ||
+        String(supplier)
+          .toLowerCase()
+          .includes(q) ||
+        String(p.remarks ?? "")
+          .toLowerCase()
+          .includes(q)
+      );
+    });
+  }, [purchases, search]);
 
   /**
    * DataGrid columns.
@@ -237,25 +281,29 @@ const BagPurchasePage: React.FC = () => {
         r: BagPurchaseResponse
       ) => (
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() =>
-              handleEdit(r)
-            }
-            className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-          >
-            Edit
-          </button>
+          {can("bagpurchase", "edit") ? (
+            <button
+              type="button"
+              onClick={() =>
+                handleEdit(r)
+              }
+              className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+            >
+              Edit
+            </button>
+          ) : null}
 
-          <button
-            type="button"
-            onClick={() =>
-              setConfirmDelete(r)
-            }
-            className="rounded-full bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
-          >
-            Delete
-          </button>
+          {can("bagpurchase", "delete") ? (
+            <button
+              type="button"
+              onClick={() =>
+                setConfirmDelete(r)
+              }
+              className="rounded-full bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
+            >
+              Delete
+            </button>
+          ) : null}
         </div>
       ),
     },
@@ -273,11 +321,16 @@ const BagPurchasePage: React.FC = () => {
 
       <Toolbar
         title="Bag Purchase"
-        onAdd={handleAdd}
+        onAdd={can("bagpurchase", "create") ? handleAdd : undefined}
+      />
+
+      <SearchFilterPanel
+        onSearch={setSearch}
+        onClear={() => setSearch("")}
       />
 
       <DataGrid<BagPurchaseResponse>
-        data={purchases}
+        data={filteredPurchases}
         columns={columns}
         rowKey={(
           r: BagPurchaseResponse
@@ -285,7 +338,7 @@ const BagPurchasePage: React.FC = () => {
         loading={loading}
       />
 
-      <BagPurchaseModal
+      <BagPurchaseModal 
         open={modalOpen}
         onClose={() => {
           setModalOpen(false);

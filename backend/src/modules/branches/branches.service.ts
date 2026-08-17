@@ -44,15 +44,15 @@ export async function getBranchById(id: string): Promise<Branch | null> {
   return getBranchByIdRepo(id);
 }
 
-export async function getNextBranchCode(): Promise<string> {
-  return getNextBranchCodeRepo();
+export async function getNextBranchCode(organizationId?: string | null): Promise<string> {
+  return getNextBranchCodeRepo(organizationId ?? null);
 }
 
 export async function createBranch(payload: BranchCreateDTO): Promise<Branch> {
   const normalized = normalizeCreate(payload);
 
   if (!normalized.branch_code) {
-    normalized.branch_code = await getNextBranchCodeRepo();
+    normalized.branch_code = await getNextBranchCodeRepo(normalized.organization_id ?? null);
   }
 
   return createBranchRepo(normalized);

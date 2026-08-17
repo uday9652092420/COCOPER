@@ -22,6 +22,8 @@ import {
   deleteItem,
   type ItemResponse,
 } from "../../services/itemservices/item.service";
+import { onScopeChange } from "../../utils/scopeEvents";
+import { usePermissions } from "../../hooks/usePermissions";
 
 
 /**
@@ -40,6 +42,7 @@ interface ItemFormValues {
  * @description Item master maintenance screen.
  */
 const ItemMasterPage: React.FC = () => {
+  const { can } = usePermissions()
   const [records, setRecords] = useState<ItemResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -64,6 +67,10 @@ const ItemMasterPage: React.FC = () => {
 
 useEffect(() => {
   loadItems();
+
+  // Re-fetch when the organization or branch changes in the header.
+  return onScopeChange(() => loadItems());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
 
   const filtered = useMemo(
@@ -102,25 +109,29 @@ useEffect(() => {
       width: '180px',
       render: (row: ItemResponse) => (
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-label={`Edit ${row.name}`}
-            onClick={() => openEdit(row)}
-            className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-          >
-            <Edit2 className="h-3 w-3" />
-            Edit
-          </button>
+          {can('item', 'edit') ? (
+            <button
+              type="button"
+              aria-label={`Edit ${row.name}`}
+              onClick={() => openEdit(row)}
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+            >
+              <Edit2 className="h-3 w-3" />
+              Edit
+            </button>
+          ) : null}
 
-          <button
-            type="button"
-            aria-label={`Delete ${row.name}`}
-            onClick={() => setConfirmDelete(row)}
-            className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
-          >
-            <Trash2 className="h-3 w-3" />
-            Delete
-          </button>
+          {can('item', 'delete') ? (
+            <button
+              type="button"
+              aria-label={`Delete ${row.name}`}
+              onClick={() => setConfirmDelete(row)}
+              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+            >
+              <Trash2 className="h-3 w-3" />
+              Delete
+            </button>
+          ) : null}
         </div>
       ),
     },
@@ -234,7 +245,7 @@ const openEdit = (row: ItemResponse) => {
   return (
     <div>
       <PageHeader title="Item Master" breadcrumb={['Masters', 'Item Master']} />
-      <Toolbar title="Item Master" onAdd={openAdd} />
+      <Toolbar title="Item Master" onAdd={can('item', 'create') ? openAdd : undefined} />
       <SearchFilterPanel onSearch={setSearch} onClear={() => setSearch('')} />
       <DataGrid columns={columns} data={filtered} rowKey={(r: ItemResponse)=>r.id}
       

@@ -78,6 +78,6 @@ export async function listItems(organizationId?: string | null, branchId?: strin
 /**
  * Generate Next Item Code
  */
-export async function getNextItemCode(): Promise<string> {
-  return getNextItemCodeRepo();
+export async function getNextItemCode(branchId?: string | null): Promise<string> {
+  return getNextItemCodeRepo(branchId ?? null);
 }

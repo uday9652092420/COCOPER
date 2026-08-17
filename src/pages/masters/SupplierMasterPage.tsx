@@ -37,6 +37,7 @@ import MasterFormModal, {
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 import { formatDate } from "../../utils/format";
+import { usePermissions } from "../../hooks/usePermissions";
 
 
 
@@ -140,6 +141,7 @@ status:
 
 const SupplierMasterPage:React.FC =()=>{
 
+const { can } = usePermissions();
 
 const [records,setRecords]=useState<Supplier[]>([]);
 
@@ -431,6 +433,7 @@ render:(row:Supplier)=>(
 <div className="flex gap-2">
 
 
+{can("supplier","edit") ? (
 <button
 
 onClick={()=>openEdit(row)}
@@ -448,9 +451,10 @@ text-xs
 Edit
 
 </button>
+) : null}
 
 
-
+{can("supplier","delete") ? (
 <button
 
 onClick={()=>setConfirmDelete(row)}
@@ -469,6 +473,7 @@ text-xs
 Delete
 
 </button>
+) : null}
 
 
 </div>
@@ -937,7 +942,7 @@ breadcrumb={[
 
 title="Supplier Master"
 
-onAdd={openAdd}
+onAdd={can("supplier","create") ? openAdd : undefined}
 
 />
 

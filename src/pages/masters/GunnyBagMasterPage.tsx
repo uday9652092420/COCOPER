@@ -14,6 +14,8 @@ import DataGrid, {
   type Column,
 } from "../../components/common/DataGrid";
 
+import { SearchFilterPanel } from "../../components/common/SearchFilterPanel";
+
 import ConfirmDialog from "../../components/common/ConfirmDialog";
 
 import MasterFormModal, {
@@ -32,6 +34,9 @@ import {
   type GunnyBagSavePayload,
   type GunnyBagBharthiType,
 } from "../../services/gunnybagservices/gunnybag.service";
+
+import { onScopeChange } from "../../utils/scopeEvents";
+import { usePermissions } from "../../hooks/usePermissions";
 
 /**
  * ============================================================
@@ -267,6 +272,9 @@ const getErrorMessage = (
  */
 const GunnyBagMasterPage: React.FC =
   () => {
+    const { can } =
+      usePermissions();
+
     /**
      * ========================================================
      * Gunny Bag Master State
@@ -279,6 +287,9 @@ const GunnyBagMasterPage: React.FC =
 
     const [loading, setLoading] =
       useState(false);
+
+    const [search, setSearch] =
+      useState("");
 
     const [modalOpen, setModalOpen] =
       useState(false);
@@ -467,6 +478,12 @@ const GunnyBagMasterPage: React.FC =
      */
     useEffect(() => {
       loadGunnyBags();
+
+      // Re-fetch when the organization or branch changes in the header.
+      return onScopeChange(() =>
+        loadGunnyBags()
+      );
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     /**
@@ -1533,22 +1550,26 @@ const GunnyBagMasterPage: React.FC =
   render: (row) => (
     <div className="flex w-full items-center justify-start gap-2">
       {/* Edit */}
-      <button
-        type="button"
-        onClick={() => openEdit(row)}
-        className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs hover:bg-slate-100"
-      >
-        Edit
-      </button>
+      {can("gunnybag", "edit") ? (
+        <button
+          type="button"
+          onClick={() => openEdit(row)}
+          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs hover:bg-slate-100"
+        >
+          Edit
+        </button>
+      ) : null}
 
       {/* Delete */}
-      <button
-        type="button"
-        onClick={() => handleDelete(row)}
-        className="rounded-full bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700"
-      >
-        Delete
-      </button>
+      {can("gunnybag", "delete") ? (
+        <button
+          type="button"
+          onClick={() => handleDelete(row)}
+          className="rounded-full bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700"
+        >
+          Delete
+        </button>
+      ) : null}
     </div>
   ),
 },
@@ -1884,6 +1905,43 @@ const GunnyBagMasterPage: React.FC =
 
     /**
      * ========================================================
+     * Filtered Items (Search)
+     * ========================================================
+     */
+    const filteredItems =
+      useMemo(
+        () => {
+          const q = search
+            .toLowerCase();
+
+          if (!q) {
+            return items;
+          }
+
+          return items.filter(
+            (item) =>
+              String(
+                item.code ?? ""
+              )
+                .toLowerCase()
+                .includes(q) ||
+              String(
+                item.name ?? ""
+              )
+                .toLowerCase()
+                .includes(q) ||
+              String(
+                item.size ?? ""
+              )
+                .toLowerCase()
+                .includes(q)
+          );
+        },
+        [items, search]
+      );
+
+    /**
+     * ========================================================
      * Render
      * ========================================================
      */
@@ -1893,20 +1951,29 @@ const GunnyBagMasterPage: React.FC =
             Main Page Container
             ================================================== */}
         <div className="relative">
+          {can("gunnybag", "create") ? (
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={
+                  openAdd
+                }
+                className="rounded-full bg-[#2E7D32] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#256427] focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:ring-offset-2"
+              >
+                Add New Gunny Bag
+              </button>
+            </div>
+          ) : null}
+
           {/* ==================================================
-              Main Add Gunny Bag Button
+              Search
               ================================================== */}
-          <div className="mb-4 flex justify-end">
-            <button
-              type="button"
-              onClick={
-                openAdd
-              }
-              className="rounded-full bg-[#2E7D32] px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#256427] focus:outline-none focus:ring-2 focus:ring-[#2E7D32] focus:ring-offset-2"
-            >
-              Add New Gunny Bag
-            </button>
-          </div>
+          <SearchFilterPanel
+            onSearch={setSearch}
+            onClear={() =>
+              setSearch("")
+            }
+          />
 
           {/* ==================================================
               Data Grid
@@ -1919,7 +1986,7 @@ const GunnyBagMasterPage: React.FC =
               columns
             }
             data={
-              items
+              filteredItems
             }
             rowKey={(
               row

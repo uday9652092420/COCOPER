@@ -8,6 +8,7 @@ import { HashRouter, Route, Routes, Navigate } from 'react-router'
 import { Toaster } from 'sonner'
 import { useAuthStore } from './store/authStore'
 import { MainLayout } from './layouts/MainLayout'
+import { PermissionGuard } from './components/common/PermissionGuard'
 import LoginPage from './pages/Auth/LoginPage'
 import DashboardPage from './pages/Dashboard/DashboardPage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -78,43 +79,43 @@ export default function App() {
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="organization-master" element={<OrganizationMasterPage />} />
-          <Route path="masters/roles" element={<RolesMasterPage />} />
-          <Route path="masters/users" element={<UserMasterPage />} />
-          <Route path="masters/user-permissions" element={<UserPermissionPage />} />
-          <Route path="masters/branches" element={<BranchesMasterPage />} />
+          <Route path="organization-master" element={<PermissionGuard module="organization"><OrganizationMasterPage /></PermissionGuard>} />
+          <Route path="masters/roles" element={<PermissionGuard module="roles"><RolesMasterPage /></PermissionGuard>} />
+          <Route path="masters/users" element={<PermissionGuard module="users"><UserMasterPage /></PermissionGuard>} />
+          <Route path="masters/user-permissions" element={<PermissionGuard module="users"><UserPermissionPage /></PermissionGuard>} />
+          <Route path="masters/branches" element={<PermissionGuard module="branches"><BranchesMasterPage /></PermissionGuard>} />
           <Route path="profile" element={<EditProfilePage />} />
           <Route path="profile/password" element={<ChangePasswordPage />} />
 
           {/* Masters */}
          
-          <Route path="masters/branch-master" element={<BranchMasterPage />} />
-          <Route path="masters/items" element={<ItemMasterPage />} />
-          <Route path="masters/gunny-bags" element={<GunnyBagMasterPage />} />
-          <Route path="masters/suppliers" element={<SupplierMasterPage />} />
-          <Route path="masters/customers" element={<CustomerMasterPage />} />
-          <Route path="masters/labors" element={<LabourMasterPage />} />
-          <Route path="masters/bag-purchase" element={<BagPurchasePage />} />
+          <Route path="masters/branch-master" element={<PermissionGuard module="branches"><BranchMasterPage /></PermissionGuard>} />
+          <Route path="masters/items" element={<PermissionGuard module="item"><ItemMasterPage /></PermissionGuard>} />
+          <Route path="masters/gunny-bags" element={<PermissionGuard module="gunnybag"><GunnyBagMasterPage /></PermissionGuard>} />
+          <Route path="masters/suppliers" element={<PermissionGuard module="supplier"><SupplierMasterPage /></PermissionGuard>} />
+          <Route path="masters/customers" element={<PermissionGuard module="customer"><CustomerMasterPage /></PermissionGuard>} />
+          <Route path="masters/labors" element={<PermissionGuard module="labour"><LabourMasterPage /></PermissionGuard>} />
+          <Route path="masters/bag-purchase" element={<PermissionGuard module="bagpurchase"><BagPurchasePage /></PermissionGuard>} />
           
 
           {/* Transactions */}
-          <Route path="transactions/purchase-order" element={<PurchaseOrderPage />} />
-          <Route path="transactions/purchase-invoice" element={<PurchaseInvoicePage />} />
-          <Route path="transactions/direct-sales" element={<DirectSalesPage />} />
-          <Route path="transactions/indirect-sales" element={<IndirectSalesPage />} />
-          <Route path="transactions/customer-receipt" element={<CustomerReceiptPage />} />
-          <Route path="transactions/loading-dispatch" element={<LoadingDispatchPage />} />
-          <Route path="transactions/supplier-payment" element={<SupplierPaymentPage />} />
-          <Route path="transactions/labour-attendance" element={<LabourAttendancePage />} />
+          <Route path="transactions/purchase-order" element={<PermissionGuard module="purchase-order"><PurchaseOrderPage /></PermissionGuard>} />
+          <Route path="transactions/purchase-invoice" element={<PermissionGuard module="purchase-invoice"><PurchaseInvoicePage /></PermissionGuard>} />
+          <Route path="transactions/direct-sales" element={<PermissionGuard module="sales"><DirectSalesPage /></PermissionGuard>} />
+          <Route path="transactions/indirect-sales" element={<PermissionGuard module="sales"><IndirectSalesPage /></PermissionGuard>} />
+          <Route path="transactions/customer-receipt" element={<PermissionGuard module="customer-receipt"><CustomerReceiptPage /></PermissionGuard>} />
+          <Route path="transactions/loading-dispatch" element={<PermissionGuard module="loading-dispatch"><LoadingDispatchPage /></PermissionGuard>} />
+          <Route path="transactions/supplier-payment" element={<PermissionGuard module="supplier-payment"><SupplierPaymentPage /></PermissionGuard>} />
+          <Route path="transactions/labour-attendance" element={<PermissionGuard module="labour-attendance"><LabourAttendancePage /></PermissionGuard>} />
 
           {/* Reports */}
-          <Route path="reports/purchase-register" element={<PurchaseRegisterPage />} />
-          <Route path="reports/sales-register" element={<SalesRegisterPage />} />
-          <Route path="reports/supplier-statement" element={<SupplierStatementPage />} />
-          <Route path="reports/customer-statement" element={<CustomerStatementPage />} />
-          <Route path="reports/labour-attendance" element={<LabourAttendanceReportPage />} />
-          <Route path="reports/pending-dispatch" element={<PendingDispatchReportPage />} />
-          <Route path="reports/outstanding" element={<OutstandingReportPage />} />
+          <Route path="reports/purchase-register" element={<PermissionGuard module="reports"><PurchaseRegisterPage /></PermissionGuard>} />
+          <Route path="reports/sales-register" element={<PermissionGuard module="reports"><SalesRegisterPage /></PermissionGuard>} />
+          <Route path="reports/supplier-statement" element={<PermissionGuard module="reports"><SupplierStatementPage /></PermissionGuard>} />
+          <Route path="reports/customer-statement" element={<PermissionGuard module="reports"><CustomerStatementPage /></PermissionGuard>} />
+          <Route path="reports/labour-attendance" element={<PermissionGuard module="reports"><LabourAttendanceReportPage /></PermissionGuard>} />
+          <Route path="reports/pending-dispatch" element={<PermissionGuard module="reports"><PendingDispatchReportPage /></PermissionGuard>} />
+          <Route path="reports/outstanding" element={<PermissionGuard module="reports"><OutstandingReportPage /></PermissionGuard>} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

@@ -409,12 +409,12 @@ export async function getBagPurchasesRepo(organizationId?: string | null, branch
 
   if (organizationId) {
     params.push(organizationId);
-    conditions.push(`(bp.organization_id = $${params.length} OR bp.organization_id IS NULL)`);
+    conditions.push(`(bp.organization_id = $${params.length})`);
   }
 
   if (branchId) {
     params.push(branchId);
-    conditions.push(`(bp.branch_id = $${params.length} OR bp.branch_id IS NULL)`);
+    conditions.push(`(bp.branch_id = $${params.length})`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";

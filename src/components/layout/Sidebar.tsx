@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router'
 import { useUIStore } from '../../store/uiStore'
+import { usePermissions } from '../../hooks/usePermissions'
 
 /**
  * @interface NavItem
@@ -34,6 +35,8 @@ interface NavItem {
   label: string
   /** Icon element */
   icon: React.ReactNode
+  /** Permission module code (requires `<module>.read` for visibility). */
+  module: string
 }
 
 /**
@@ -41,12 +44,12 @@ interface NavItem {
  * @description Top-level navigation items.
  */
 const primaryItems: NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" /> },
-  { to: '/organization-master', label: 'Organization Master', icon: <Building2 className="h-4 w-4" /> },
-  { to: '/masters/roles', label: 'Roles Master', icon: <ShieldCheck className="h-4 w-4" /> },
-  { to: '/masters/users', label: 'User Master', icon: <Users className="h-4 w-4" /> },
-  { to: '/masters/user-permissions', label: 'User Permission', icon: <KeyRound className="h-4 w-4" /> },
-  { to: '/masters/branches', label: 'User Branches', icon: <Network className="h-4 w-4" /> },
+  { to: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" />, module: 'dashboard' },
+  { to: '/organization-master', label: 'Organization Master', icon: <Building2 className="h-4 w-4" />, module: 'organization' },
+  { to: '/masters/roles', label: 'Roles Master', icon: <ShieldCheck className="h-4 w-4" />, module: 'roles' },
+  { to: '/masters/users', label: 'User Master', icon: <Users className="h-4 w-4" />, module: 'users' },
+  { to: '/masters/user-permissions', label: 'User Permission', icon: <KeyRound className="h-4 w-4" />, module: 'users' },
+  { to: '/masters/branches', label: 'User Branches', icon: <Network className="h-4 w-4" />, module: 'branches' },
 ]
 
 /**
@@ -54,13 +57,13 @@ const primaryItems: NavItem[] = [
  * @description Master data section items.
  */
 const masterItems: NavItem[] = [
-  { to: '/masters/branch-master', label: 'Branch Master', icon: <Network className="h-4 w-4" /> },
-  { to: '/masters/items', label: 'Items', icon: <Package className="h-4 w-4" /> },
-  { to: '/masters/gunny-bags', label: 'Gunny Bags', icon: <PackageOpen className="h-4 w-4" /> },
-  { to: '/masters/suppliers', label: 'Suppliers', icon: <Users className="h-4 w-4" /> },
-  { to: '/masters/customers', label: 'Customers', icon: <Users className="h-4 w-4" /> },
-  { to: '/masters/labors', label: 'Labor Staff', icon: <Users className="h-4 w-4" /> },
-  { to: '/masters/bag-purchase', label: 'Bag Purchase', icon: <Users className="h-4 w-4" /> },
+  { to: '/masters/branch-master', label: 'Branch Master', icon: <Network className="h-4 w-4" />, module: 'branches' },
+  { to: '/masters/items', label: 'Items', icon: <Package className="h-4 w-4" />, module: 'item' },
+  { to: '/masters/gunny-bags', label: 'Gunny Bags', icon: <PackageOpen className="h-4 w-4" />, module: 'gunnybag' },
+  { to: '/masters/suppliers', label: 'Suppliers', icon: <Users className="h-4 w-4" />, module: 'supplier' },
+  { to: '/masters/customers', label: 'Customers', icon: <Users className="h-4 w-4" />, module: 'customer' },
+  { to: '/masters/labors', label: 'Labor Staff', icon: <Users className="h-4 w-4" />, module: 'labour' },
+  { to: '/masters/bag-purchase', label: 'Bag Purchase', icon: <Users className="h-4 w-4" />, module: 'bagpurchase' },
 ]
 
 /**
@@ -68,15 +71,13 @@ const masterItems: NavItem[] = [
  * @description Transaction section items.
  */
 const transactionItems: NavItem[] = [
-  { to: '/transactions/purchase-order', label: 'Purchase Order', icon: <ShoppingCart className="h-4 w-4" /> },
-  { to: '/transactions/purchase-invoice', label: 'Purchase Invoice', icon: <ReceiptIndianRupee className="h-4 w-4" /> },
-  { to: '/transactions/direct-sales', label: 'Sales', icon: <ShoppingCart className="h-4 w-4" /> },
-  { to: '/transactions/loading-dispatch', label: 'Loading & Dispatch', icon: <ClipboardList className="h-4 w-4" /> },
-  { to: '/transactions/customer-receipt', label: 'Customer Receipt', icon: <ReceiptIndianRupee className="h-4 w-4" /> },
-  { to: '/transactions/supplier-payment', label: 'Supplier Payment', icon: <ReceiptIndianRupee className="h-4 w-4" /> },
-  { to: '/transactions/labour-attendance', label: 'Labor Payment', icon: <ClipboardList className="h-4 w-4" /> },
-
-  
+  { to: '/transactions/purchase-order', label: 'Purchase Order', icon: <ShoppingCart className="h-4 w-4" />, module: 'purchase-order' },
+  { to: '/transactions/purchase-invoice', label: 'Purchase Invoice', icon: <ReceiptIndianRupee className="h-4 w-4" />, module: 'purchase-invoice' },
+  { to: '/transactions/direct-sales', label: 'Sales', icon: <ShoppingCart className="h-4 w-4" />, module: 'sales' },
+  { to: '/transactions/loading-dispatch', label: 'Loading & Dispatch', icon: <ClipboardList className="h-4 w-4" />, module: 'loading-dispatch' },
+  { to: '/transactions/customer-receipt', label: 'Customer Receipt', icon: <ReceiptIndianRupee className="h-4 w-4" />, module: 'customer-receipt' },
+  { to: '/transactions/supplier-payment', label: 'Supplier Payment', icon: <ReceiptIndianRupee className="h-4 w-4" />, module: 'supplier-payment' },
+  { to: '/transactions/labour-attendance', label: 'Labor Payment', icon: <ClipboardList className="h-4 w-4" />, module: 'labour-attendance' },
 ]
 
 /**
@@ -84,13 +85,13 @@ const transactionItems: NavItem[] = [
  * @description Reporting section items.
  */
 const reportItems: NavItem[] = [
-  { to: '/reports/purchase-register', label: 'Purchase Register', icon: <FileText className="h-4 w-4" /> },
-  { to: '/reports/sales-register', label: 'Sales Register', icon: <FileText className="h-4 w-4" /> },
-  { to: '/reports/supplier-statement', label: 'Supplier Statement', icon: <BarChart3 className="h-4 w-4" /> },
-  { to: '/reports/customer-statement', label: 'Customer Statement', icon: <BarChart3 className="h-4 w-4" /> },
-  { to: '/reports/labour-attendance', label: 'Labour Attendance', icon: <FileText className="h-4 w-4" /> },
-  { to: '/reports/pending-dispatch', label: 'Pending Dispatch', icon: <ClipboardList className="h-4 w-4" /> },
-  { to: '/reports/outstanding', label: 'Outstanding', icon: <BarChart3 className="h-4 w-4" /> },
+  { to: '/reports/purchase-register', label: 'Purchase Register', icon: <FileText className="h-4 w-4" />, module: 'reports' },
+  { to: '/reports/sales-register', label: 'Sales Register', icon: <FileText className="h-4 w-4" />, module: 'reports' },
+  { to: '/reports/supplier-statement', label: 'Supplier Statement', icon: <BarChart3 className="h-4 w-4" />, module: 'reports' },
+  { to: '/reports/customer-statement', label: 'Customer Statement', icon: <BarChart3 className="h-4 w-4" />, module: 'reports' },
+  { to: '/reports/labour-attendance', label: 'Labour Attendance', icon: <FileText className="h-4 w-4" />, module: 'reports' },
+  { to: '/reports/pending-dispatch', label: 'Pending Dispatch', icon: <ClipboardList className="h-4 w-4" />, module: 'reports' },
+  { to: '/reports/outstanding', label: 'Outstanding', icon: <BarChart3 className="h-4 w-4" />, module: 'reports' },
 ]
 
 /**
@@ -107,6 +108,12 @@ const isItemActive = (currentPath: string, targetPath: string): boolean =>
 export const Sidebar: React.FC = () => {
   const location = useLocation()
   const { sidebarCollapsed } = useUIStore()
+  const { can } = usePermissions()
+
+  const visiblePrimary = primaryItems.filter((item) => can(item.module, 'read'))
+  const visibleMasters = masterItems.filter((item) => can(item.module, 'read'))
+  const visibleTransactions = transactionItems.filter((item) => can(item.module, 'read'))
+  const visibleReports = reportItems.filter((item) => can(item.module, 'read'))
 
   const baseItemClasses =
     'group flex items-center gap-2 rounded-full px-3 py-2 text-xs font-medium transition-colors'
@@ -138,7 +145,7 @@ export const Sidebar: React.FC = () => {
           {!sidebarCollapsed && (
             <p className="px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Main</p>
           )}
-          {primaryItems.map((item) => {
+          {visiblePrimary.map((item) => {
             const active = isItemActive(location.pathname, item.to)
             return (
               <Link
@@ -167,7 +174,7 @@ export const Sidebar: React.FC = () => {
           {!sidebarCollapsed && (
             <p className="px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Masters</p>
           )}
-          {masterItems.map((item) => {
+          {visibleMasters.map((item) => {
             const active = isItemActive(location.pathname, item.to)
             return (
               <Link
@@ -196,7 +203,7 @@ export const Sidebar: React.FC = () => {
           {!sidebarCollapsed && (
             <p className="px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Transactions</p>
           )}
-          {transactionItems.map((item) => {
+          {visibleTransactions.map((item) => {
             const active = isItemActive(location.pathname, item.to)
             return (
               <Link
@@ -225,7 +232,7 @@ export const Sidebar: React.FC = () => {
           {!sidebarCollapsed && (
             <p className="px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Reports</p>
           )}
-          {reportItems.map((item) => {
+          {visibleReports.map((item) => {
             const active = isItemActive(location.pathname, item.to)
             return (
               <Link

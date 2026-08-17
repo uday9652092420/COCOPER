@@ -47,3 +47,19 @@ export const PERMISSION_ACTIONS: PermissionAction[] = [
 export function buildPermissionCode(moduleCode: string, actionCode: string): string {
   return `${moduleCode}.${actionCode}`;
 }
+
+/**
+ * All possible permission codes (every module x every action).
+ * Used to grant full permissions to newly created users by default.
+ */
+export function getAllPermissionCodes(): string[] {
+  const codes: string[] = [];
+
+  for (const module of PERMISSION_MODULES) {
+    for (const action of PERMISSION_ACTIONS) {
+      codes.push(buildPermissionCode(module.code, action.code));
+    }
+  }
+
+  return codes;
+}

@@ -1,30 +1,22 @@
 import { pool } from "../../config/db.js";
 import { Item, ItemCreateDTO } from "./item.types.js";
+import { getNextScopedCode } from "../../utils/codeGenerator.js";
 
 /**
- * Generate Next Item Code
- * Example:
- * IT-1
- * IT-2
- * IT-3
+ * Generate Next Item Code (branch-scoped).
+ * Example: items in the "Ameerpet" branch -> AI-01, AI-02, ...
  */
-export async function getNextItemCodeRepo(): Promise<string> {
-  const { rows } = await pool.query(`
-    SELECT code
-    FROM items
-    WHERE code LIKE 'IT-%'
-    ORDER BY CAST(SUBSTRING(code FROM 4) AS INTEGER) DESC
-    LIMIT 1
-  `);
-
-  if (rows.length === 0) {
-    return "IT-1";
-  }
-
-  const lastCode = rows[0].code;
-  const lastNumber = parseInt(lastCode.replace("IT-", ""), 10);
-
-  return `IT-${lastNumber + 1}`;
+export async function getNextItemCodeRepo(branchId?: string | null): Promise<string> {
+  return getNextScopedCode({
+    table: "items",
+    scopeColumn: "branch_id",
+    scopeId: branchId ?? null,
+    scopeLabelTable: "branches",
+    scopeLabelColumn: "branch_name",
+    moduleLetter: "I",
+    fallbackPrefix: "IT",
+    padLength: 2,
+  });
 }
 
 /**
@@ -38,7 +30,7 @@ export async function createItemRepo(
   const itemCode =
     payload.code && payload.code.trim() !== ""
       ? payload.code
-      : await getNextItemCodeRepo();
+      : await getNextItemCodeRepo(payload.branch_id ?? null);
 
   const values = [
     id,
@@ -103,12 +95,12 @@ export async function listItemsRepo(organizationId?: string | null, branchId?: s
 
   if (organizationId) {
     params.push(organizationId);
-    conditions.push(`organization_id = $${params.length} OR organization_id IS NULL`);
+    conditions.push(`organization_id = $${params.length}`);
   }
 
   if (branchId) {
     params.push(branchId);
-    conditions.push(`branch_id = $${params.length} OR branch_id IS NULL`);
+    conditions.push(`branch_id = $${params.length}`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";

@@ -44,7 +44,9 @@ export async function createItem(payload: {
  * Get Next Item Code
  */
 export async function getNextItemCode(): Promise<string> {
-  const response = await fetch(`${API}/items/next-code`);
+  const response = await fetch(`${API}/items/next-code`, {
+    headers: { ...getOrgHeader(), ...getBranchHeader() },
+  });
 
   if (!response.ok) {
     throw new Error("Failed to fetch item code");

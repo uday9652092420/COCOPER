@@ -6,6 +6,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { login as loginApi } from '../services/authservices/auth.service'
+import { getUserPermissions } from '../services/usersservices/users.service'
 
 /**
  * @description Authenticated user shape.
@@ -17,6 +18,12 @@ export interface AuthUser {
   role: string
   isSuperAdmin: boolean
   organizationId: string | null
+  /**
+   * Permission codes granted to an organization user
+   * (format: `<module>.<action>`, e.g. "item.read").
+   * Super admins are unrestricted and keep this empty.
+   */
+  permissions: string[]
 }
 
 /**
@@ -52,6 +59,16 @@ export const useAuthStore = create<AuthState>()(
     try {
       const data = await loginApi(username, password)
 
+      // Organization users: load their granted permission codes.
+      let permissions: string[] = []
+      if (!data.user.isSuperAdmin && data.user.id) {
+        try {
+          permissions = await getUserPermissions(data.user.id)
+        } catch {
+          permissions = []
+        }
+      }
+
       const user: AuthUser = {
         id: data.user.id,
         username: data.user.username,
@@ -59,6 +76,7 @@ export const useAuthStore = create<AuthState>()(
         role: data.user.role,
         isSuperAdmin: data.user.isSuperAdmin,
         organizationId: data.user.organizationId,
+        permissions,
       }
 
       set({

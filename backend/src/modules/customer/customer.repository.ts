@@ -4,6 +4,7 @@
  */
 
 import { pool } from "../../config/db.js";
+import { getNextScopedCode } from "../../utils/codeGenerator.js";
 
 import type {
   Customer,
@@ -231,28 +232,20 @@ export async function deleteCustomerRepository(
 }
 
 /**
- * Next customer code
+ * Next customer code (organization-scoped)
+ *
  * Example:
- * CUST-001
- * CUST-002
+ * Customers in the "Maiprosoft" org -> MC-01
  */
-export async function getNextCustomerCodeRepository(): Promise<string> {
-  const { rows } = await pool.query(
-    `
-    SELECT code
-    FROM customers
-    ORDER BY code DESC
-    LIMIT 1
-    `
-  );
-
-  if (!rows.length) {
-    return "CUST-001";
-  }
-
-  const lastCode = rows[0].code as string;
-
-  const number = Number(lastCode.replace("CUST-", "")) + 1;
-
-  return `CUST-${number.toString().padStart(3, "0")}`;
+export async function getNextCustomerCodeRepository(organizationId?: string | null): Promise<string> {
+  return getNextScopedCode({
+    table: "customers",
+    scopeColumn: "organization_id",
+    scopeId: organizationId ?? null,
+    scopeLabelTable: "organizations",
+    scopeLabelColumn: "organization_name",
+    moduleLetter: "C",
+    fallbackPrefix: "CUST",
+    padLength: 2,
+  });
 }

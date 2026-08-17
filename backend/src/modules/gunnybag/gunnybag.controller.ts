@@ -65,7 +65,9 @@ export async function getNextGunnyBagCodeHandler(
 ): Promise<Response> {
   try {
     const code =
-      await getNextGunnyBagCodeService();
+      await getNextGunnyBagCodeService(
+        resolveBranchId(req)
+      );
 
     return res.status(200).json({
       success: true,

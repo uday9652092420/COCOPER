@@ -39,10 +39,6 @@ const UserPermissionPage: React.FC = () => {
         setRoles(rolesList)
         setUsers(usersList)
         setOptions(optionsList)
-
-        if (rolesList.length > 0) {
-          setSelectedRole(rolesList[0].role_name)
-        }
       })
       .catch(() => toast.error('Failed to load permission data'))
       .finally(() => setLoading(false))
@@ -167,6 +163,7 @@ const UserPermissionPage: React.FC = () => {
               onChange={(e) => setSelectedRole(e.target.value)}
               className="w-full min-w-[200px] rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
             >
+              <option value="">All Roles</option>
               {roles.map((role) => (
                 <option key={role.id} value={role.role_name}>
                   {role.role_name}

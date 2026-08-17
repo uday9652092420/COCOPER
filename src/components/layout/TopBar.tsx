@@ -9,10 +9,16 @@ import { Bell, Building2, LogOut, Network } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useUIStore, type LanguageCode } from '../../store/uiStore'
 import {
+  getCurrentOrganization,
   getOrganizations,
   type OrganizationSummary,
 } from '../../services/organizationservices/organization.service'
-import { getBranches, type Branch } from '../../services/branchesservices/branches.service'
+import {
+  getBranches,
+  getUserBranches,
+  type Branch,
+} from '../../services/branchesservices/branches.service'
+import { notifyScopeChange } from '../../utils/scopeEvents'
 import { ProfileMenu } from './ProfileMenu'
 
 /**
@@ -44,6 +50,10 @@ export const TopBar: React.FC = () => {
     OrganizationSummary[]
   >([])
 
+  const [currentOrg, setCurrentOrg] = useState<
+    OrganizationSummary | null
+  >(null)
+
   const [branches, setBranches] = useState<Branch[]>([])
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(
@@ -51,20 +61,82 @@ export const TopBar: React.FC = () => {
   )
 
   useEffect(() => {
-    if (!user?.isSuperAdmin) return
+    if (!user) return
 
-    getOrganizations()
-      .then(setOrganizations)
-      .catch(() => setOrganizations([]))
-  }, [user?.isSuperAdmin])
+    if (user.isSuperAdmin) {
+      getOrganizations()
+        .then(setOrganizations)
+        .catch(() => setOrganizations([]))
+      return
+    }
+
+    // Organization users: show their own organization in the header.
+    getCurrentOrganization()
+      .then((org) =>
+        setCurrentOrg({
+          id: org.id,
+          organization_code: org.organization_code,
+          organization_name: org.organization_name,
+        })
+      )
+      .catch(() => setCurrentOrg(null))
+  }, [user?.isSuperAdmin, user?.id])
 
   useEffect(() => {
     if (!user) return
 
     getBranches()
-      .then(setBranches)
+      .then((list) => {
+        // Super admins see all branches of the currently selected
+        // organization (or all branches when no org is selected).
+        if (user.isSuperAdmin) {
+          setBranches(list)
+          return
+        }
+
+        // Organization users can only see and access the branches
+        // that have been assigned to them in the User Branches master.
+        getUserBranches(user.id)
+          .then((assignment) => {
+            const assignedIds = new Set(assignment.branch_ids ?? [])
+            const assigned = list.filter((branch) => assignedIds.has(branch.id))
+
+            setBranches(assigned)
+
+            const defaultId = assignment.default_branch_id
+            const storedBranchId = localStorage.getItem('cocoper_branch_id') ?? ''
+
+            if (defaultId && assignedIds.has(defaultId)) {
+              setSelectedBranchId(defaultId)
+              localStorage.setItem('cocoper_branch_id', defaultId)
+            } else if (storedBranchId && assignedIds.has(storedBranchId)) {
+              setSelectedBranchId(storedBranchId)
+            } else if (assigned.length > 0) {
+              const first = assigned[0].id
+              setSelectedBranchId(first)
+              localStorage.setItem('cocoper_branch_id', first)
+            } else {
+              setSelectedBranchId('')
+              localStorage.removeItem('cocoper_branch_id')
+            }
+
+            notifyScopeChange()
+          })
+          .catch(() => setBranches(list))
+      })
       .catch(() => setBranches([]))
-  }, [user?.id])
+  }, [user?.id, user?.isSuperAdmin, selectedOrganizationId])
+
+  const handleOrganizationChange = (value: string) => {
+    setSelectedOrganization(value || null)
+
+    // Reset branch selection when the organization changes so that a
+    // branch from a previous organization is not carried over.
+    setSelectedBranchId('')
+    localStorage.removeItem('cocoper_branch_id')
+
+    notifyScopeChange()
+  }
 
   const handleBranchChange = (value: string) => {
     setSelectedBranchId(value)
@@ -74,6 +146,8 @@ export const TopBar: React.FC = () => {
     } else {
       localStorage.removeItem('cocoper_branch_id')
     }
+
+    notifyScopeChange()
   }
 
   return (
@@ -131,7 +205,9 @@ export const TopBar: React.FC = () => {
             className="max-w-[180px] rounded-full border-0 bg-transparent text-[11px] font-medium text-slate-700 focus:outline-none"
             title="Select branch"
           >
-            <option value="">All Branches</option>
+            {user?.isSuperAdmin ? (
+              <option value="">All Branches</option>
+            ) : null}
 
             {branches.map((branch) => (
               <option key={branch.id} value={branch.id}>
@@ -148,9 +224,7 @@ export const TopBar: React.FC = () => {
             <select
               value={selectedOrganizationId ?? ''}
               onChange={(e) =>
-                setSelectedOrganization(
-                  e.target.value || null
-                )
+                handleOrganizationChange(e.target.value)
               }
               className="max-w-[220px] rounded-full border-0 bg-transparent text-[11px] font-medium text-slate-700 focus:outline-none"
               title="Select organization"
@@ -169,6 +243,18 @@ export const TopBar: React.FC = () => {
                 </option>
               ))}
             </select>
+          </div>
+        ) : currentOrg ? (
+          <div
+            className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/60 px-2 py-1"
+            title="Organization"
+          >
+            <Building2 className="h-3.5 w-3.5 text-emerald-600" />
+
+            <span className="text-[11px] font-medium text-slate-700">
+              {currentOrg.organization_code} -{' '}
+              {currentOrg.organization_name}
+            </span>
           </div>
         ) : null}
 

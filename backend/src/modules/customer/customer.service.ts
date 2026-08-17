@@ -26,8 +26,8 @@ import type {
 /**
  * Get Next Customer Code
  */
-export async function getNextCustomerCodeService(): Promise<string> {
-  return getNextCustomerCodeRepository();
+export async function getNextCustomerCodeService(organizationId?: string | null): Promise<string> {
+  return getNextCustomerCodeRepository(organizationId ?? null);
 }
 
 /**

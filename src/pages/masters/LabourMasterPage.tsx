@@ -15,6 +15,7 @@ import MasterFormModal, {
 } from "./components/MasterFormModal";
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { formatDate } from "../../utils/format";
+import { usePermissions } from "../../hooks/usePermissions";
 
 import {
   getLabours,
@@ -47,6 +48,7 @@ interface LabourFormValues {
 }
 
 const LabourMasterPage: React.FC = () => {
+  const { can } = usePermissions();
   const [records, setRecords] = useState<LabourResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -165,21 +167,25 @@ const LabourMasterPage: React.FC = () => {
   label: "Actions",
   render: (row: LabourResponse) => (
     <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={() => openEdit(row)}
-        className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-      >
-        Edit
-      </button>
+      {can("labour", "edit") ? (
+        <button
+          type="button"
+          onClick={() => openEdit(row)}
+          className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+        >
+          Edit
+        </button>
+      ) : null}
 
-      <button
-        type="button"
-        onClick={() => setConfirmDelete(row)}
-        className="rounded-full bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
-      >
-        Delete
-      </button>
+      {can("labour", "delete") ? (
+        <button
+          type="button"
+          onClick={() => setConfirmDelete(row)}
+          className="rounded-full bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
+        >
+          Delete
+        </button>
+      ) : null}
     </div>
   ),
 },
@@ -378,7 +384,7 @@ const LabourMasterPage: React.FC = () => {
       />
 
       <Toolbar
-        onAddNew={openAdd}
+        onAddNew={can("labour", "create") ? openAdd : undefined}
         onRefresh={loadLabours}
         onExportExcel={() =>
           toast.info("Excel export will be implemented.")

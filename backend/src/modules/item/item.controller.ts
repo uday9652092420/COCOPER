@@ -95,12 +95,12 @@ export async function listItemsHandler(
  * Get Next Item Code
  */
 export async function getNextItemCodeHandler(
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const code = await getNextItemCode();
+    const code = await getNextItemCode(resolveBranchId(req));
 
     return res.status(200).json({
       code,

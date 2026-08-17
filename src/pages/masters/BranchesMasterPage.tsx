@@ -4,9 +4,9 @@
  *              choose which of the assigned branches is the default.
  */
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { GitBranch, Save, Star, UserRound } from 'lucide-react'
+import { GitBranch, Save, UserRound } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { LoadingSpinner } from '../../components/common/LoadingSpinner'
 import { getUsers, type OrgUser } from '../../services/usersservices/users.service'
@@ -95,11 +95,6 @@ const BranchesMasterPage: React.FC = () => {
     }
   }
 
-  const assignedBranches = useMemo(
-    () => branches.filter((b) => assignedBranchIds.includes(b.id)),
-    [branches, assignedBranchIds]
-  )
-
   if (loading) {
     return (
       <div>
@@ -157,130 +152,93 @@ const BranchesMasterPage: React.FC = () => {
           Select a user to assign branches and set a default branch.
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {/* Available branches */}
-          <div className="rounded-2xl border border-slate-100 bg-white/90 p-4 shadow-sm md:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <GitBranch className="h-4 w-4 text-[#2E7D32]" />
+        <div className="rounded-2xl border border-slate-100 bg-white/90 p-4 shadow-sm md:p-5">
+          <div className="mb-3 flex items-center gap-2">
+            <GitBranch className="h-4 w-4 text-[#2E7D32]" />
 
-              <h2 className="text-sm font-semibold text-slate-800">
-                Branches
-              </h2>
+            <h2 className="text-sm font-semibold text-slate-800">
+              Branches &amp; Default Branch
+            </h2>
 
-              <span className="ml-auto text-[11px] text-slate-400">
-                {assignedBranchIds.length}/{branches.length} selected
-              </span>
-            </div>
-
-            {branches.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center text-xs text-slate-400">
-                No branches available.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {branches.map((branch) => {
-                  const checked = assignedBranchIds.includes(branch.id)
-
-                  return (
-                    <label
-                      key={branch.id}
-                      className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
-                        checked
-                          ? 'border-emerald-500/60 bg-emerald-50'
-                          : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleBranch(branch.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-[#2E7D32] focus:ring-[#2E7D32]"
-                      />
-
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium text-slate-700">
-                          {branch.branch_name}
-                        </p>
-                        <p className="truncate text-[10px] text-slate-400">
-                          {branch.branch_code || 'No code'}
-                          {branch.address ? ` · ${branch.address}` : ''}
-                        </p>
-                      </div>
-
-                      {defaultBranchId === branch.id ? (
-                        <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-400" />
-                      ) : null}
-                    </label>
-                  )
-                })}
-              </div>
-            )}
+            <span className="ml-auto text-[11px] text-slate-400">
+              {assignedBranchIds.length}/{branches.length} selected
+            </span>
           </div>
 
-          {/* Default branches */}
-          <div className="rounded-2xl border border-slate-100 bg-white/90 p-4 shadow-sm md:p-5">
-            <div className="mb-3 flex items-center gap-2">
-              <Star className="h-4 w-4 text-amber-500" />
-
-              <h2 className="text-sm font-semibold text-slate-800">
-                Default Branches
-              </h2>
-
-              <span className="ml-auto text-[11px] text-slate-400">
-                choose one
-              </span>
+          {branches.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center text-xs text-slate-400">
+              No branches available.
             </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 text-[10px] uppercase tracking-wide">
+                    <th className="px-3 py-2 text-left font-semibold text-slate-400">
+                      Branch
+                    </th>
+                    <th className="w-28 px-3 py-2 text-center font-semibold text-emerald-600">
+                      Branches
+                    </th>
+                    <th className="w-32 px-3 py-2 text-center font-semibold text-amber-600">
+                      Default Branch
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {branches.map((branch) => {
+                    const checked = assignedBranchIds.includes(branch.id)
+                    const isDefault = defaultBranchId === branch.id
 
-            {assignedBranches.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center text-xs text-slate-400">
-                Assign branches first, then mark one as the default branch.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {assignedBranches.map((branch) => {
-                  const isDefault = defaultBranchId === branch.id
+                    return (
+                      <tr
+                        key={branch.id}
+                        className={`border-b border-slate-100 last:border-b-0 transition-colors ${
+                          checked ? 'bg-emerald-50/40' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <td className="px-3 py-2.5">
+                          <p className="truncate text-xs font-medium text-slate-700">
+                            {branch.branch_name}
+                          </p>
+                          <p className="truncate text-[10px] text-slate-400">
+                            {branch.branch_code || 'No code'}
+                            {branch.address ? ` · ${branch.address}` : ''}
+                          </p>
+                        </td>
 
-                  return (
-                    <label
-                      key={branch.id}
-                      className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
-                        isDefault
-                          ? 'border-amber-400 bg-amber-50'
-                          : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isDefault}
-                        onChange={() => toggleDefault(branch.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-400"
-                      />
+                        <td className="px-3 py-2.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleBranch(branch.id)}
+                            className="h-4 w-4 cursor-pointer rounded border-slate-300 accent-emerald-600 focus:ring-[#2E7D32]"
+                          />
+                        </td>
 
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-medium text-slate-700">
-                          {branch.branch_name}
-                        </p>
-                        <p className="truncate text-[10px] text-slate-400">
-                          {branch.branch_code || 'No code'}
-                        </p>
-                      </div>
+                        <td className="px-3 py-2.5 text-center">
+                          <input
+                            type="radio"
+                            name="defaultBranch"
+                            checked={isDefault}
+                            disabled={!checked}
+                            onChange={() => toggleDefault(branch.id)}
+                            className="h-4 w-4 cursor-pointer accent-amber-500 disabled:cursor-not-allowed disabled:opacity-40"
+                          />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-                      {isDefault ? (
-                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                          Default
-                        </span>
-                      ) : null}
-                    </label>
-                  )
-                })}
-              </div>
-            )}
-
-            <p className="mt-3 text-[11px] text-slate-400">
-              The default branch is used when the user logs in or performs
-              branch-specific actions.
-            </p>
-          </div>
+          <p className="mt-3 text-[11px] text-slate-400">
+            Tick branches in the green column to grant access, then choose one
+            default branch using the amber radio button. The default branch is
+            used when the user logs in.
+          </p>
         </div>
       )}
     </div>

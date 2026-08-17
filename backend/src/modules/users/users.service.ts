@@ -15,6 +15,7 @@ import {
   listUsersRepo,
   setUserPermissionsRepo,
   updateUserRepo,
+  assignAllPermissionsRepo,
 } from './users.repository.js';
 
 export async function listUsers(organizationId?: string | null): Promise<OrgUser[]> {
@@ -38,7 +39,7 @@ export async function createUser(payload: UserCreateDTO): Promise<OrgUser> {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  return createUserRepo(
+  const created = await createUserRepo(
     {
       organization_id: payload.organization_id,
       username,
@@ -52,6 +53,11 @@ export async function createUser(payload: UserCreateDTO): Promise<OrgUser> {
     },
     passwordHash
   );
+
+  // New users start with all permissions by default.
+  await assignAllPermissionsRepo(created.id);
+
+  return created;
 }
 
 export async function updateUser(id: string, payload: UserUpdateDTO): Promise<OrgUser | null> {

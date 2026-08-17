@@ -38,7 +38,9 @@ export async function getNextCustomerCodeHandler(
   res: Response
 ): Promise<Response> {
   try {
-    const code = await getNextCustomerCodeService();
+    const code = await getNextCustomerCodeService(
+      resolveOrganizationId(req)
+    );
 
     return res.status(200).json({
       success: true,

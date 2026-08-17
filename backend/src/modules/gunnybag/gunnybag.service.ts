@@ -32,8 +32,8 @@ import {
  * Get Next Gunny Bag Code
  * --------------------------------------------------------------------------
  */
-export async function getNextGunnyBagCodeService(): Promise<string> {
-  return await getNextGunnyBagCodeRepo();
+export async function getNextGunnyBagCodeService(branchId?: string | null): Promise<string> {
+  return await getNextGunnyBagCodeRepo(branchId ?? null);
 }
 
 /**
@@ -89,7 +89,7 @@ export async function createGunnyBagService(
    * Generate code when frontend does not provide one.
    */
   if (!payload.code?.trim()) {
-    payload.code = await getNextGunnyBagCodeRepo();
+    payload.code = await getNextGunnyBagCodeRepo(payload.branch_id ?? null);
   }
 
   /**

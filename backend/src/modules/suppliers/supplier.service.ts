@@ -39,9 +39,9 @@ import {
 /**
  * Get Next Supplier Code
  */
-export async function getNextSupplierCodeService(){
+export async function getNextSupplierCodeService(organizationId?: string | null){
 
-  return await getNextSupplierCodeRepo();
+  return await getNextSupplierCodeRepo(organizationId ?? null);
 
 }
 
@@ -69,7 +69,9 @@ export async function createSupplierService(
   if(!payload.code?.trim()){
 
     payload.code =
-      await getNextSupplierCodeRepo();
+      await getNextSupplierCodeRepo(
+        payload.organization_id ?? null
+      );
 
   }
 

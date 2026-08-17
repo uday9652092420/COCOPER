@@ -4,6 +4,7 @@
  */
 
 import { pool } from "../../config/db.js";
+import { getNextScopedCode } from "../../utils/codeGenerator.js";
 
 import {
   GunnyBag,
@@ -14,34 +15,20 @@ import {
 
 /**
  * ============================================================
- * Get Next Gunny Bag Code
+ * Get Next Gunny Bag Code (branch-scoped)
  * ============================================================
  */
-export async function getNextGunnyBagCodeRepo(): Promise<string> {
-  const { rows } = await pool.query(`
-    SELECT code
-    FROM gunny_bags
-    WHERE code LIKE 'GB-%'
-    ORDER BY
-      CAST(
-        SUBSTRING(code FROM 4)
-        AS INTEGER
-      ) DESC
-    LIMIT 1
-  `);
-
-  if (rows.length === 0) {
-    return "GB-001";
-  }
-
-  const lastCode = String(rows[0].code);
-
-  const lastNumber = parseInt(
-    lastCode.replace("GB-", ""),
-    10
-  );
-
-  return `GB-${String(lastNumber + 1).padStart(3, "0")}`;
+export async function getNextGunnyBagCodeRepo(branchId?: string | null): Promise<string> {
+  return getNextScopedCode({
+    table: "gunny_bags",
+    scopeColumn: "branch_id",
+    scopeId: branchId ?? null,
+    scopeLabelTable: "branches",
+    scopeLabelColumn: "branch_name",
+    moduleLetter: "G",
+    fallbackPrefix: "GB",
+    padLength: 2,
+  });
 }
 
 /**
@@ -204,7 +191,7 @@ export async function createGunnyBagRepo(
      */
     const code =
       payload.code?.trim() ||
-      (await getNextGunnyBagCodeRepo());
+      (await getNextGunnyBagCodeRepo(payload.branch_id ?? null));
 
     /**
      * Insert parent.
@@ -310,12 +297,12 @@ export async function listGunnyBagsRepo(organizationId?: string | null, branchId
 
   if (organizationId) {
     params.push(organizationId);
-    conditions.push(`(gb.organization_id = $${params.length} OR gb.organization_id IS NULL)`);
+    conditions.push(`(gb.organization_id = $${params.length})`);
   }
 
   if (branchId) {
     params.push(branchId);
-    conditions.push(`(gb.branch_id = $${params.length} OR gb.branch_id IS NULL)`);
+    conditions.push(`(gb.branch_id = $${params.length})`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";

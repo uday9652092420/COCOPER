@@ -32,29 +32,56 @@ export async function getBranchByIdRepo(id: string): Promise<Branch | null> {
   return rows[0] ?? null;
 }
 
-export async function getNextBranchCodeRepo(): Promise<string> {
+/**
+ * Derives the branch-code prefix for an organization:
+ * first letter of the organization name + "B".
+ *
+ * Example: "Maiprosoft" -> "MB"
+ */
+async function getBranchPrefix(organizationId?: string | null): Promise<string> {
+  if (!organizationId) {
+    return 'BR';
+  }
+
   const { rows } = await pool.query(
     `
-    SELECT branch_code
-    FROM branches
-    WHERE branch_code ~ '^BR-[0-9]+$'
-    ORDER BY CAST(SUBSTRING(branch_code FROM 4) AS INTEGER) DESC
-    LIMIT 1
-    `
+    SELECT COALESCE(
+      NULLIF(TRIM(organization_name), ''),
+      NULLIF(TRIM(organization_code), '')
+    ) AS org_label
+    FROM organizations
+    WHERE id = $1
+    `,
+    [organizationId]
   );
 
-  if (rows.length === 0) {
-    return 'BR-001';
+  const label = String(rows[0]?.org_label ?? '').trim();
+  const firstLetter = label.match(/[A-Za-z]/)?.[0];
+
+  return `${(firstLetter ?? 'B').toUpperCase()}B`;
+}
+
+export async function getNextBranchCodeRepo(organizationId?: string | null): Promise<string> {
+  const prefix = await getBranchPrefix(organizationId);
+
+  // The next sequence number is based on the total number of branches
+  // within the selected organization (not across the whole application).
+  const countParams: string[] = [];
+  let countWhere = '';
+
+  if (organizationId) {
+    countParams.push(organizationId);
+    countWhere = `WHERE organization_id = $1`;
   }
 
-  const lastCode = String(rows[0].branch_code);
-  const lastNumber = parseInt(lastCode.replace('BR-', ''), 10);
+  const { rows } = await pool.query(
+    `SELECT COUNT(*)::int AS total FROM branches ${countWhere}`,
+    countParams
+  );
 
-  if (Number.isNaN(lastNumber)) {
-    return 'BR-001';
-  }
+  const total = rows[0]?.total ?? 0;
 
-  return `BR-${String(lastNumber + 1).padStart(3, '0')}`;
+  return `${prefix}-${String(total + 1).padStart(2, '0')}`;
 }
 
 export async function createBranchRepo(payload: BranchCreateDTO): Promise<Branch> {

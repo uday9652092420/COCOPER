@@ -13,6 +13,7 @@ import DataGrid from '../../components/common/DataGrid'
 import MasterFormModal, { type FormFieldConfig } from './components/MasterFormModal'
 import ConfirmDialog from '../../components/common/ConfirmDialog'
 import { formatDate } from '../../utils/format'
+import { usePermissions } from '../../hooks/usePermissions'
 import {
   getRoles,
   createRole,
@@ -28,6 +29,7 @@ interface RoleFormValues {
 }
 
 const RolesMasterPage: React.FC = () => {
+  const { can } = usePermissions()
   const [records, setRecords] = useState<Role[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -140,25 +142,29 @@ const RolesMasterPage: React.FC = () => {
       width: '180px',
       render: (row: Role) => (
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setEditing(row)
-              setModalOpen(true)
-            }}
-            className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-          >
-            <Edit2 className="h-3 w-3" />
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(row)}
-            className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
-          >
-            <Trash2 className="h-3 w-3" />
-            Delete
-          </button>
+          {can('roles', 'edit') ? (
+            <button
+              type="button"
+              onClick={() => {
+                setEditing(row)
+                setModalOpen(true)
+              }}
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+            >
+              <Edit2 className="h-3 w-3" />
+              Edit
+            </button>
+          ) : null}
+          {can('roles', 'delete') ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(row)}
+              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+            >
+              <Trash2 className="h-3 w-3" />
+              Delete
+            </button>
+          ) : null}
         </div>
       ),
     },
@@ -167,7 +173,7 @@ const RolesMasterPage: React.FC = () => {
   return (
     <div>
       <PageHeader title="Roles Master" breadcrumb={['Masters', 'Roles Master']} />
-      <Toolbar title="Roles Master" onAdd={() => { setEditing(null); setModalOpen(true) }} />
+      <Toolbar title="Roles Master" onAdd={can('roles', 'create') ? () => { setEditing(null); setModalOpen(true) } : undefined} />
       <SearchFilterPanel onSearch={setSearch} onClear={() => setSearch('')} />
       <DataGrid columns={columns} data={filtered} rowKey={(r: Role) => r.id} loading={loading} />
       <MasterFormModal<RoleFormValues>

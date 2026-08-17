@@ -5,6 +5,7 @@
 
 import { pool } from '../../config/db.js';
 import type { OrgUser, UserCreateDTO, UserUpdateDTO } from './users.types.js';
+import { getAllPermissionCodes } from './permissions.js';
 
 const SELECT = `
   SELECT
@@ -137,6 +138,24 @@ export async function getUserPermissionsRepo(userId: string): Promise<string[]> 
     [userId]
   );
   return rows.map((r) => r.permission_code);
+}
+
+/**
+ * Grant every available permission to a user (used when creating a new user).
+ */
+export async function assignAllPermissionsRepo(userId: string): Promise<void> {
+  const codes = getAllPermissionCodes();
+
+  if (codes.length === 0) return;
+
+  await pool.query(
+    `
+    INSERT INTO user_permissions (user_id, permission_code)
+    SELECT $1, unnest($2::text[])
+    ON CONFLICT (user_id, permission_code) DO NOTHING
+    `,
+    [userId, codes]
+  );
 }
 
 export async function setUserPermissionsRepo(userId: string, permissionCodes: string[]): Promise<string[]> {

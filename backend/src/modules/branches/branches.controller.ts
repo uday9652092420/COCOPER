@@ -38,12 +38,12 @@ export async function listBranchesHandler(
 }
 
 export async function getNextBranchCodeHandler(
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const code = await getNextBranchCodeService();
+    const code = await getNextBranchCodeService(resolveOrganizationId(req));
     return res.status(200).json({ code });
   } catch (error) {
     return next(new AppError('Failed to generate branch code', 500, { cause: error }));

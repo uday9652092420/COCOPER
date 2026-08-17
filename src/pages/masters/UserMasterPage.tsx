@@ -21,8 +21,8 @@ import {
   type OrgUser,
 } from '../../services/usersservices/users.service'
 import { getRoles, type Role } from '../../services/rolesservices/roles.service'
-import { getBranches, type Branch } from '../../services/branchesservices/branches.service'
 import { getStoredOrganizationId } from '../../services/organizationservices/organization.service'
+import { usePermissions } from '../../hooks/usePermissions'
 
 interface UserFormValues {
   username: string
@@ -31,14 +31,13 @@ interface UserFormValues {
   email: string
   mobileNo: string
   role: string
-  branchId: string
   status: 'ACTIVE' | 'INACTIVE'
 }
 
 const UserMasterPage: React.FC = () => {
+  const { can } = usePermissions()
   const [records, setRecords] = useState<OrgUser[]>([])
   const [roles, setRoles] = useState<Role[]>([])
-  const [branches, setBranches] = useState<Branch[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -48,14 +47,12 @@ const UserMasterPage: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [users, rolesList, branchesList] = await Promise.all([
+      const [users, rolesList] = await Promise.all([
         getUsers(),
         getRoles(),
-        getBranches(),
       ])
       setRecords(users)
       setRoles(rolesList)
-      setBranches(branchesList)
     } catch (error) {
       console.error(error)
       toast.error('Failed to load users')
@@ -97,15 +94,6 @@ const UserMasterPage: React.FC = () => {
       options: roles.map((r) => ({ label: r.role_name, value: r.role_name })),
     },
     {
-      name: 'branchId',
-      label: 'Branch',
-      type: 'select',
-      options: [
-        { label: 'No Branch', value: '' },
-        ...branches.map((b) => ({ label: b.branch_name, value: b.id })),
-      ],
-    },
-    {
       name: 'status',
       label: 'Status',
       type: 'select',
@@ -127,7 +115,6 @@ const UserMasterPage: React.FC = () => {
           email: values.email,
           mobile_no: values.mobileNo,
           role: values.role,
-          branch_id: values.branchId || null,
           status: values.status,
           password: values.password || undefined,
         })
@@ -149,7 +136,6 @@ const UserMasterPage: React.FC = () => {
           email: values.email,
           mobile_no: values.mobileNo,
           role: values.role,
-          branch_id: values.branchId || null,
           status: values.status,
         })
         toast.success('User created successfully')
@@ -183,7 +169,6 @@ const UserMasterPage: React.FC = () => {
     { key: 'full_name', label: 'Full Name' },
     { key: 'email', label: 'Email' },
     { key: 'role', label: 'Role' },
-    { key: 'branch_name', label: 'Branch' },
     {
       key: 'status',
       label: 'Status',
@@ -204,22 +189,26 @@ const UserMasterPage: React.FC = () => {
       width: '180px',
       render: (row: OrgUser) => (
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => { setEditing(row); setModalOpen(true) }}
-            className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-          >
-            <Edit2 className="h-3 w-3" />
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(row)}
-            className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
-          >
-            <Trash2 className="h-3 w-3" />
-            Delete
-          </button>
+          {can('users', 'edit') ? (
+            <button
+              type="button"
+              onClick={() => { setEditing(row); setModalOpen(true) }}
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+            >
+              <Edit2 className="h-3 w-3" />
+              Edit
+            </button>
+          ) : null}
+          {can('users', 'delete') ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(row)}
+              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+            >
+              <Trash2 className="h-3 w-3" />
+              Delete
+            </button>
+          ) : null}
         </div>
       ),
     },
@@ -228,7 +217,7 @@ const UserMasterPage: React.FC = () => {
   return (
     <div>
       <PageHeader title="User Master" breadcrumb={['Masters', 'User Master']} />
-      <Toolbar title="User Master" onAdd={() => { setEditing(null); setModalOpen(true) }} />
+      <Toolbar title="User Master" onAdd={can('users', 'create') ? () => { setEditing(null); setModalOpen(true) } : undefined} />
       <SearchFilterPanel onSearch={setSearch} onClear={() => setSearch('')} />
       <DataGrid columns={columns} data={filtered} rowKey={(u: OrgUser) => u.id} loading={loading} />
       <MasterFormModal<UserFormValues>
@@ -244,7 +233,6 @@ const UserMasterPage: React.FC = () => {
                 email: editing.email ?? '',
                 mobileNo: editing.mobile_no ?? '',
                 role: editing.role ?? '',
-                branchId: editing.branch_id ?? '',
                 status: String(editing.status).toUpperCase() === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE',
               }
             : {
@@ -254,7 +242,6 @@ const UserMasterPage: React.FC = () => {
                 email: '',
                 mobileNo: '',
                 role: roles[0]?.role_name ?? '',
-                branchId: '',
                 status: 'ACTIVE',
               }
         }

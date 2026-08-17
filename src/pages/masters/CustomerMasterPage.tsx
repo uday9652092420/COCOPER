@@ -25,6 +25,7 @@ import DataGrid, { type ColumnDef } from '../../components/common/DataGrid'
 import MasterFormModal, { type FormFieldConfig } from './components/MasterFormModal'
 import { ConfirmDialog } from '../../components/common/ConfirmDialog'
 import { formatDate } from '../../utils/format'
+import { usePermissions } from '../../hooks/usePermissions'
 
 /**
  * @description Customer form values including two additional contact persons and numbers.
@@ -126,6 +127,7 @@ const customerTypeHint = (type: CustomerType | ''): string => {
  * @description Customer master page component.
  */
 const CustomerMasterPage: React.FC = () => {
+  const { can } = usePermissions()
   const [records, setRecords] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -215,20 +217,24 @@ useEffect(() => {
       label: 'Actions',
       render: (row: Customer) => (
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => openEdit(row)}
-            className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(row)}
-            className="rounded-full bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
-          >
-            Delete
-          </button>
+          {can('customer', 'edit') ? (
+            <button
+              type="button"
+              onClick={() => openEdit(row)}
+              className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+            >
+              Edit
+            </button>
+          ) : null}
+          {can('customer', 'delete') ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(row)}
+              className="rounded-full bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
+            >
+              Delete
+            </button>
+          ) : null}
         </div>
       ),
     },
@@ -526,7 +532,7 @@ useEffect(() => {
     <div>
       <PageHeader title="Customer Master" breadcrumb={['Masters', 'Customer Master']} />
       <Toolbar
-        onAddNew={openAdd}
+        onAddNew={can('customer', 'create') ? openAdd : undefined}
         onExportExcel={() => toast.info('Exported customers to Excel (mock).')}
         onExportPdf={() => toast.info('Exported customers to PDF (mock).')}
         onPrint={() => toast.info('Sending customer list to printer (mock).')}

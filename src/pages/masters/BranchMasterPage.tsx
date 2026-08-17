@@ -20,6 +20,7 @@ import {
   deleteBranch,
   type Branch,
 } from '../../services/branchesservices/branches.service'
+import { usePermissions } from '../../hooks/usePermissions'
 
 interface BranchFormValues {
   branchCode: string
@@ -30,6 +31,7 @@ interface BranchFormValues {
 }
 
 const BranchMasterPage: React.FC = () => {
+  const { can } = usePermissions()
   const [records, setRecords] = useState<Branch[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -162,22 +164,26 @@ const BranchMasterPage: React.FC = () => {
       width: '180px',
       render: (row: Branch) => (
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => { setEditing(row); setModalOpen(true) }}
-            className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-          >
-            <Edit2 className="h-3 w-3" />
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirmDelete(row)}
-            className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
-          >
-            <Trash2 className="h-3 w-3" />
-            Delete
-          </button>
+          {can('branches', 'edit') ? (
+            <button
+              type="button"
+              onClick={() => { setEditing(row); setModalOpen(true) }}
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+            >
+              <Edit2 className="h-3 w-3" />
+              Edit
+            </button>
+          ) : null}
+          {can('branches', 'delete') ? (
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(row)}
+              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+            >
+              <Trash2 className="h-3 w-3" />
+              Delete
+            </button>
+          ) : null}
         </div>
       ),
     },
@@ -186,7 +192,7 @@ const BranchMasterPage: React.FC = () => {
   return (
     <div>
       <PageHeader title="Branch Master" breadcrumb={['Masters', 'Branch Master']} />
-      <Toolbar title="Branch Master" onAdd={handleAdd} />
+      <Toolbar title="Branch Master" onAdd={can('branches', 'create') ? handleAdd : undefined} />
       <SearchFilterPanel onSearch={setSearch} onClear={() => setSearch('')} />
       <DataGrid columns={columns} data={filtered} rowKey={(b: Branch) => b.id} loading={loading} />
       <MasterFormModal<BranchFormValues>

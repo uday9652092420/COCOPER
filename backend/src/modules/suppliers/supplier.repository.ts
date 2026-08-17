@@ -5,6 +5,7 @@
 
 
 import { pool } from "../../config/db.js";
+import { getNextScopedCode } from "../../utils/codeGenerator.js";
 
 import {
   Supplier,
@@ -14,45 +15,26 @@ import {
 
 
 /**
- * Get Next Supplier Code
+ * Get Next Supplier Code (organization-scoped)
  *
  * Example:
- * SUP-001
- * SUP-002
+ * Suppliers in the "Maiprosoft" org -> MS-01
  */
-export async function getNextSupplierCodeRepo()
+export async function getNextSupplierCodeRepo(organizationId?: string | null)
 : Promise<string> {
 
 
-  const { rows } = await pool.query(`
-    SELECT code
-    FROM suppliers
-    WHERE code LIKE 'SUP-%'
-    ORDER BY 
-      CAST(SUBSTRING(code FROM 5) AS INTEGER) DESC
-    LIMIT 1
-  `);
+  return getNextScopedCode({
+    table: "suppliers",
+    scopeColumn: "organization_id",
+    scopeId: organizationId ?? null,
+    scopeLabelTable: "organizations",
+    scopeLabelColumn: "organization_name",
+    moduleLetter: "S",
+    fallbackPrefix: "SUP",
+    padLength: 2,
+  });
 
-
-
-  if(rows.length === 0){
-
-    return "SUP-001";
-
-  }
-
-
-
-  const lastCode = rows[0].code;
-
-
-  const lastNumber = parseInt(
-    lastCode.replace("SUP-",""),
-    10
-  );
-
-
-  return `SUP-${String(lastNumber + 1).padStart(3,"0")}`;
 
 }
 
@@ -77,7 +59,9 @@ export async function createSupplierRepo(
   const code =
     payload.code?.trim()
     ||
-    await getNextSupplierCodeRepo();
+    await getNextSupplierCodeRepo(
+      payload.organization_id ?? null
+    );
 
 
 

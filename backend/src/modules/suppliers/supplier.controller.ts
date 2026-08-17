@@ -70,7 +70,9 @@ export async function getNextSupplierCodeHandler(
 
 
     const code =
-      await getNextSupplierCodeService();
+      await getNextSupplierCodeService(
+        resolveOrganizationId(req)
+      );
 
 
 

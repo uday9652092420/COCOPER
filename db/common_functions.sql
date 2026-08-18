@@ -1,13 +1,11 @@
 -- ============================================================
 -- Common Database Functions
 -- ============================================================
-
-CREATE OR REPLACE FUNCTION set_updated_at()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$;
+-- The live database currently uses NO custom functions, procedures
+-- or triggers. `updated_at` columns are maintained by application
+-- code (manual SQL updates), so a set_updated_at() trigger function
+-- is NOT required.
+--
+-- This file is kept as a placeholder for any future shared
+-- functions / procedures.
+-- ============================================================

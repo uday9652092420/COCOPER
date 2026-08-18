@@ -42,29 +42,21 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS gunny_bag_bharthi_types (
     id TEXT PRIMARY KEY,
 
-    -- Parent Gunny Bag
     gunny_bag_id TEXT NOT NULL,
 
-    -- Bharthi value.
-    -- Stored as VARCHAR because the business value is represented
-    -- as a string such as "120", "150", "180", "200".
-    bharthi VARCHAR(50) NOT NULL,
+    bharthi TEXT NOT NULL,
 
-    -- Automatically generated code such as:
-    -- 120 -> B120
-    -- 150 -> B150
-    -- 180 -> B180
-    -- 200 -> B200
-    bharthi_code VARCHAR(50),
-
-    -- Opening stock for this particular Bharthi type
     stock INTEGER NOT NULL DEFAULT 0,
 
-    -- Record creation date
     created_at DATE NOT NULL DEFAULT CURRENT_DATE,
 
-    -- Foreign key relationship with Gunny Bag Master
-    CONSTRAINT fk_gunny_bag_bharthi_gunny_bag
+    CONSTRAINT uq_gunny_bag_bharthi
+        UNIQUE (gunny_bag_id, bharthi),
+
+    CONSTRAINT chk_gunny_bag_bharthi_stock
+        CHECK (stock >= 0),
+
+    CONSTRAINT fk_gunny_bag_bharthi_types_gunny_bag
         FOREIGN KEY (gunny_bag_id)
         REFERENCES gunny_bags(id)
         ON DELETE CASCADE
@@ -75,16 +67,12 @@ CREATE TABLE IF NOT EXISTS gunny_bag_bharthi_types (
 -- ============================================================
 
 -- Faster lookup of Bharthi types belonging to a Gunny Bag
-CREATE INDEX IF NOT EXISTS idx_gunny_bag_bharthi_gunny_bag_id
+CREATE INDEX IF NOT EXISTS idx_gunny_bag_bharthi_types_gunny_bag_id
     ON gunny_bag_bharthi_types(gunny_bag_id);
 
 -- Faster lookup by Bharthi
-CREATE INDEX IF NOT EXISTS idx_gunny_bag_bharthi_bharthi
+CREATE INDEX IF NOT EXISTS idx_gunny_bag_bharthi_types_bharthi
     ON gunny_bag_bharthi_types(bharthi);
-
--- Faster lookup by Bharthi Code
-CREATE INDEX IF NOT EXISTS idx_gunny_bag_bharthi_code
-    ON gunny_bag_bharthi_types(bharthi_code);
 
 -- ============================================================
 -- Sample Data
@@ -104,7 +92,6 @@ INSERT INTO gunny_bag_bharthi_types
     id,
     gunny_bag_id,
     bharthi,
-    bharthi_code,
     stock,
     created_at
 )
@@ -113,7 +100,6 @@ VALUES
     'GB1-B120',
     'GB1',
     '120',
-    'B120',
     30,
     CURRENT_DATE
 ),
@@ -121,7 +107,6 @@ VALUES
     'GB1-B150',
     'GB1',
     '150',
-    'B150',
     20,
     CURRENT_DATE
 ),
@@ -129,7 +114,6 @@ VALUES
     'GB1-B180',
     'GB1',
     '180',
-    'B180',
     40,
     CURRENT_DATE
 ),
@@ -137,7 +121,6 @@ VALUES
     'GB1-B200',
     'GB1',
     '200',
-    'B200',
     10,
     CURRENT_DATE
 )

@@ -16,6 +16,7 @@ import {
 export function validateGunnyBagPayload(
   payload: Partial<GunnyBagCreateDTO>
 ) {
+  
   const errors: Record<string, string> = {};
 
   /**

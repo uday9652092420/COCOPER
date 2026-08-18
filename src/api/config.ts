@@ -1,10 +1,10 @@
-const DEFAULT_API_BASE_URL = 'http://localhost:4004/api'
+import { getAPIBaseUrl } from '../config/api'
 
-const getConfiguredApiBaseUrl = (): string => {
-  const runtimeConfig = (globalThis as typeof globalThis & { __APP_CONFIG__?: { apiBaseUrl?: string } }).__APP_CONFIG__
-  return runtimeConfig?.apiBaseUrl || DEFAULT_API_BASE_URL
-}
-
-export const API_BASE_URL = getConfiguredApiBaseUrl()
+/**
+ * API base URL used by the fetch handlers under src/api.
+ * Resolution logic lives in src/config/api.ts (runtime override,
+ * then .env VITE_BASE_API_URL, then hostname, then local default).
+ */
+export const API_BASE_URL = getAPIBaseUrl()
 
 export const buildApiUrl = (path: string): string => `${API_BASE_URL}${path.startsWith('/') ? path : `/${path}`}`

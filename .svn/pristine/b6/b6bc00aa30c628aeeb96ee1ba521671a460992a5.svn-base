@@ -82,14 +82,14 @@ export default function App() {
           <Route path="organization-master" element={<PermissionGuard module="organization"><OrganizationMasterPage /></PermissionGuard>} />
           <Route path="masters/roles" element={<PermissionGuard module="roles"><RolesMasterPage /></PermissionGuard>} />
           <Route path="masters/users" element={<PermissionGuard module="users"><UserMasterPage /></PermissionGuard>} />
-          <Route path="masters/user-permissions" element={<PermissionGuard module="user-permission"><UserPermissionPage /></PermissionGuard>} />
+          <Route path="masters/user-permissions" element={<PermissionGuard module="users"><UserPermissionPage /></PermissionGuard>} />
           <Route path="masters/branches" element={<PermissionGuard module="branches"><BranchesMasterPage /></PermissionGuard>} />
           <Route path="profile" element={<EditProfilePage />} />
           <Route path="profile/password" element={<ChangePasswordPage />} />
 
           {/* Masters */}
          
-          <Route path="masters/branch-master" element={<PermissionGuard module="branch-master"><BranchMasterPage /></PermissionGuard>} />
+          <Route path="masters/branch-master" element={<PermissionGuard module="branches"><BranchMasterPage /></PermissionGuard>} />
           <Route path="masters/items" element={<PermissionGuard module="item"><ItemMasterPage /></PermissionGuard>} />
           <Route path="masters/gunny-bags" element={<PermissionGuard module="gunnybag"><GunnyBagMasterPage /></PermissionGuard>} />
           <Route path="masters/suppliers" element={<PermissionGuard module="supplier"><SupplierMasterPage /></PermissionGuard>} />

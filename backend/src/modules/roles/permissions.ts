@@ -14,7 +14,6 @@ export const AVAILABLE_PERMISSIONS: PermissionDef[] = [
   { module: 'Organization', code: 'organization.view', name: 'View Organization' },
   { module: 'Organization', code: 'organization.edit', name: 'Edit Organization' },
 
-  { module: 'Masters', code: 'masters.warehouse', name: 'Warehouse Master' },
   { module: 'Masters', code: 'masters.item', name: 'Item Master' },
   { module: 'Masters', code: 'masters.gunnybag', name: 'Gunny Bag Master' },
   { module: 'Masters', code: 'masters.supplier', name: 'Supplier Master' },

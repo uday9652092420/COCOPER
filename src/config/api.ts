@@ -36,14 +36,14 @@ function getHostnameApiUrl(): string {
   const hostname = window.location.hostname
 
 //   // Local development
-//   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-//     return 'http://localhost:4004/api'
-//   }
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:4004/api'
+  }
 
   // TESTING SERVER (R & D) - uncomment to enable auto detection
-  if (hostname === '192.168.1.230') {
-    return 'http://192.168.1.230:3003/api'
-  }
+//   if (hostname === '192.168.1.230') {
+//     return 'http://192.168.1.230:3003/api'
+//   }
 
   // LIVE / PRODUCTION SERVER - uncomment to enable auto detection
   // if (hostname === '<live-server-ip>') {

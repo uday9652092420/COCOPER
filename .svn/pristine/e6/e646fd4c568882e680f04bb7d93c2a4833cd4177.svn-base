@@ -109,13 +109,13 @@ export default function App() {
           <Route path="transactions/labour-attendance" element={<PermissionGuard module="labour-attendance"><LabourAttendancePage /></PermissionGuard>} />
 
           {/* Reports */}
-          <Route path="reports/purchase-register" element={<PermissionGuard module="purchase-register"><PurchaseRegisterPage /></PermissionGuard>} />
-          <Route path="reports/sales-register" element={<PermissionGuard module="sales-register"><SalesRegisterPage /></PermissionGuard>} />
-          <Route path="reports/supplier-statement" element={<PermissionGuard module="supplier-statement"><SupplierStatementPage /></PermissionGuard>} />
-          <Route path="reports/customer-statement" element={<PermissionGuard module="customer-statement"><CustomerStatementPage /></PermissionGuard>} />
-          <Route path="reports/labour-attendance" element={<PermissionGuard module="labour-attendance-report"><LabourAttendanceReportPage /></PermissionGuard>} />
-          <Route path="reports/pending-dispatch" element={<PermissionGuard module="pending-dispatch"><PendingDispatchReportPage /></PermissionGuard>} />
-          <Route path="reports/outstanding" element={<PermissionGuard module="outstanding"><OutstandingReportPage /></PermissionGuard>} />
+          <Route path="reports/purchase-register" element={<PermissionGuard module="reports"><PurchaseRegisterPage /></PermissionGuard>} />
+          <Route path="reports/sales-register" element={<PermissionGuard module="reports"><SalesRegisterPage /></PermissionGuard>} />
+          <Route path="reports/supplier-statement" element={<PermissionGuard module="reports"><SupplierStatementPage /></PermissionGuard>} />
+          <Route path="reports/customer-statement" element={<PermissionGuard module="reports"><CustomerStatementPage /></PermissionGuard>} />
+          <Route path="reports/labour-attendance" element={<PermissionGuard module="reports"><LabourAttendanceReportPage /></PermissionGuard>} />
+          <Route path="reports/pending-dispatch" element={<PermissionGuard module="reports"><PendingDispatchReportPage /></PermissionGuard>} />
+          <Route path="reports/outstanding" element={<PermissionGuard module="reports"><OutstandingReportPage /></PermissionGuard>} />
         </Route>
 
         <Route path="*" element={<NotFoundPage />} />

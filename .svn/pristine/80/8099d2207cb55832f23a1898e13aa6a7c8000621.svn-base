@@ -33,6 +33,7 @@ const permissionSections: { title: string; codes: string[] }[] = [
     title: 'MASTERS',
     codes: [
       'branch-master',
+      'warehouse',
       'item',
       'gunnybag',
       'supplier',
@@ -55,15 +56,7 @@ const permissionSections: { title: string; codes: string[] }[] = [
   },
   {
     title: 'REPORTS',
-    codes: [
-      'purchase-register',
-      'sales-register',
-      'supplier-statement',
-      'customer-statement',
-      'labour-attendance-report',
-      'pending-dispatch',
-      'outstanding',
-    ],
+    codes: ['reports'],
   },
 ]
 

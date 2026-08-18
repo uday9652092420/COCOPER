@@ -3,16 +3,16 @@ import { Item, ItemCreateDTO } from "./item.types.js";
 import { getNextScopedCode } from "../../utils/codeGenerator.js";
 
 /**
- * Generate Next Item Code (branch-scoped).
- * Example: items in the "Ameerpet" branch -> AI-01, AI-02, ...
+ * Generate Next Item Code (organization-scoped).
+ * Example: items for "Maiprosoft" org -> MI-01, MI-02, ...
  */
-export async function getNextItemCodeRepo(branchId?: string | null): Promise<string> {
+export async function getNextItemCodeRepo(organizationId?: string | null): Promise<string> {
   return getNextScopedCode({
     table: "items",
-    scopeColumn: "branch_id",
-    scopeId: branchId ?? null,
-    scopeLabelTable: "branches",
-    scopeLabelColumn: "branch_name",
+    scopeColumn: "organization_id",
+    scopeId: organizationId ?? null,
+    scopeLabelTable: "organizations",
+    scopeLabelColumn: "organization_name",
     moduleLetter: "I",
     fallbackPrefix: "IT",
     padLength: 2,
@@ -30,7 +30,7 @@ export async function createItemRepo(
   const itemCode =
     payload.code && payload.code.trim() !== ""
       ? payload.code
-      : await getNextItemCodeRepo(payload.branch_id ?? null);
+      : await getNextItemCodeRepo(payload.organization_id ?? null);
 
   const values = [
     id,
@@ -40,7 +40,6 @@ export async function createItemRepo(
     payload.uom ?? null,
     payload.status ?? "Active",
     payload.organization_id ?? null,
-    payload.branch_id ?? null,
   ];
 
   const { rows } = await pool.query(
@@ -54,7 +53,6 @@ export async function createItemRepo(
       uom,
       status,
       organization_id,
-      branch_id,
       created_at
     )
     VALUES
@@ -66,7 +64,6 @@ export async function createItemRepo(
       $5,
       $6,
       $7,
-      $8,
       CURRENT_DATE
     )
     RETURNING
@@ -87,20 +84,15 @@ export async function createItemRepo(
 }
 
 /**
- * List Items
+ * List Items (organization-scoped)
  */
-export async function listItemsRepo(organizationId?: string | null, branchId?: string | null): Promise<Item[]> {
+export async function listItemsRepo(organizationId?: string | null): Promise<Item[]> {
   const params: string[] = [];
   const conditions: string[] = [];
 
   if (organizationId) {
     params.push(organizationId);
     conditions.push(`organization_id = $${params.length}`);
-  }
-
-  if (branchId) {
-    params.push(branchId);
-    conditions.push(`branch_id = $${params.length}`);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";

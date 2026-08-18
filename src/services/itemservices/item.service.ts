@@ -1,5 +1,5 @@
 import { API } from "../../config/api";
-import { getOrgHeader, getBranchHeader } from "../../utils/apiHeaders";
+import { getOrgHeader } from "../../utils/apiHeaders";
 
 export interface ItemResponse {
   id: string;
@@ -26,7 +26,6 @@ export async function createItem(payload: {
     headers: {
       "Content-Type": "application/json",
       ...getOrgHeader(),
-      ...getBranchHeader(),
     },
     body: JSON.stringify(payload),
   });
@@ -45,7 +44,7 @@ export async function createItem(payload: {
  */
 export async function getNextItemCode(): Promise<string> {
   const response = await fetch(`${API}/items/next-code`, {
-    headers: { ...getOrgHeader(), ...getBranchHeader() },
+    headers: getOrgHeader(),
   });
 
   if (!response.ok) {
@@ -61,7 +60,7 @@ export async function getNextItemCode(): Promise<string> {
  * Get All Items
  */
 export async function getItems(): Promise<ItemResponse[]> {
-  const response = await fetch(`${API}/items`, { headers: { ...getOrgHeader(), ...getBranchHeader() } });
+  const response = await fetch(`${API}/items`, { headers: getOrgHeader() });
 
   if (!response.ok) {
     throw new Error("Failed to load items");

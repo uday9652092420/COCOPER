@@ -156,7 +156,7 @@ export const TopBar: React.FC = () => {
         {/* Logo */}
         <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md">
           <img
-            src="/logo.jpg"
+            src="logo.jpg"
             alt="COCOPER Logo"
             className="h-full w-full object-cover"
           />

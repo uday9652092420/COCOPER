@@ -95,8 +95,10 @@ export interface PurchaseOrderLine {
   itemId: string
   quantity: number
   discount: number
+  actualQuantity?: number
   purchaseCost: number
   amount: number
+  rate?: number
 }
 
 /**
@@ -110,6 +112,8 @@ export interface PurchaseOrder {
   warehouseId: string
   remarks: string
   status: 'Draft' | 'Approved'
+  organizationId?: string | null
+  mode?: 'tonage' | 'lessing'
   lines: PurchaseOrderLine[]
 }
 

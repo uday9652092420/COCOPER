@@ -5,13 +5,12 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { useForm, useFieldArray, useWatch, type FieldValues } from 'react-hook-form'
+import { useForm, useFieldArray, useWatch, useFormState, type FieldValues } from 'react-hook-form'
 import { toast } from 'sonner'
 import {
   purchaseOrders as dbPurchaseOrders,
-  suppliers,
+  suppliers as mockSuppliers,
   warehouses,
-  items,
   customers,
   type PurchaseOrder,
   type PurchaseOrderLine,
@@ -22,7 +21,37 @@ import { SearchFilterPanel } from '../../components/common/SearchFilterPanel'
 import { DataGrid, type ColumnDef } from '../../components/common/DataGrid'
 import RowActions from '../../components/common/RowActions'
 import { ConfirmDialog } from '../../components/common/ConfirmDialog'
-import { formatDate } from '../../utils/format'
+import { getItems, type ItemResponse } from '../../services/itemservices/item.service'
+import { getSuppliers, type SupplierResponse } from '../../services/supplierservices/supplier.service'
+import {
+  getOrganizations,
+  getCurrentOrganization,
+  type OrganizationSummary,
+} from '../../services/organizationservices/organization.service'
+import { useAuthStore } from '../../store/authStore'
+import { onScopeChange } from '../../utils/scopeEvents'
+import { useIsMobile } from '../../hooks/use-mobile'
+
+/**
+ * @description Convert a date string to DD/MM/YYYY.
+ * Accepts either an ISO (YYYY-MM-DD) value or an already-formatted value.
+ */
+const toDDMMYYYY = (value: string): string => {
+  if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split('-')
+    return `${d}/${m}/${y}`
+  }
+  return value
+}
+
+/**
+ * @description Today's date formatted as DD/MM/YYYY.
+ */
+const todayDDMMYYYY = (): string => {
+  const d = new Date()
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
 
 /**
  * @description Form values for purchase order including line array.
@@ -36,6 +65,8 @@ interface PurchaseOrderFormValues extends FieldValues {
   lines: {
     itemId: string
     quantity?: string
+    discount?: string
+    actualQuantity?: number
     cost?: string
     rate?: string
     purchaseCost?: number
@@ -74,7 +105,26 @@ const PurchaseOrderModal: React.FC<{
   onClose: () => void
   onSave: (order: PurchaseOrder) => void
   existing?: PurchaseOrder | null
-}> = ({ open, onClose, onSave, existing }) => {
+  suppliers: SupplierResponse[]
+  items: ItemResponse[]
+  generatePONumber: () => string
+}> = ({ open, onClose, onSave, existing, suppliers, items, generatePONumber }) => {
+  const { selectedOrganizationId } = useAuthStore()
+
+  /**
+   * @description Mode for actual quantity calculation.
+   * 'tonage'  => actualQuantity = (quantity * 1000) / (discount + 1000)
+   * 'lessing' => actualQuantity = (quantity - discount)
+   */
+  const [mode, setMode] = useState<'tonage' | 'lessing'>(existing?.mode ?? 'tonage')
+
+  /**
+   * @description Render only ONE line-items view at a time (desktop table or
+   * mobile list). Rendering both (hidden via CSS) would register the same
+   * react-hook-form field names twice and break input value binding.
+   */
+  const isMobile = useIsMobile()
+
   /**
    * @description Build initial/default form values with string fields for editable inputs.
    */
@@ -82,7 +132,7 @@ const PurchaseOrderModal: React.FC<{
     if (existing) {
       return {
         poNumber: existing.poNumber,
-        date: existing.date,
+        date: toDDMMYYYY(existing.date),
         supplierId: existing.supplierId,
         warehouseId: existing.warehouseId ?? '',
         remarks: existing.remarks ?? '',
@@ -90,6 +140,8 @@ const PurchaseOrderModal: React.FC<{
           existing.lines?.map((l) => ({
             itemId: l.itemId ?? '',
             quantity: String(l.quantity ?? ''),
+            discount: String(l.discount ?? ''),
+            actualQuantity: l.actualQuantity ?? 0,
             cost: String((typeof l.purchaseCost === 'number' ? l.purchaseCost : l.amount) ?? ''),
             rate: l.rate !== undefined ? String(l.rate) : '',
             purchaseCost: l.purchaseCost ?? 0,
@@ -98,6 +150,8 @@ const PurchaseOrderModal: React.FC<{
             {
               itemId: '',
               quantity: '',
+              discount: '',
+              actualQuantity: 0,
               cost: '',
               rate: '',
               purchaseCost: 0,
@@ -108,12 +162,12 @@ const PurchaseOrderModal: React.FC<{
     }
 
     return {
-      poNumber: `PO-${(Math.floor(Math.random() * 9000) + 1000).toString()}`,
-      date: new Date().toISOString().slice(0, 10),
+      poNumber: generatePONumber(),
+      date: todayDDMMYYYY(),
       supplierId: '',
       warehouseId: '',
       remarks: '',
-      lines: [{ itemId: '', quantity: '', cost: '', rate: '', purchaseCost: 0, amount: 0 }],
+      lines: [{ itemId: '', quantity: '', discount: '', actualQuantity: 0, cost: '', rate: '', purchaseCost: 0, amount: 0 }],
     }
   }
 
@@ -122,14 +176,22 @@ const PurchaseOrderModal: React.FC<{
     handleSubmit,
     control,
     setValue,
+    watch,
     reset,
-    formState: { errors },
   } = useForm<PurchaseOrderFormValues>({
     defaultValues: buildInitial(),
   })
 
+  /**
+   * Targeted form-state subscription (only poNumber/date). Subscribing to the
+   * full formState can break useFieldArray + register value binding in
+   * react-hook-form, so we keep it scoped to the header fields only.
+   */
+  const { errors } = useFormState({ control, name: ['poNumber', 'date'] })
+
   useEffect(() => {
     // Reset form whenever modal opens or existing changes to ensure string-mapped values are loaded
+    setMode(existing?.mode ?? 'tonage')
     reset(buildInitial())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing, open])
@@ -142,10 +204,38 @@ const PurchaseOrderModal: React.FC<{
   /**
    * @description Watch lines to compute derived UI values without writing back during typing.
    */
-  const watchedLines = useWatch({
-    control,
-    name: 'lines',
-  }) as PurchaseOrderFormValues['lines'] | undefined
+  const watchedLines = (watch('lines') ?? []) as PurchaseOrderFormValues['lines']
+
+  /**
+   * @description Recalculate actualQuantity + amount for a given line.
+   *
+   * Formula:
+   * - Tonage:  actualQuantity = (quantity * 1000) / (discount + 1000)
+   * - Lessing: actualQuantity = (quantity - discount)
+   * Amount = actualQuantity * cost
+   */
+  const recalcLine = (index: number, modeOverride?: 'tonage' | 'lessing') => {
+    const line = (watchedLines && watchedLines[index]) || (fields[index] as any)
+    if (!line) return
+    const quantity = Number(line.quantity ?? 0) || 0
+    const discount = Number(line.discount ?? 0) || 0
+    const activeMode = modeOverride ?? mode
+
+    let actualQuantity = 0
+    if (activeMode === 'tonage') {
+      const denom = 1000 + discount
+      const safeDenom = denom === 0 ? 1 : denom
+      actualQuantity = (quantity * 1000) / safeDenom
+    } else {
+      actualQuantity = quantity - discount
+    }
+
+    const cost = Number(line.cost ?? line.purchaseCost ?? 0) || 0
+    const amount = actualQuantity * cost
+
+    setValue(`lines.${index}.actualQuantity`, Number.isFinite(actualQuantity) ? Number(actualQuantity.toFixed(6)) : 0)
+    setValue(`lines.${index}.amount`, Number.isFinite(amount) ? Number(amount.toFixed(2)) : 0)
+  }
 
   /**
    * @description Ensure internal numeric fields are synced on blur for purchase lines.
@@ -155,8 +245,8 @@ const PurchaseOrderModal: React.FC<{
     if (!line) return
     const quantityNum = Number(line.quantity ?? 0) || 0
     const costNum = Number(line.cost ?? line.purchaseCost ?? 0) || 0
+    recalcLine(index)
     setValue(`lines.${index}.purchaseCost`, Number(costNum.toFixed(2)))
-    setValue(`lines.${index}.amount`, Number((quantityNum * costNum).toFixed(2)))
     setValue(`lines.${index}.cost`, costNum === 0 ? '' : String(costNum))
     setValue(`lines.${index}.quantity`, quantityNum === 0 ? '' : String(quantityNum))
   }
@@ -166,11 +256,11 @@ const PurchaseOrderModal: React.FC<{
    */
   const totals = useMemo(() => {
     const arr = Array.isArray(watchedLines) ? watchedLines : []
-    const totalQuantity = arr.reduce((s, l) => s + (Number(l?.quantity) || 0), 0)
+    const totalQuantity = arr.reduce((s, l) => s + (Number(l?.actualQuantity) || 0), 0)
     const totalAmount = arr.reduce((s, l) => {
-      const qty = Number(l?.quantity) || 0
+      const aq = Number(l?.actualQuantity) || 0
       const cost = (Number(l?.cost ?? (l as any)?.purchaseCost) || 0)
-      return s + qty * cost
+      return s + aq * cost
     }, 0)
     return {
       totalQuantity,
@@ -184,13 +274,17 @@ const PurchaseOrderModal: React.FC<{
   const submit = (values: PurchaseOrderFormValues) => {
     const sanitizedLines: PurchaseOrderLine[] = (values.lines || []).map((l, idx) => {
       const quantity = Number(l.quantity) || 0
+      const discount = Number(l.discount) || 0
+      const actualQuantity = Number(l.actualQuantity) || 0
       const cost = (Number(l.cost ?? l.purchaseCost) || 0)
       return {
         id: existing?.lines?.[idx]?.id ?? `POL-${Date.now()}-${idx}`,
         itemId: l.itemId,
         quantity,
+        discount,
+        actualQuantity: Number(actualQuantity.toFixed(6)),
         purchaseCost: Number(cost.toFixed(2)),
-        amount: Number((quantity * cost).toFixed(2)),
+        amount: Number((actualQuantity * cost).toFixed(2)),
         ...(l.rate !== undefined && l.rate !== '' ? { rate: Number(l.rate) } : {}),
       } as any as PurchaseOrderLine
     })
@@ -203,6 +297,8 @@ const PurchaseOrderModal: React.FC<{
       warehouseId: values.warehouseId ?? '',
       remarks: values.remarks,
       status: existing?.status ?? 'Draft',
+      organizationId: selectedOrganizationId ?? null,
+      mode,
       lines: sanitizedLines,
     }
     onSave(order)
@@ -369,8 +465,19 @@ const PurchaseOrderModal: React.FC<{
             </div>
 
             <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Date</label>
-              <input type="date" className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('date', { required: true })} />
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Date (DD/MM/YYYY)</label>
+              <input
+                placeholder="DD/MM/YYYY"
+                className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs"
+                {...register('date', {
+                  required: true,
+                  pattern: {
+                    value: /^\d{2}\/\d{2}\/\d{4}$/,
+                    message: 'Use DD/MM/YYYY',
+                  },
+                })}
+              />
+              {errors.date ? <p className="mt-1 text-[10px] text-rose-500">{errors.date.message || 'Required'}</p> : null}
             </div>
 
             <div>
@@ -384,11 +491,45 @@ const PurchaseOrderModal: React.FC<{
                 ))}
               </select>
             </div>
+          </div>
 
-            <div className="md:col-span-3">
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Remarks</label>
-              <textarea rows={2} className="w-full rounded-2xl border border-slate-200 px-3 py-1.5 text-xs" {...register('remarks')} />
-            </div>
+          {/* Tonnage / Lessing mode (below the 3 header fields, above Remarks) */}
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 text-[11px]">
+            <span className="font-semibold text-slate-700">Quantity Mode</span>
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="radio"
+                name="po-mode"
+                checked={mode === 'tonage'}
+                onChange={() => {
+                  setMode('tonage')
+                  ;(fields || []).forEach((_, idx) => recalcLine(idx, 'tonage'))
+                }}
+              />
+              <span>Tonnage</span>
+            </label>
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="radio"
+                name="po-mode"
+                checked={mode === 'lessing'}
+                onChange={() => {
+                  setMode('lessing')
+                  ;(fields || []).forEach((_, idx) => recalcLine(idx, 'lessing'))
+                }}
+              />
+              <span>Lessing</span>
+            </label>
+            <span className="text-slate-500">
+              {mode === 'tonage'
+                ? 'Quantity in Tons → Actual Qty = (Qty × 1000) / (Discount + 1000)'
+                : 'Quantity in Pieces → Actual Qty = Qty − Discount'}
+            </span>
+          </div>
+
+          <div className="mt-3">
+            <label className="mb-1 block text-[11px] font-medium text-slate-700">Remarks</label>
+            <textarea rows={2} className="w-full rounded-2xl border border-slate-200 px-3 py-1.5 text-xs" {...register('remarks')} />
           </div>
 
           <div className="mt-2 space-y-2">
@@ -400,6 +541,8 @@ const PurchaseOrderModal: React.FC<{
                   append({
                     itemId: '',
                     quantity: '',
+                    discount: '',
+                    actualQuantity: 0,
                     rate: '',
                     cost: '',
                     purchaseCost: 0,
@@ -412,14 +555,17 @@ const PurchaseOrderModal: React.FC<{
               </button>
             </div>
 
-            {/* Desktop table */}
-            <div className="overflow-x-auto hidden md:block">
+            {/* Desktop table (only rendered on non-mobile to avoid duplicate field registration) */}
+            {!isMobile && (
+            <div className="max-h-[20rem] overflow-auto">
               <table className="min-w-full text-left text-[11px] rounded-2xl border border-slate-100">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Item</th>
                     <th className="px-3 py-2">Rate</th>
-                    <th className="px-3 py-2">Quantity</th>
+                    <th className="px-3 py-2">{mode === 'tonage' ? 'Quantity (Tons)' : 'Quantity (Pieces)'}</th>
+                    <th className="px-3 py-2">Discount</th>
+                    <th className="px-3 py-2">Actual Quantity</th>
                     <th className="px-3 py-2">Cost</th>
                     <th className="px-3 py-2">Line Total</th>
                     <th className="px-3 py-2 text-right">Actions</th>
@@ -427,9 +573,9 @@ const PurchaseOrderModal: React.FC<{
                 </thead>
                 <tbody>
                   {fields.map((field, index) => {
-                    const qty = Number(watchedLines?.[index]?.quantity) || 0
+                    const aq = Number(watchedLines?.[index]?.actualQuantity) || 0
                     const cost = (Number(watchedLines?.[index]?.cost ?? watchedLines?.[index]?.purchaseCost) || 0)
-                    const lineTotal = Number((qty * cost).toFixed(2))
+                    const lineTotal = Number((aq * cost).toFixed(2))
                     return (
                       <tr key={field.id} className="border-t border-slate-100">
                         <td className="px-3 py-1.5">
@@ -447,7 +593,7 @@ const PurchaseOrderModal: React.FC<{
                           <input
                             type="text"
                             inputMode="decimal"
-                            className="w-24 rounded-full border border-slate-200 px-2 py-1"
+                            className="w-20 rounded-full border border-slate-200 px-2 py-1"
                             {...register(`lines.${index}.rate` as const)}
                             onBlur={() => syncLineOnBlur(index)}
                           />
@@ -458,7 +604,9 @@ const PurchaseOrderModal: React.FC<{
                             type="text"
                             inputMode="decimal"
                             className="w-24 rounded-full border border-slate-200 px-2 py-1"
-                            {...register(`lines.${index}.quantity` as const)}
+                            {...register(`lines.${index}.quantity` as const, {
+                              onChange: () => recalcLine(index),
+                            })}
                             onBlur={() => syncLineOnBlur(index)}
                           />
                         </td>
@@ -467,7 +615,28 @@ const PurchaseOrderModal: React.FC<{
                           <input
                             type="text"
                             inputMode="decimal"
-                            className="w-28 rounded-full border border-slate-200 px-2 py-1"
+                            className="w-20 rounded-full border border-slate-200 px-2 py-1"
+                            {...register(`lines.${index}.discount` as const, {
+                              onChange: () => recalcLine(index),
+                            })}
+                          />
+                        </td>
+
+                        <td className="px-3 py-1.5">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            readOnly
+                            className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
+                            {...register(`lines.${index}.actualQuantity` as const)}
+                          />
+                        </td>
+
+                        <td className="px-3 py-1.5">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            className="w-24 rounded-full border border-slate-200 px-2 py-1"
                             {...register(`lines.${index}.cost` as const)}
                             onBlur={() => syncLineOnBlur(index)}
                           />
@@ -491,19 +660,23 @@ const PurchaseOrderModal: React.FC<{
                     <td className="px-3 py-2" />
                     <td className="px-3 py-2 font-semibold text-slate-700">{totals.totalQuantity}</td>
                     <td className="px-3 py-2" />
+                    <td className="px-3 py-2" />
+                    <td className="px-3 py-2" />
                     <td className="px-3 py-2 font-semibold text-slate-700">{totals.totalAmount.toFixed(2)}</td>
                     <td className="px-3 py-2" />
                   </tr>
                 </tfoot>
               </table>
             </div>
+            )}
 
-            {/* Mobile stacked list */}
-            <div className="md:hidden space-y-2">
+            {/* Mobile stacked list (only rendered on mobile to avoid duplicate field registration) */}
+            {isMobile && (
+            <div className="max-h-[20rem] space-y-2 overflow-y-auto">
               {fields.map((field, index) => {
-                const qty = Number(watchedLines?.[index]?.quantity) || 0
+                const aq = Number(watchedLines?.[index]?.actualQuantity) || 0
                 const cost = (Number(watchedLines?.[index]?.cost ?? watchedLines?.[index]?.purchaseCost) || 0)
-                const lineTotal = Number((qty * cost).toFixed(2))
+                const lineTotal = Number((aq * cost).toFixed(2))
                 return (
                   <div key={field.id} className="rounded-xl border border-slate-100 bg-white p-3">
                     <div className="mb-2">
@@ -524,13 +697,41 @@ const PurchaseOrderModal: React.FC<{
                         <input type="text" inputMode="decimal" className="w-full rounded-full border border-slate-200 px-3 py-1" {...register(`lines.${index}.rate` as const)} onBlur={() => syncLineOnBlur(index)} />
                       </div>
                       <div>
-                        <label className="mb-1 block text-[11px] font-medium text-slate-700">Qty</label>
+                        <label className="mb-1 block text-[11px] font-medium text-slate-700">
+                          {mode === 'tonage' ? 'Quantity (Tons)' : 'Quantity (Pieces)'}
+                        </label>
                         <input
                           type="text"
                           inputMode="decimal"
                           className="w-full rounded-full border border-slate-200 px-3 py-1"
-                          {...register(`lines.${index}.quantity` as const)}
+                          {...register(`lines.${index}.quantity` as const, {
+                            onChange: () => recalcLine(index),
+                          })}
                           onBlur={() => syncLineOnBlur(index)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium text-slate-700">Discount</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          className="w-full rounded-full border border-slate-200 px-3 py-1"
+                          {...register(`lines.${index}.discount` as const, {
+                            onChange: () => recalcLine(index),
+                          })}
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium text-slate-700">Actual Quantity</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          readOnly
+                          className="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1"
+                          {...register(`lines.${index}.actualQuantity` as const)}
                         />
                       </div>
                     </div>
@@ -569,6 +770,7 @@ const PurchaseOrderModal: React.FC<{
                 </div>
               </div>
             </div>
+            )}
           </div>
 
           {/* Sales Order Conversion Section (expands modal when open) */}
@@ -745,6 +947,7 @@ const PurchaseOrderModal: React.FC<{
  * @description Purchase order list and entry page with Convert -> Sales Order feature inside modal.
  */
 const PurchaseOrderPage: React.FC = () => {
+  const { selectedOrganizationId } = useAuthStore()
   const [records, setRecords] = useState<PurchaseOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -752,25 +955,96 @@ const PurchaseOrderPage: React.FC = () => {
   const [editing, setEditing] = useState<PurchaseOrder | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<PurchaseOrder | null>(null)
 
+  // Org-scoped item / supplier master data + organizations for PO number generation.
+  const [suppliers, setSuppliers] = useState<SupplierResponse[]>([])
+  const [items, setItems] = useState<ItemResponse[]>([])
+  const [organizations, setOrganizations] = useState<OrganizationSummary[]>([])
+
+  const loadSuppliers = async () => {
+    try {
+      setSuppliers(await getSuppliers())
+    } catch {
+      setSuppliers([])
+    }
+  }
+
+  const loadItems = async () => {
+    try {
+      setItems(await getItems())
+    } catch {
+      setItems([])
+    }
+  }
+
+  const loadOrganizations = async () => {
+    try {
+      const list = await getOrganizations()
+      setOrganizations(list)
+    } catch {
+      // Organization users fall back to their own organization.
+      try {
+        const org = await getCurrentOrganization(selectedOrganizationId)
+        setOrganizations([
+          { id: org.id, organization_code: org.organization_code, organization_name: org.organization_name },
+        ])
+      } catch {
+        setOrganizations([])
+      }
+    }
+  }
+
   useEffect(() => {
     const id = setTimeout(() => {
       setRecords(dbPurchaseOrders)
       setLoading(false)
     }, 500)
-    return () => clearTimeout(id)
+
+    loadSuppliers()
+    loadItems()
+    loadOrganizations()
+
+    // Re-fetch master data when the organization changes in the header.
+    const unsubscribe = onScopeChange(() => {
+      loadSuppliers()
+      loadItems()
+      loadOrganizations()
+    })
+
+    return () => {
+      clearTimeout(id)
+      unsubscribe()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const currentOrg = organizations.find((o) => o.id === selectedOrganizationId) ?? null
+
+  /**
+   * @description Generate an organization-wise PO number.
+   * Format: `<FirstLetterOfOrgName>P-<NN>` e.g. "Maiprosoft" -> MP-01.
+   */
+  const generatePONumber = (): string => {
+    const orgName = currentOrg?.organization_name ?? ''
+    const firstLetter = orgName.match(/[A-Za-z]/)?.[0]
+    const prefix = firstLetter ? `${firstLetter.toUpperCase()}P` : 'PO'
+    const count = records.filter((r) => r.organizationId === selectedOrganizationId).length
+    return `${prefix}-${String(count + 1).padStart(2, '0')}`
+  }
+
+  const resolveSupplierName = (id: string): string =>
+    suppliers.find((s) => s.id === id)?.name ?? mockSuppliers.find((s) => s.id === id)?.name ?? ''
 
   const filtered = useMemo(
     () =>
       records.filter((po) => {
         const q = search.toLowerCase()
-        const supplier = suppliers.find((s) => s.id === po.supplierId)
+        const supplierName = resolveSupplierName(po.supplierId)
         const wh = warehouses.find((w) => w.id === po.warehouseId)
         const matchesSearch =
-          !q || po.poNumber.toLowerCase().includes(q) || supplier?.name.toLowerCase().includes(q) || wh?.name.toLowerCase().includes(q)
+          !q || po.poNumber.toLowerCase().includes(q) || supplierName.toLowerCase().includes(q) || wh?.name.toLowerCase().includes(q)
         return matchesSearch
       }),
-    [records, search]
+    [records, search, suppliers]
   )
 
   const openAdd = () => {
@@ -823,12 +1097,12 @@ const PurchaseOrderPage: React.FC = () => {
     {
       key: 'date',
       label: 'Date',
-      render: (row) => formatDate(row.date),
+      render: (row) => toDDMMYYYY(row.date),
     },
     {
       key: 'supplierId',
       label: 'Supplier',
-      render: (row) => suppliers.find((s) => s.id === row.supplierId)?.name ?? '',
+      render: (row) => resolveSupplierName(row.supplierId),
     },
     {
       key: 'warehouseId',
@@ -879,6 +1153,9 @@ const PurchaseOrderPage: React.FC = () => {
       <PurchaseOrderModal
         open={modalOpen}
         existing={editing}
+        suppliers={suppliers}
+        items={items}
+        generatePONumber={generatePONumber}
         onClose={() => {
           setModalOpen(false)
           setEditing(null)

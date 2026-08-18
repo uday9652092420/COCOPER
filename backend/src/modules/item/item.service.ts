@@ -69,15 +69,15 @@ export async function getItemById(
 }
 
 /**
- * List All Items
+ * List All Items (organization-scoped)
  */
-export async function listItems(organizationId?: string | null, branchId?: string | null): Promise<Item[]> {
-  return listItemsRepo(organizationId ?? null, branchId ?? null);
+export async function listItems(organizationId?: string | null): Promise<Item[]> {
+  return listItemsRepo(organizationId ?? null);
 }
 
 /**
- * Generate Next Item Code
+ * Generate Next Item Code (organization-scoped)
  */
-export async function getNextItemCode(branchId?: string | null): Promise<string> {
-  return getNextItemCodeRepo(branchId ?? null);
+export async function getNextItemCode(organizationId?: string | null): Promise<string> {
+  return getNextItemCodeRepo(organizationId ?? null);
 }

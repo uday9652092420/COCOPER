@@ -23,13 +23,6 @@ function resolveOrganizationId(req: Request): string | undefined {
   );
 }
 
-function resolveBranchId(req: Request): string | undefined {
-  return (
-    (req.query.branchId as string | undefined) ||
-    req.header("x-branch-id")
-  );
-}
-
 /**
  * Create Item
  */
@@ -52,12 +45,12 @@ export async function createItemHandler(
 
   try {
     const organizationId = resolveOrganizationId(req);
-    const branchId = resolveBranchId(req);
 
     const created = await createItemService({
       ...payload,
       organization_id: payload.organization_id ?? organizationId ?? null,
-      branch_id: payload.branch_id ?? branchId ?? null,
+      // Items are organization-scoped (not branch-scoped) now.
+      branch_id: null,
     });
 
     return res.status(201).json(created);
@@ -79,7 +72,7 @@ export async function listItemsHandler(
   next: NextFunction
 ) {
   try {
-    const rows = await listItemsService(resolveOrganizationId(req), resolveBranchId(req));
+    const rows = await listItemsService(resolveOrganizationId(req));
 
     return res.status(200).json(rows);
   } catch (error) {
@@ -100,7 +93,7 @@ export async function getNextItemCodeHandler(
   next: NextFunction
 ) {
   try {
-    const code = await getNextItemCode(resolveBranchId(req));
+    const code = await getNextItemCode(resolveOrganizationId(req));
 
     return res.status(200).json({
       code,

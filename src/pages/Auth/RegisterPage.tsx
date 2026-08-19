@@ -368,7 +368,7 @@ const RegisterPage: React.FC = () => {
 
           <div className="flex items-center gap-3 text-white">
             <img
-  src="/logo.jpg"
+  src="logo.jpg"
   alt="COCOPER Logo"
   className="h-10 w-10nded-2xl object-cover"
 />

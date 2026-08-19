@@ -24,6 +24,7 @@ END$$;
 CREATE TABLE IF NOT EXISTS purchase_orders (
   id TEXT PRIMARY KEY,
   order_no TEXT NOT NULL UNIQUE,
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   supplier_id TEXT,
   supplier_name TEXT,
   order_date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
 
 -- Indexes for quick lookups
 CREATE INDEX IF NOT EXISTS idx_purchase_orders_order_no ON purchase_orders(order_no);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_organization ON purchase_orders(organization_id);
 CREATE INDEX IF NOT EXISTS idx_purchase_orders_supplier_id ON purchase_orders(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_purchase_orders_date ON purchase_orders(order_date);
 CREATE INDEX IF NOT EXISTS idx_purchase_order_items_order_id ON purchase_order_items(purchase_order_id);

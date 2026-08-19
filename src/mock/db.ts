@@ -97,6 +97,7 @@ export interface PurchaseOrderLine {
   discount: number
   actualQuantity?: number
   purchaseCost: number
+  purchaseAmount?: number
   amount: number
   rate?: number
 }

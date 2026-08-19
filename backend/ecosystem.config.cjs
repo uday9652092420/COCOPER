@@ -53,17 +53,17 @@ module.exports = {
       },
 
       // [B] TESTING SERVER (R & D) - ACTIVE
-    //   env: {
-    //     NODE_ENV: 'production',
-    //     PORT: process.env.PORT || '3003',
-    //     DB_HOST: process.env.DB_HOST || '192.168.1.230',
-    //     DB_PORT: process.env.DB_PORT || '5432',
-    //     DB_NAME: process.env.DB_NAME || 'CoconutCocktailDB',
-    //     DB_USER: process.env.DB_USER || 'postgres',
-    //     DB_PASSWORD: process.env.DB_PASSWORD || 'sa@123',
-    //     API_BASE_URL: process.env.API_BASE_URL || 'http://192.168.1.230:3003',
-    //     FRONTEND_URL: process.env.FRONTEND_URL || 'http://192.168.1.230:92',
-    //   },
+      // env: {
+      //   NODE_ENV: 'production',
+      //   PORT: process.env.PORT || '3003',
+      //   DB_HOST: process.env.DB_HOST || '192.168.1.230',
+      //   DB_PORT: process.env.DB_PORT || '5432',
+      //   DB_NAME: process.env.DB_NAME || 'CoconutCocktailDB',
+      //   DB_USER: process.env.DB_USER || 'postgres',
+      //   DB_PASSWORD: process.env.DB_PASSWORD || 'sa@123',
+      //   API_BASE_URL: process.env.API_BASE_URL || 'http://192.168.1.230:3003',
+      //   FRONTEND_URL: process.env.FRONTEND_URL || 'http://192.168.1.230:92',
+      // },
 
       // [C] LIVE / PRODUCTION SERVER - uncomment & fill in to activate
       // env: {

@@ -41,9 +41,9 @@ function getHostnameApiUrl(): string {
   }
 
   // TESTING SERVER (R & D) - uncomment to enable auto detection
-//   if (hostname === '192.168.1.230') {
-//     return 'http://192.168.1.230:3003/api'
-//   }
+  // if (hostname === '192.168.1.230') {
+  //   return 'http://192.168.1.230:3003/api'
+  // }
 
   // LIVE / PRODUCTION SERVER - uncomment to enable auto detection
   // if (hostname === '<live-server-ip>') {

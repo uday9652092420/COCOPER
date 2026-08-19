@@ -124,7 +124,7 @@ const LoginPage: React.FC = () => {
           <div className="mb-4 flex items-center gap-3 md:hidden">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-lime-400 p-1 text-sm font-bold text-white shadow-lg">
               <img
-                src="/logo.jpg"
+                src="logo.jpg"
                 alt="COCOPER Logo"
                 className="h-full w-full rounded-xl object-contain"
               />

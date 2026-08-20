@@ -16,5 +16,12 @@ export const pool = new Pool({
 export async function initializeDatabase(): Promise<void> {
   // Only verify database connection
   await pool.query("SELECT 1");
+  // Keep existing installations compatible with persisted sales-order approval.
+  await pool.query(
+    "ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Draft'"
+  );
+  await pool.query(
+    "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS branch_id TEXT"
+  );
   console.log("Database connected successfully.");
 }

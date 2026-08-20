@@ -6,7 +6,7 @@
 import type React from 'react'
 import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { purchaseInvoices, suppliers, warehouses, type PurchaseInvoice } from '../../mock/db'
+import { purchaseInvoices, suppliers, branches, type PurchaseInvoice } from '../../mock/db'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Toolbar } from '../../components/common/Toolbar'
 import { SearchFilterPanel } from '../../components/common/SearchFilterPanel'
@@ -25,12 +25,12 @@ const PurchaseRegisterPage: React.FC = () => {
       purchaseInvoices.filter((inv) => {
         const q = search.toLowerCase()
         const supplier = suppliers.find((s) => s.id === inv.supplierId)
-        const wh = warehouses.find((w) => w.id === inv.warehouseId)
+        const branch = branches.find((b) => b.id === inv.branchId)
         return (
           !q ||
           inv.invoiceNo.toLowerCase().includes(q) ||
           supplier?.name.toLowerCase().includes(q) ||
-          wh?.name.toLowerCase().includes(q)
+          branch?.branch_name.toLowerCase().includes(q)
         )
       }),
     [search]
@@ -49,9 +49,9 @@ const PurchaseRegisterPage: React.FC = () => {
       render: (row) => suppliers.find((s) => s.id === row.supplierId)?.name ?? '',
     },
     {
-      key: 'warehouseId',
-      label: 'Warehouse',
-      render: (row) => warehouses.find((w) => w.id === row.warehouseId)?.name ?? '',
+      key: 'branchId',
+      label: 'Branch',
+      render: (row) => branches.find((b) => b.id === row.branchId)?.branch_name ?? '',
     },
     {
       key: 'grandTotal',
@@ -72,7 +72,7 @@ const PurchaseRegisterPage: React.FC = () => {
         onRefresh={() => toast.success('Purchase register refreshed.')}
         onColumnChooser={() => toast.info('Column chooser not configurable in mock grid.')}
       />
-      <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by invoice, supplier, warehouse..." />
+      <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by invoice, supplier, branch..." />
       <DataGrid<PurchaseInvoice>
         data={filtered}
         columns={columns}

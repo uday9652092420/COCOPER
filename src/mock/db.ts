@@ -110,6 +110,7 @@ export interface PurchaseOrder {
   poNumber: string
   date: string
   supplierId: string
+  branchId?: string
   warehouseId: string
   remarks: string
   status: 'Draft' | 'Approved'
@@ -126,8 +127,10 @@ export interface PurchaseInvoiceLine {
   itemId: string
   quantityTons: number
   discount: number
+  actualQuantity?: number
   purchaseCost: number
   purchaseAmount: number
+  rate?: number
 }
 
 /**
@@ -147,12 +150,18 @@ export interface PurchaseInvoiceGunny {
 export interface PurchaseInvoice {
   id: string
   supplierId: string
-  warehouseId: string
+  branchId: string
   invoiceNo: string
   invoiceDate: string
   lines: PurchaseInvoiceLine[]
   gunnyBags: PurchaseInvoiceGunny[]
   grandTotal: number
+  organizationId?: string | null
+  mode?: 'tonage' | 'lessing'
+  loadingCost?: number
+  marketCess?: number
+  bagsAndSticks?: number
+  freight?: number
 
   /**
    * @description Friendly invoice number (duplicate of invoiceNo) for UI usage.
@@ -311,6 +320,17 @@ export const warehouses: Warehouse[] = Array.from({ length: 10 }).map((_, idx) =
 }))
 
 /**
+ * @description Mock branches (mirror the backend branches; org-scoped in real usage).
+ */
+export const branches: { id: string; branch_code: string; branch_name: string; address: string; status: string }[] = Array.from({ length: 10 }).map((_, idx) => ({
+  id: `BR${idx + 1}`,
+  branch_code: `BR-${String(idx + 1).padStart(2, '0')}`,
+  branch_name: `Branch ${idx + 1}`,
+  address: `No. ${idx + 1}, Branch Road, Coconut City`,
+  status: idx % 7 === 0 ? 'Inactive' : 'Active',
+}))
+
+/**
  * @description Mock items.
  */
 export const items: Item[] = [
@@ -422,7 +442,7 @@ export const purchaseOrders: PurchaseOrder[] = Array.from({ length: 100 }).map((
  */
 export const purchaseInvoices: PurchaseInvoice[] = Array.from({ length: 100 }).map((_, idx) => {
   const supplier = suppliers[idx % suppliers.length]
-  const warehouse = warehouses[idx % warehouses.length]
+  const branch = branches[idx % branches.length]
 
   const lines: PurchaseInvoiceLine[] = Array.from({ length: rand(1, 4) }).map((__, lidx) => {
     const item = items[(idx + lidx) % items.length]
@@ -466,12 +486,14 @@ export const purchaseInvoices: PurchaseInvoice[] = Array.from({ length: 100 }).m
   return {
     id: `PINV${idx + 1}`,
     supplierId: supplier.id,
-    warehouseId: warehouse.id,
+    branchId: branch.id,
     invoiceNo: `PI-${(idx + 1).toString().padStart(4, '0')}`,
     invoiceDate: daysFromNow(-rand(1, 120)),
     lines,
     gunnyBags: gunny,
     grandTotal,
+    organizationId: null,
+    mode: idx % 2 === 0 ? 'tonage' : 'lessing',
     // friendly fields for UI
     invoiceNumber: `PI-${(idx + 1).toString().padStart(4, '0')}`,
     totalAmount: grandTotal,

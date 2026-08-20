@@ -8,10 +8,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, useFieldArray, useWatch, useFormState, type FieldValues } from 'react-hook-form'
 import { toast } from 'sonner'
 import {
-  purchaseOrders as dbPurchaseOrders,
   suppliers as mockSuppliers,
   warehouses,
-  customers,
   type PurchaseOrder,
   type PurchaseOrderLine,
 } from '../../mock/db'
@@ -23,6 +21,15 @@ import RowActions from '../../components/common/RowActions'
 import { ConfirmDialog } from '../../components/common/ConfirmDialog'
 import { getItems, type ItemResponse } from '../../services/itemservices/item.service'
 import { getSuppliers, type SupplierResponse } from '../../services/supplierservices/supplier.service'
+import { getCustomers, type CustomerResponse } from '../../services/customerservices/customer.service'
+import { getBranches, type Branch } from '../../services/branchesservices/branches.service'
+import {
+  getPurchaseOrders,
+  createPurchaseOrder,
+  updatePurchaseOrder,
+  deletePurchaseOrder,
+} from '../../services/purchaseorderservices/purchaseOrder.service'
+import { createSalesOrder, getSalesOrders, updateSalesOrder } from '../../services/salesorderservices/salesOrder.service'
 import {
   getOrganizations,
   getCurrentOrganization,
@@ -53,27 +60,21 @@ const todayDDMMYYYY = (): string => {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 
-/**
- * @description Organization-wise persistence for purchase orders (localStorage).
- * Each saved PO stores organizationId so records vary from organization to organization.
- */
-const PO_STORAGE_KEY = 'cocoper_purchase_orders_v1'
-
-const loadStoredPOs = (): PurchaseOrder[] | null => {
-  try {
-    const raw = typeof window !== 'undefined' ? localStorage.getItem(PO_STORAGE_KEY) : null
-    return raw ? (JSON.parse(raw) as PurchaseOrder[]) : null
-  } catch {
-    return null
+const toISODate = (value: string): string => {
+  if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+    const [d, m, y] = value.split('/')
+    return `${y}-${m}-${d}`
   }
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10)
 }
 
-const saveStoredPOs = (list: PurchaseOrder[]) => {
-  try {
-    if (typeof window !== 'undefined') localStorage.setItem(PO_STORAGE_KEY, JSON.stringify(list))
-  } catch {
-    /* ignore */
-  }
+const roundValue = (value: number, digits = 0): number => {
+  if (!Number.isFinite(value)) return 0
+  const factor = 10 ** digits
+  return Math.round(value * factor) / factor
 }
 
 /**
@@ -88,33 +89,18 @@ interface SalesOrder {
   sourcePOId: string
   poNumber: string
   organizationId: string | null
+  mode?: 'tonage' | 'lessing'
+  status?: 'Draft' | 'Approved'
   lines: {
     itemId: string
     quantity: number
-    rate: number
-    price: number
+    discount: number
+    actualQuantity: number
+    saleCost: number
+    saleAmount: number
     amount: number
   }[]
   totalAmount: number
-}
-
-const SO_STORAGE_KEY = 'cocoper_sales_orders_v1'
-
-const loadStoredSOs = (): SalesOrder[] => {
-  try {
-    const raw = typeof window !== 'undefined' ? localStorage.getItem(SO_STORAGE_KEY) : null
-    return raw ? (JSON.parse(raw) as SalesOrder[]) : []
-  } catch {
-    return []
-  }
-}
-
-const saveStoredSOs = (list: SalesOrder[]) => {
-  try {
-    if (typeof window !== 'undefined') localStorage.setItem(SO_STORAGE_KEY, JSON.stringify(list))
-  } catch {
-    /* ignore */
-  }
 }
 
 /**
@@ -124,6 +110,7 @@ interface PurchaseOrderFormValues extends FieldValues {
   poNumber: string
   date: string
   supplierId: string
+  branchId: string
   warehouseId: string
   remarks: string
   lines: {
@@ -148,8 +135,10 @@ interface SalesOrderFormValues extends FieldValues {
   lines: {
     itemId: string
     quantity?: string
-    rate?: string
-    price?: string
+    discount?: string
+    actualQuantity?: number
+    saleCost?: string
+    saleAmount?: number
     amount?: number
   }[]
 }
@@ -167,11 +156,18 @@ const PurchaseOrderModal: React.FC<{
   open: boolean
   onClose: () => void
   onSave: (order: PurchaseOrder) => void
+  onApprove?: (order: PurchaseOrder) => void
+  onApproveSalesOrder?: (order: SalesOrder) => void
+  onSalesOrderSaved?: (order: SalesOrder) => void
+  salesOrder?: SalesOrder | null
   existing?: PurchaseOrder | null
   suppliers: SupplierResponse[]
   items: ItemResponse[]
+  customers: CustomerResponse[]
+  branches: Branch[]
   generatePONumber: () => string
-}> = ({ open, onClose, onSave, existing, suppliers, items, generatePONumber }) => {
+  generateSONumber: () => string
+}> = ({ open, onClose, onSave, onApprove, onApproveSalesOrder, onSalesOrderSaved, salesOrder, existing, suppliers, items, customers, branches, generatePONumber, generateSONumber }) => {
   const { selectedOrganizationId } = useAuthStore()
 
   /**
@@ -195,19 +191,20 @@ const PurchaseOrderModal: React.FC<{
     if (existing) {
       return {
         poNumber: existing.poNumber,
-        date: toDDMMYYYY(existing.date),
+        date: toISODate(existing.date || todayDDMMYYYY()),
         supplierId: existing.supplierId,
+        branchId: existing.branchId ?? '',
         warehouseId: existing.warehouseId ?? '',
         remarks: existing.remarks ?? '',
         lines:
           existing.lines?.map((l) => ({
             itemId: l.itemId ?? '',
-            quantity: String(l.quantity ?? ''),
-            discount: String(l.discount ?? ''),
-            actualQuantity: l.actualQuantity ?? 0,
+            quantity: String(roundValue(Number(l.quantity ?? 0), 0) || ''),
+            discount: String(roundValue(Number(l.discount ?? 0), 0) || ''),
+            actualQuantity: roundValue(Number(l.actualQuantity ?? 0), 0),
             purchaseCost: l.purchaseCost !== undefined ? String(l.purchaseCost) : '',
-            purchaseAmount: l.purchaseAmount ?? 0,
-            amount: l.amount ?? 0,
+            purchaseAmount: roundValue(Number(l.purchaseAmount ?? 0), 2),
+            amount: roundValue(Number(l.amount ?? 0), 2),
           })) ?? [
             {
               itemId: '',
@@ -224,8 +221,9 @@ const PurchaseOrderModal: React.FC<{
 
     return {
       poNumber: generatePONumber(),
-      date: todayDDMMYYYY(),
+      date: new Date().toISOString().slice(0, 10),
       supplierId: '',
+      branchId: '',
       warehouseId: '',
       remarks: '',
       lines: [{ itemId: '', quantity: '', discount: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0, amount: 0 }],
@@ -242,6 +240,10 @@ const PurchaseOrderModal: React.FC<{
   } = useForm<PurchaseOrderFormValues>({
     defaultValues: buildInitial(),
   })
+
+  const purchaseDateValue = watch('date') ?? ''
+  const purchaseDatePickerRef = useRef<HTMLInputElement>(null)
+  const quantityColumnLabel = mode === 'tonage' ? 'Quantity (Tons)' : 'Quantity (Pieces)'
 
   /**
    * Targeted form-state subscription (only poNumber/date). Subscribing to the
@@ -298,8 +300,8 @@ const PurchaseOrderModal: React.FC<{
     const purchaseCost = Number(line.purchaseCost ?? 0) || 0
     const purchaseAmount = purchaseCost * actualQuantity
 
-    setValue(`lines.${index}.actualQuantity`, Number.isFinite(actualQuantity) ? Number(actualQuantity.toFixed(6)) : 0)
-    setValue(`lines.${index}.purchaseAmount`, Number.isFinite(purchaseAmount) ? Number(purchaseAmount.toFixed(2)) : 0)
+    setValue(`lines.${index}.actualQuantity`, Number.isFinite(actualQuantity) ? roundValue(actualQuantity, 0) : 0)
+    setValue(`lines.${index}.purchaseAmount`, Number.isFinite(purchaseAmount) ? roundValue(purchaseAmount, 0) : 0)
   }
 
   /**
@@ -366,6 +368,7 @@ const PurchaseOrderModal: React.FC<{
       poNumber: values.poNumber,
       date: values.date,
       supplierId: values.supplierId,
+      branchId: values.branchId || '',
       warehouseId: values.warehouseId ?? '',
       remarks: values.remarks,
       status: existing?.status ?? 'Draft',
@@ -382,28 +385,48 @@ const PurchaseOrderModal: React.FC<{
    * @description Build initial sales form using PO lines if present.
    */
   const buildSalesInitial = (): SalesOrderFormValues => {
+    if (salesOrder) {
+      return {
+        soNumber: salesOrder.soNumber,
+        date: toDDMMYYYY(salesOrder.date),
+        customerId: salesOrder.customerId,
+        remarks: salesOrder.remarks,
+        lines:
+          salesOrder.lines.map((l) => ({
+            itemId: l.itemId,
+            quantity: String(l.quantity ?? ''),
+            discount: String(l.discount ?? ''),
+            actualQuantity: l.actualQuantity ?? 0,
+            saleCost: String(l.saleCost ?? ''),
+            saleAmount: l.saleAmount ?? l.amount ?? 0,
+            amount: l.amount ?? l.saleAmount ?? 0,
+          })) ?? [],
+      }
+    }
     if (existing) {
       return {
-        soNumber: `SO-${(Math.floor(Math.random() * 9000) + 1000).toString()}`,
-        date: new Date().toISOString().slice(0, 10),
+        soNumber: generateSONumber(),
+        date: todayDDMMYYYY(),
         customerId: '',
         remarks: `Converted from ${existing.poNumber}`,
         lines:
           existing.lines?.map((l) => ({
             itemId: l.itemId ?? '',
             quantity: String(l.quantity ?? ''),
-            rate: l.rate !== undefined ? String(l.rate) : '',
-            price: String(l.purchaseCost ?? l.amount ?? ''),
-            amount: l.amount ?? 0,
-          })) ?? [{ itemId: '', quantity: '', rate: '', price: '', amount: 0 }],
+            discount: String(l.discount ?? ''),
+            actualQuantity: l.actualQuantity ?? 0,
+            saleCost: l.purchaseCost !== undefined ? String(l.purchaseCost) : '',
+            saleAmount: l.purchaseAmount ?? l.amount ?? 0,
+            amount: l.purchaseAmount ?? l.amount ?? 0,
+          })) ?? [{ itemId: '', quantity: '', discount: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
       }
     }
     return {
-      soNumber: `SO-${(Math.floor(Math.random() * 9000) + 1000).toString()}`,
-      date: new Date().toISOString().slice(0, 10),
+      soNumber: generateSONumber(),
+      date: todayDDMMYYYY(),
       customerId: '',
       remarks: '',
-      lines: [{ itemId: '', quantity: '', rate: '', price: '', amount: 0 }],
+      lines: [{ itemId: '', quantity: '', discount: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
     }
   }
 
@@ -413,10 +436,14 @@ const PurchaseOrderModal: React.FC<{
     control: controlS,
     setValue: setValueS,
     reset: resetS,
+    getValues: getValuesS,
     formState: { errors: salesErrors },
   } = useForm<SalesOrderFormValues>({
     defaultValues: buildSalesInitial(),
   })
+
+  const salesDateValue = useWatch({ control: controlS, name: 'date' }) as string
+  const salesDatePickerRef = useRef<HTMLInputElement>(null)
 
   const { fields: salesFields, append: salesAppend, remove: salesRemove } = useFieldArray({
     control: controlS,
@@ -428,14 +455,39 @@ const PurchaseOrderModal: React.FC<{
     name: 'lines',
   }) as SalesOrderFormValues['lines'] | undefined
 
+  /**
+   * @description Recalculate sales Actual Quantity (auto from formula) and Sale Amount (auto).
+   * Sale Cost is USER INPUT — never overwritten here.
+   * Sale Amount = Sale Cost × Actual Quantity.
+   */
+  const recalcSalesLine = (index: number, modeOverride?: 'tonage' | 'lessing') => {
+    const line = (getValuesS('lines') as any)?.[index] || (salesFields[index] as any)
+    if (!line) return
+    const quantity = Number(line.quantity ?? 0) || 0
+    const discount = Number(line.discount ?? 0) || 0
+    const activeMode = modeOverride ?? salesMode
+
+    let actualQuantity = 0
+    if (activeMode === 'tonage') {
+      const denom = 1000 + discount
+      const safeDenom = denom === 0 ? 1 : denom
+      actualQuantity = (quantity * 1000) / safeDenom
+    } else {
+      actualQuantity = quantity - discount
+    }
+
+    const saleCost = Number(line.saleCost ?? 0) || 0
+    const saleAmount = saleCost * actualQuantity
+
+    setValueS(`lines.${index}.actualQuantity`, Number.isFinite(actualQuantity) ? Number(actualQuantity.toFixed(6)) : 0)
+    setValueS(`lines.${index}.saleAmount`, Number.isFinite(saleAmount) ? Number(saleAmount.toFixed(2)) : 0)
+  }
+
   const salesTotals = useMemo(() => {
     const arr = Array.isArray(watchedSalesLines) ? watchedSalesLines : []
     const totalQuantity = arr.reduce((s, l) => s + (Number(l?.quantity) || 0), 0)
-    const totalAmount = arr.reduce((s, l) => {
-      const qty = Number(l?.quantity) || 0
-      const price = Number(l?.price) || 0
-      return s + qty * price
-    }, 0)
+    // Total Sale Amount = sum of all lines' Sale Amount (auto).
+    const totalAmount = arr.reduce((s, l) => s + (Number((l as any)?.saleAmount) || 0), 0)
     return { totalQuantity, totalAmount }
   }, [watchedSalesLines])
 
@@ -446,10 +498,10 @@ const PurchaseOrderModal: React.FC<{
     const line = (watchedSalesLines && watchedSalesLines[index]) || (salesFields[index] as any)
     if (!line) return
     const quantityNum = Number(line.quantity ?? 0) || 0
-    const priceNum = Number(line.price ?? 0) || 0
-    setValueS(`lines.${index}.amount`, Number((quantityNum * priceNum).toFixed(2)))
-    setValueS(`lines.${index}.price`, priceNum === 0 ? '' : String(priceNum))
+    const costNum = Number(line.saleCost ?? 0) || 0
+    recalcSalesLine(index)
     setValueS(`lines.${index}.quantity`, quantityNum === 0 ? '' : String(quantityNum))
+    setValueS(`lines.${index}.saleCost`, costNum === 0 ? '' : String(costNum))
   }
 
   /**
@@ -457,15 +509,20 @@ const PurchaseOrderModal: React.FC<{
    */
   const onSaveSales = (values: SalesOrderFormValues) => {
     const sanitized = (values.lines || []).map((l, idx) => {
-      const q = Number(l.quantity) || 0
-      const p = Number(l.price) || 0
+      const quantity = Number(l.quantity) || 0
+      const discount = Number(l.discount) || 0
+      const actualQuantity = Number(l.actualQuantity) || 0
+      const saleCost = Number(l.saleCost) || 0
+      const saleAmount = Number(l.saleAmount) || 0
       return {
         id: `SOL-${Date.now()}-${idx}`,
         itemId: l.itemId,
-        quantity: q,
-        rate: Number(l.rate) || 0,
-        price: Number(p.toFixed(2)),
-        amount: Number((q * p).toFixed(2)),
+        quantity,
+        discount,
+        actualQuantity: Number(actualQuantity.toFixed(6)),
+        saleCost: Number(saleCost.toFixed(2)),
+        saleAmount: Number(saleAmount.toFixed(2)),
+        amount: Number(saleAmount.toFixed(2)),
       }
     })
     const so: SalesOrder = {
@@ -477,24 +534,46 @@ const PurchaseOrderModal: React.FC<{
       sourcePOId: existing?.id ?? '',
       poNumber: existing?.poNumber ?? '',
       organizationId: selectedOrganizationId ?? null,
+      mode: salesMode,
       lines: sanitized,
       totalAmount: sanitized.reduce((s, l) => s + l.amount, 0),
+      status: 'Approved',
     }
-    saveStoredSOs([so, ...loadStoredSOs()])
-    toast.success(`Sales order ${so.soNumber} created with ${sanitized.length} lines.`)
-    // After creating sales order, collapse conversion section
-    setConvertOpen(false)
+    createSalesOrder({
+      soNumber: so.soNumber,
+      organizationId: so.organizationId,
+      customerId: so.customerId,
+      date: so.date,
+      remarks: so.remarks,
+      sourcePOId: so.sourcePOId,
+      poNumber: so.poNumber,
+      mode: so.mode,
+      status: so.status,
+      totalAmount: so.totalAmount,
+      lines: so.lines,
+    })
+      .then((created) => {
+        onSalesOrderSaved?.({ ...so, id: created.id, status: 'Approved' })
+        toast.success(`Sales order ${so.soNumber} approved with ${sanitized.length} lines.`)
+      })
+      .catch(() => toast.error('Failed to create sales order.'))
   }
 
   // Conversion UI state
   const [convertOpen, setConvertOpen] = useState(false)
+  const isSalesLocked = salesOrder?.status === 'Approved'
+  const isPurchaseLocked = existing?.status === 'Approved' || !!salesOrder || convertOpen
+  // Sales order conversion mode (tonage/lessing).
+  const [salesMode, setSalesMode] = useState<'tonage' | 'lessing'>(existing?.mode ?? 'tonage')
+  const discountLabel = mode === 'tonage' ? 'Discount (Kgs)' : 'Discount (Pieces)'
 
   useEffect(() => {
     // Reset sales form whenever modal opens or existing changes (but keep conversion collapsed)
+    setSalesMode(existing?.mode ?? 'tonage')
     resetS(buildSalesInitial())
-    setConvertOpen(false)
+    setConvertOpen(Boolean(salesOrder))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existing, open])
+  }, [existing, open, salesOrder])
 
   /**
    * @description Trigger conversion UI, populating sales form from current PO values.
@@ -510,17 +589,19 @@ const PurchaseOrderModal: React.FC<{
     const mapped = poLines.map((l) => {
       const itemId = l.itemId ?? ''
       const quantity = l.quantity ?? ''
-      const rate = '' // Rate removed from PO lines; sales rate is editable.
-      const priceVal = String((l as any)?.purchaseCost ?? '')
-      const amountVal = Number((l as any)?.purchaseAmount) || 0
-      return { itemId, quantity, rate, price: priceVal, amount: amountVal }
+      const discount = l.discount ?? ''
+      const actualQuantity = Number((l as any)?.actualQuantity) || 0
+      const saleCostVal = String((l as any)?.purchaseCost ?? '')
+      const saleAmountVal = Number((l as any)?.purchaseAmount) || 0
+      return { itemId, quantity, discount, actualQuantity, saleCost: saleCostVal, saleAmount: saleAmountVal, amount: saleAmountVal }
     })
+    setSalesMode(existing?.mode ?? 'tonage')
     resetS({
-      soNumber: `SO-${(Math.floor(Math.random() * 9000) + 1000).toString()}`,
-      date: new Date().toISOString().slice(0, 10),
+      soNumber: generateSONumber(),
+      date: todayDDMMYYYY(),
       customerId: '',
       remarks: `Converted from ${existing.poNumber}`,
-      lines: mapped.length ? mapped : [{ itemId: '', quantity: '', rate: '', price: '', amount: 0 }],
+      lines: mapped.length ? mapped : [{ itemId: '', quantity: '', discount: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
     })
     setConvertOpen(true)
   }
@@ -542,32 +623,73 @@ const PurchaseOrderModal: React.FC<{
 
         {/* Content */}
         <form onSubmit={handleSubmit(submit)} className="flex-1 overflow-y-auto px-4 py-4 text-xs">
-          <div className="grid gap-3 md:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">PO Number</label>
-              <input className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('poNumber', { required: true })} />
+          {existing && existing.status === 'Approved' && (
+            <div className="mb-3 flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+              <span className="text-xs font-semibold text-emerald-700">Purchase Order Approved</span>
+              {isPurchaseLocked ? (
+                <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-700">Locked</span>
+              ) : null}
+            </div>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="max-w-[220px]">
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">
+                PO Number <span className="text-rose-500">*</span>
+              </label>
+              <input disabled={isPurchaseLocked} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100" {...register('poNumber', { required: true })} />
               {errors.poNumber ? <p className="mt-1 text-[10px] text-rose-500">Required</p> : null}
             </div>
 
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Date (DD/MM/YYYY)</label>
-              <input
-                placeholder="DD/MM/YYYY"
-                className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs"
-                {...register('date', {
-                  required: true,
-                  pattern: {
-                    value: /^\d{2}\/\d{2}\/\d{4}$/,
-                    message: 'Use DD/MM/YYYY',
-                  },
-                })}
-              />
-              {errors.date ? <p className="mt-1 text-[10px] text-rose-500">{errors.date.message || 'Required'}</p> : null}
+            <div className="max-w-[220px]">
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">
+                Date <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  disabled={isPurchaseLocked}
+                  value={toDDMMYYYY(purchaseDateValue || new Date().toISOString().slice(0, 10))}
+                  onChange={(e) => setValue('date', e.target.value, { shouldDirty: true })}
+                  onBlur={(e) => setValue('date', toISODate(e.target.value) || e.target.value, { shouldDirty: true })}
+                  placeholder="DD/MM/YYYY"
+                  className="w-full rounded-full border border-slate-200 px-3 py-1.5 pr-10 text-xs disabled:cursor-not-allowed disabled:bg-slate-100"
+                />
+                <input
+                  ref={purchaseDatePickerRef}
+                  type="date"
+                  disabled={isPurchaseLocked}
+                  value={toISODate(purchaseDateValue || new Date().toISOString().slice(0, 10))}
+                  onChange={(e) => setValue('date', e.target.value, { shouldDirty: true })}
+                  className="absolute right-2 top-1/2 h-6 w-6 -translate-y-1/2 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                  aria-label="Select purchase order date"
+                />
+                <button type="button" disabled={isPurchaseLocked} onClick={() => purchaseDatePickerRef.current?.showPicker?.()} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 disabled:cursor-not-allowed" aria-label="Open purchase order date picker">
+                  &#128197;
+                </button>
+              </div>
+              {errors.date ? <p className="mt-1 text-[10px] text-rose-500">Required</p> : null}
             </div>
 
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Supplier</label>
-              <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('supplierId', { required: true })}>
+            <div className="max-w-[220px]">
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">
+                Branch
+              </label>
+              <select disabled={isPurchaseLocked} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100" {...register('branchId')}>
+                <option value="">Select branch</option>
+                {branches.filter((b) => b.status?.toUpperCase() !== 'INACTIVE').map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.branch_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="max-w-[220px]">
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">
+                Supplier <span className="text-rose-500">*</span>
+              </label>
+              <select disabled={isPurchaseLocked} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100" {...register('supplierId', { required: true })}>
                 <option value="">Select supplier</option>
                 {suppliers.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -578,7 +700,7 @@ const PurchaseOrderModal: React.FC<{
             </div>
           </div>
 
-          {/* Tonnage / Lessing mode (below the 3 header fields, above Remarks) */}
+          {/* Tonnage / Lessing mode (below the header fields, above Remarks) */}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 text-[11px]">
             <span className="font-semibold text-slate-700">Quantity Mode</span>
             <label className="inline-flex items-center gap-2">
@@ -586,6 +708,7 @@ const PurchaseOrderModal: React.FC<{
                 type="radio"
                 name="po-mode"
                 checked={mode === 'tonage'}
+                disabled={isPurchaseLocked}
                 onChange={() => {
                   setMode('tonage')
                   ;(fields || []).forEach((_, idx) => recalcLine(idx, 'tonage'))
@@ -598,6 +721,7 @@ const PurchaseOrderModal: React.FC<{
                 type="radio"
                 name="po-mode"
                 checked={mode === 'lessing'}
+                disabled={isPurchaseLocked}
                 onChange={() => {
                   setMode('lessing')
                   ;(fields || []).forEach((_, idx) => recalcLine(idx, 'lessing'))
@@ -605,36 +729,37 @@ const PurchaseOrderModal: React.FC<{
               />
               <span>Lessing</span>
             </label>
-            <span className="text-slate-500">
-              {mode === 'tonage' ? 'Quantity in Tons' : 'Quantity in Pieces'}
-            </span>
           </div>
 
           <div className="mt-3">
             <label className="mb-1 block text-[11px] font-medium text-slate-700">Remarks</label>
-            <textarea rows={2} className="w-full rounded-2xl border border-slate-200 px-3 py-1.5 text-xs" {...register('remarks')} />
+            <textarea rows={2} disabled={isPurchaseLocked} className="w-full rounded-2xl border border-slate-200 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-slate-100" {...register('remarks')} />
           </div>
 
           <div className="mt-2 space-y-2">
             <div className="flex items-center justify-between text-[11px] font-medium text-slate-700">
-              <span>Line Items</span>
-              <button
-                type="button"
-                onClick={() =>
-                  append({
-                    itemId: '',
-                    quantity: '',
-                    discount: '',
-                    actualQuantity: 0,
-                    purchaseCost: '',
-                    purchaseAmount: 0,
-                    amount: 0,
-                  } as any)
-                }
-                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
-              >
-                Add Line
-              </button>
+              <span>
+                Line Items <span className="text-rose-500">*</span>
+              </span>
+              {!isPurchaseLocked && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    append({
+                      itemId: '',
+                      quantity: '',
+                      discount: '',
+                      actualQuantity: 0,
+                      purchaseCost: '',
+                      purchaseAmount: 0,
+                      amount: 0,
+                    } as any)
+                  }
+                  className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
+                >
+                  Add Line
+                </button>
+              )}
             </div>
 
             {/* Desktop table (only rendered on non-mobile to avoid duplicate field registration) */}
@@ -644,8 +769,8 @@ const PurchaseOrderModal: React.FC<{
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Item</th>
-                    <th className="px-3 py-2">{mode === 'tonage' ? 'Quantity (Tons)' : 'Quantity (Pieces)'}</th>
-                    <th className="px-3 py-2">Discount</th>
+                    <th className="px-3 py-2">{quantityColumnLabel}</th>
+                    <th className="px-3 py-2">{discountLabel}</th>
                     <th className="px-3 py-2">Actual Quantity</th>
                     <th className="px-3 py-2">Purchase Cost</th>
                     <th className="px-3 py-2">Purchase Amount</th>
@@ -657,7 +782,7 @@ const PurchaseOrderModal: React.FC<{
                     return (
                       <tr key={field.id} className="border-t border-slate-100">
                         <td className="px-3 py-1.5">
-                          <select className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px]" {...register(`lines.${index}.itemId` as const, { required: true })}>
+                          <select disabled={isPurchaseLocked} className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:bg-slate-100" {...register(`lines.${index}.itemId` as const, { required: true })}>
                             <option value="">Select item</option>
                             {items.map((it) => (
                               <option key={it.id} value={it.id}>
@@ -671,7 +796,8 @@ const PurchaseOrderModal: React.FC<{
                           <input
                             type="text"
                             inputMode="decimal"
-                            className="w-24 rounded-full border border-slate-200 px-2 py-1"
+                            disabled={isPurchaseLocked}
+                            className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-slate-100"
                             {...register(`lines.${index}.quantity` as const, {
                               onChange: () => recalcLine(index),
                             })}
@@ -683,7 +809,8 @@ const PurchaseOrderModal: React.FC<{
                           <input
                             type="text"
                             inputMode="decimal"
-                            className="w-20 rounded-full border border-slate-200 px-2 py-1"
+                            disabled={isPurchaseLocked}
+                            className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-slate-100"
                             {...register(`lines.${index}.discount` as const, {
                               onChange: () => recalcLine(index),
                             })}
@@ -695,7 +822,7 @@ const PurchaseOrderModal: React.FC<{
                             type="text"
                             inputMode="decimal"
                             readOnly
-                            className="w-24 rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
+                            className="w-20 rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
                             {...register(`lines.${index}.actualQuantity` as const)}
                           />
                         </td>
@@ -704,7 +831,8 @@ const PurchaseOrderModal: React.FC<{
                           <input
                             type="text"
                             inputMode="decimal"
-                            className="w-24 rounded-full border border-slate-200 px-2 py-1"
+                            disabled={isPurchaseLocked}
+                            className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-slate-100"
                             {...register(`lines.${index}.purchaseCost` as const, {
                               onChange: () => recalcLine(index),
                             })}
@@ -723,9 +851,11 @@ const PurchaseOrderModal: React.FC<{
                         </td>
 
                         <td className="px-3 py-1.5 text-right">
-                          <button type="button" onClick={() => remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100">
-                            Remove
-                          </button>
+                          {!isPurchaseLocked && (
+                            <button type="button" onClick={() => remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100">
+                              Remove
+                            </button>
+                          )}
                         </td>
                       </tr>
                     )
@@ -766,9 +896,7 @@ const PurchaseOrderModal: React.FC<{
                     </div>
 
                     <div>
-                      <label className="mb-1 block text-[11px] font-medium text-slate-700">
-                        {mode === 'tonage' ? 'Quantity (Tons)' : 'Quantity (Pieces)'}
-                      </label>
+                      <label className="mb-1 block text-[11px] font-medium text-slate-700">{quantityColumnLabel}</label>
                       <input
                         type="text"
                         inputMode="decimal"
@@ -782,7 +910,7 @@ const PurchaseOrderModal: React.FC<{
 
                     <div className="mt-2 grid grid-cols-2 gap-2">
                       <div>
-                        <label className="mb-1 block text-[11px] font-medium text-slate-700">Discount</label>
+                        <label className="mb-1 block text-[11px] font-medium text-slate-700">{discountLabel}</label>
                         <input
                           type="text"
                           inputMode="decimal"
@@ -854,10 +982,17 @@ const PurchaseOrderModal: React.FC<{
           </div>
 
           {/* Sales Order Conversion Section (expands modal when open) */}
-          {convertOpen && (
-            <div className="mt-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-inner">
+          {(convertOpen || salesOrder) && (
+            <div className="mt-4 rounded-2xl border border-[#8bc53f]/50 bg-[#fff8e8] p-4 shadow-inner">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-800">Sales Order (Conversion)</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-[#00534f]">Sales Order (Conversion)</h3>
+                  {salesOrder?.status === 'Approved' ? (
+                    <span className="rounded-full border border-[#8bc53f] bg-[#e8f4c8] px-2 py-0.5 text-[10px] font-semibold text-[#00534f]">Approved</span>
+                  ) : (
+                    <span className="rounded-full border border-[#ff7043]/40 bg-[#fff0e8] px-2 py-0.5 text-[10px] font-semibold text-[#c94f2d]">Draft</span>
+                  )}
+                </div>
                 <button type="button" onClick={() => setConvertOpen(false)} className="text-xs text-slate-500 hover:text-slate-700">
                   Close Sales Order
                 </button>
@@ -866,17 +1001,39 @@ const PurchaseOrderModal: React.FC<{
               <div className="mt-3 grid gap-3 md:grid-cols-3">
                 <div>
                   <label className="mb-1 block text-[11px] font-medium text-slate-700">SO Number</label>
-                  <input className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...registerS('soNumber')} />
+                  <input disabled={isSalesLocked} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS('soNumber')} />
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-slate-700">Date</label>
-                  <input type="date" className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...registerS('date')} />
+                  <label className="mb-1 block text-[11px] font-medium text-slate-700">Date (DD/MM/YYYY)</label>
+                  <div className="relative">
+                    <input
+                      placeholder="DD/MM/YYYY"
+                      disabled={isSalesLocked}
+                      value={salesDateValue ?? ''}
+                      onChange={(e) => setValueS('date', e.target.value, { shouldDirty: true })}
+                      onBlur={(e) => setValueS('date', toDDMMYYYY(e.target.value), { shouldDirty: true })}
+                      className="w-full rounded-full border border-slate-200 px-3 py-1.5 pr-10 text-xs disabled:cursor-not-allowed disabled:bg-[#e8f4c8]"
+                    />
+                    <input
+                      ref={salesDatePickerRef}
+                      type="date"
+                      disabled={isSalesLocked}
+                      value={toISODate(salesDateValue ?? '')}
+                      onChange={(e) => setValueS('date', toDDMMYYYY(e.target.value), { shouldDirty: true })}
+                      className="absolute right-2 top-1/2 h-6 w-6 -translate-y-1/2 cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                      aria-label="Select sales order date"
+                    />
+                    <button type="button" disabled={isSalesLocked} onClick={() => salesDatePickerRef.current?.showPicker?.()} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 disabled:cursor-not-allowed" aria-label="Open sales order date picker">
+                      &#128197;
+                    </button>
+                  </div>
+                  {salesErrors.date ? <p className="mt-1 text-[10px] text-rose-500">{salesErrors.date.message || 'Required'}</p> : null}
                 </div>
 
                 <div>
                   <label className="mb-1 block text-[11px] font-medium text-slate-700">Customer</label>
-                  <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...registerS('customerId', { required: true })}>
+                  <select disabled={isSalesLocked} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS('customerId', { required: true })}>
                     <option value="">Select customer</option>
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -888,52 +1045,83 @@ const PurchaseOrderModal: React.FC<{
 
                 <div className="md:col-span-3">
                   <label className="mb-1 block text-[11px] font-medium text-slate-700">Remarks</label>
-                  <input className="w-full rounded-2xl border border-slate-200 px-3 py-1.5 text-xs" {...registerS('remarks')} />
+                  <input disabled={isSalesLocked} className="w-full rounded-2xl border border-slate-200 px-3 py-1.5 text-xs disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS('remarks')} />
                 </div>
+              </div>
+
+              {/* Tonnage / Lessing mode for sales lines (same as purchase) */}
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 text-[11px]">
+                <span className="font-semibold text-slate-700">Quantity Mode</span>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="so-mode"
+                    checked={salesMode === 'tonage'}
+                    disabled={isSalesLocked}
+                    onChange={() => {
+                      setSalesMode('tonage')
+                      ;(salesFields || []).forEach((_, idx) => recalcSalesLine(idx, 'tonage'))
+                    }}
+                  />
+                  <span>Tonnage</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="so-mode"
+                    checked={salesMode === 'lessing'}
+                    disabled={isSalesLocked}
+                    onChange={() => {
+                      setSalesMode('lessing')
+                      ;(salesFields || []).forEach((_, idx) => recalcSalesLine(idx, 'lessing'))
+                    }}
+                  />
+                  <span>Lessing</span>
+                </label>
               </div>
 
               {/* Sales lines: mirror of PO lines but editable */}
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between text-[11px] font-medium text-slate-700">
                   <span>Sales Line Items</span>
-                  <button
+                  {!isSalesLocked && <button
                     type="button"
                     onClick={() =>
                       salesAppend({
                         itemId: '',
                         quantity: '',
-                        rate: '',
-                        price: '',
+                        discount: '',
+                        actualQuantity: 0,
+                        saleCost: '',
+                        saleAmount: 0,
                         amount: 0,
                       } as any)
                     }
-                    className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100"
+                    className="rounded-full border border-[#8bc53f] bg-[#e8f4c8] px-3 py-1 text-[11px] font-semibold text-[#00534f] hover:bg-[#d9edaa]"
                   >
                     Add Line
-                  </button>
+                  </button>}
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-left text-[11px] rounded-2xl border border-slate-100">
-                    <thead className="bg-slate-50 text-slate-500">
+                    <thead className="bg-[#e8f4c8] text-[#00534f]">
                       <tr>
                         <th className="px-3 py-2">Item</th>
-                        <th className="px-3 py-2">Rate</th>
-                        <th className="px-3 py-2">Quantity</th>
-                        <th className="px-3 py-2">Price</th>
-                        <th className="px-3 py-2">Line Total</th>
+                        <th className="px-3 py-2">{salesMode === 'tonage' ? 'Quantity (Tons)' : 'Quantity (Pieces)'}</th>
+                        <th className="px-3 py-2">{salesMode === 'tonage' ? 'Discount (Kgs)' : 'Discount (Pieces)'}</th>
+                        <th className="px-3 py-2">Actual Quantity</th>
+                        <th className="px-3 py-2">Sale Cost</th>
+                        <th className="px-3 py-2">Sale Amount</th>
                         <th className="px-3 py-2 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {salesFields.map((field, index) => {
-                        const qty = Number(watchedSalesLines?.[index]?.quantity) || 0
-                        const price = Number(watchedSalesLines?.[index]?.price) || 0
-                        const lineTotal = Number((qty * price).toFixed(2))
                         return (
                           <tr key={field.id} className="border-t border-slate-100">
                             <td className="px-3 py-1.5">
-                              <select className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px]" {...registerS(`lines.${index}.itemId` as const, { required: true })}>
+                              <select disabled={isSalesLocked} className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.itemId` as const, { required: true })}>
                                 <option value="">Select item</option>
                                 {items.map((it) => (
                                   <option key={it.id} value={it.id}>
@@ -944,23 +1132,29 @@ const PurchaseOrderModal: React.FC<{
                             </td>
 
                             <td className="px-3 py-1.5">
-                              <input type="text" inputMode="decimal" className="w-24 rounded-full border border-slate-200 px-2 py-1" {...registerS(`lines.${index}.rate` as const)} onBlur={() => syncSalesLineOnBlur(index)} />
+                              <input type="text" inputMode="decimal" disabled={isSalesLocked} className="w-24 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.quantity` as const, { onChange: () => recalcSalesLine(index) })} onBlur={() => syncSalesLineOnBlur(index)} />
                             </td>
 
                             <td className="px-3 py-1.5">
-                              <input type="text" inputMode="decimal" className="w-24 rounded-full border border-slate-200 px-2 py-1" {...registerS(`lines.${index}.quantity` as const)} onBlur={() => syncSalesLineOnBlur(index)} />
+                              <input type="text" inputMode="decimal" disabled={isSalesLocked} className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.discount` as const, { onChange: () => recalcSalesLine(index) })} />
                             </td>
 
                             <td className="px-3 py-1.5">
-                              <input type="text" inputMode="decimal" className="w-28 rounded-full border border-slate-200 px-2 py-1" {...registerS(`lines.${index}.price` as const)} onBlur={() => syncSalesLineOnBlur(index)} />
+                              <input type="text" inputMode="decimal" readOnly className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1" {...registerS(`lines.${index}.actualQuantity` as const)} />
                             </td>
 
-                            <td className="px-3 py-1.5 font-semibold">{lineTotal.toFixed(2)}</td>
+                            <td className="px-3 py-1.5">
+                              <input type="text" inputMode="decimal" disabled={isSalesLocked} className="w-24 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.saleCost` as const, { onChange: () => recalcSalesLine(index) })} onBlur={() => syncSalesLineOnBlur(index)} />
+                            </td>
+
+                            <td className="px-3 py-1.5">
+                              <input type="text" inputMode="decimal" readOnly className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1" {...registerS(`lines.${index}.saleAmount` as const)} />
+                            </td>
 
                             <td className="px-3 py-1.5 text-right">
-                              <button type="button" onClick={() => salesRemove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100">
+                              {!isSalesLocked && <button type="button" onClick={() => salesRemove(index)} className="rounded-full border border-[#ff7043]/30 bg-[#fff0e8] px-2 py-1 text-[10px] text-[#c94f2d] hover:bg-[#ffe0d2]">
                                 Remove
-                              </button>
+                              </button>}
                             </td>
                           </tr>
                         )
@@ -968,10 +1162,11 @@ const PurchaseOrderModal: React.FC<{
                     </tbody>
 
                     <tfoot>
-                      <tr className="border-t bg-slate-50">
-                        <td className="px-3 py-2 font-semibold text-slate-700">Totals</td>
-                        <td className="px-3 py-2" />
+                      <tr className="border-t bg-[#fff8e8]">
+                        <td className="px-3 py-2 font-semibold text-slate-700">Total Lines Amount</td>
                         <td className="px-3 py-2 font-semibold text-slate-700">{salesTotals.totalQuantity}</td>
+                        <td className="px-3 py-2" />
+                        <td className="px-3 py-2" />
                         <td className="px-3 py-2" />
                         <td className="px-3 py-2 font-semibold text-slate-700">{salesTotals.totalAmount.toFixed(2)}</td>
                         <td className="px-3 py-2" />
@@ -982,12 +1177,23 @@ const PurchaseOrderModal: React.FC<{
               </div>
 
               <div className="mt-3 flex justify-end gap-2">
-                <button type="button" onClick={() => setConvertOpen(false)} className="rounded-full bg-[#E0E7D9] px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
-                  Cancel
-                </button>
-                <button type="button" onClick={handleSubmitS(onSaveSales)} className="rounded-full bg-[#1E40AF] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#12337a]">
-                  Save Sales Order
-                </button>
+                {salesOrder?.status === 'Approved' ? (
+                  <span className="rounded-full border border-[#8bc53f] bg-[#e8f4c8] px-3 py-1.5 text-[10px] font-semibold text-[#00534f]">Locked</span>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => setConvertOpen(false)} className="rounded-full bg-[#E0E7D9] px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
+                      Cancel
+                    </button>
+                    <button type="button" onClick={handleSubmitS(onSaveSales)} className="rounded-full bg-[#00534f] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#003f3b]">
+                      Approve
+                    </button>
+                  </>
+                )}
+                {salesOrder && salesOrder.status !== 'Approved' && onApproveSalesOrder ? (
+                  <button type="button" onClick={() => onApproveSalesOrder(salesOrder)} className="rounded-full bg-[#00534f] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#003f3b]">
+                    Approve
+                  </button>
+                ) : null}
               </div>
             </div>
           )}
@@ -997,12 +1203,19 @@ const PurchaseOrderModal: React.FC<{
         <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs">
           <div className="text-[11px] text-slate-500">Save to keep PO as draft or approve when final, then convert to Sales Order.</div>
           <div className="flex gap-2">
-            <button type="button" onClick={() => {}} className="rounded-full bg-[#E0E7D9] px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hidden">
-              Draft
-            </button>
+            {existing && existing.status !== 'Approved' && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onApprove) onApprove(existing)
+                }}
+                className="rounded-full bg-[#0EA5A4] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0b8b89]"
+              >
+                Approve
+              </button>
+            )}
 
-            {/* Convert Sales Order button: enabled only when editing an approved PO */}
-            {existing && existing.status === 'Approved' && (
+            {existing && existing.status === 'Approved' && (!salesOrder || salesOrder.status !== 'Approved') && (
               <button
                 type="button"
                 onClick={openConversionFromPO}
@@ -1012,9 +1225,11 @@ const PurchaseOrderModal: React.FC<{
               </button>
             )}
 
-            <button type="button" onClick={handleSubmit(submit)} className="rounded-full bg-[#2E7D32] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#256427]">
-              Save
-            </button>
+            {!isPurchaseLocked && (
+              <button type="button" onClick={handleSubmit(submit)} className="rounded-full bg-[#8bc53f] px-4 py-1.5 text-xs font-semibold text-[#00534f] shadow-sm hover:bg-[#79ad30]">
+                Save
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1033,13 +1248,15 @@ const ViewPurchaseOrderModal: React.FC<{
   order: PurchaseOrder | null
   suppliers: SupplierResponse[]
   items: ItemResponse[]
+  branches: Branch[]
   resolveSupplierName: (id: string) => string
-}> = ({ open, onClose, onPrint, order, suppliers, items, resolveSupplierName }) => {
+}> = ({ open, onClose, onPrint, order, suppliers, items, branches, resolveSupplierName }) => {
   if (!open || !order) return null
 
   const totalQty = order.lines.reduce((s, l) => s + Number(l.quantity ?? 0), 0)
   const totalAmount = order.lines.reduce((s, l) => s + Number(l.purchaseAmount ?? l.amount ?? 0), 0)
   const supplier = suppliers.find((s) => s.id === order.supplierId) ?? mockSuppliers.find((s) => s.id === order.supplierId)
+  const branchName = order.branchId ? branches.find((b) => b.id === order.branchId)?.branch_name ?? order.branchId : ''
   const wh = warehouses.find((w) => w.id === order.warehouseId)
 
   return (
@@ -1065,6 +1282,10 @@ const ViewPurchaseOrderModal: React.FC<{
             <div>
               <div className="text-[11px] font-medium text-slate-500">Supplier</div>
               <div className="font-semibold text-slate-900">{supplier?.name ?? order.supplierId}</div>
+            </div>
+            <div>
+              <div className="text-[11px] font-medium text-slate-500">Branch</div>
+              <div className="font-semibold text-slate-900">{branchName || '-'}</div>
             </div>
             <div>
               <div className="text-[11px] font-medium text-slate-500">Warehouse</div>
@@ -1164,19 +1385,20 @@ const ViewPurchaseOrderModal: React.FC<{
 const PurchaseOrderPage: React.FC = () => {
   const { selectedOrganizationId } = useAuthStore()
   const [records, setRecords] = useState<PurchaseOrder[]>([])
+  const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<PurchaseOrder | null>(null)
+  const [editingSalesOrder, setEditingSalesOrder] = useState<SalesOrder | null>(null)
   const [viewing, setViewing] = useState<PurchaseOrder | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<PurchaseOrder | null>(null)
 
-  // Persistence guard so the org-wise seed runs only once.
-  const seededRef = useRef(false)
-
-  // Org-scoped item / supplier master data + organizations for PO number generation.
+  // Org-scoped item / supplier / customer master data + organizations for PO number generation.
   const [suppliers, setSuppliers] = useState<SupplierResponse[]>([])
   const [items, setItems] = useState<ItemResponse[]>([])
+  const [customers, setCustomers] = useState<CustomerResponse[]>([])
+  const [branches, setBranches] = useState<Branch[]>([])
   const [organizations, setOrganizations] = useState<OrganizationSummary[]>([])
 
   const loadSuppliers = async () => {
@@ -1192,6 +1414,22 @@ const PurchaseOrderPage: React.FC = () => {
       setItems(await getItems())
     } catch {
       setItems([])
+    }
+  }
+
+  const loadCustomers = async () => {
+    try {
+      setCustomers(await getCustomers())
+    } catch {
+      setCustomers([])
+    }
+  }
+
+  const loadBranches = async () => {
+    try {
+      setBranches(await getBranches())
+    } catch {
+      setBranches([])
     }
   }
 
@@ -1212,46 +1450,50 @@ const PurchaseOrderPage: React.FC = () => {
     }
   }
 
+  /**
+   * @description Load purchase orders from the backend (org-scoped via x-organization-id header).
+   */
+  const loadRecords = async () => {
+    try {
+      setRecords((await getPurchaseOrders()) as unknown as PurchaseOrder[])
+    } catch {
+      setRecords([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadSalesOrders = async () => {
+    try {
+      setSalesOrders((await getSalesOrders()) as unknown as SalesOrder[])
+    } catch {
+      setSalesOrders([])
+    }
+  }
+
   useEffect(() => {
     loadSuppliers()
     loadItems()
+    loadCustomers()
+    loadBranches()
     loadOrganizations()
+    loadRecords()
+    loadSalesOrders()
 
-    // Re-fetch master data when the organization changes in the header.
+    // Re-fetch master data + records when the organization changes in the header.
     const unsubscribe = onScopeChange(() => {
       loadSuppliers()
       loadItems()
+      loadCustomers()
+      loadBranches()
       loadOrganizations()
+      loadRecords()
+      loadSalesOrders()
     })
 
     return () => unsubscribe()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // Seed purchase orders organization-wise (once organizations are known):
-  // use persisted records if present, else assign mock POs across organizations.
-  useEffect(() => {
-    if (seededRef.current) return
-    const stored = loadStoredPOs()
-    if (stored) {
-      seededRef.current = true
-      setRecords(stored)
-      setLoading(false)
-      return
-    }
-    // Wait until organizations are loaded to assign org-wise seed.
-    if (organizations.length === 0) return
-    const orgIds = organizations.map((o) => o.id)
-    const seeded = dbPurchaseOrders.map((po, idx) => ({
-      ...po,
-      organizationId: orgIds.length ? orgIds[idx % orgIds.length] : null,
-    }))
-    seededRef.current = true
-    setRecords(seeded)
-    saveStoredPOs(seeded)
-    setLoading(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [organizations])
 
   const currentOrg = organizations.find((o) => o.id === selectedOrganizationId) ?? null
 
@@ -1265,6 +1507,18 @@ const PurchaseOrderPage: React.FC = () => {
     const prefix = firstLetter ? `${firstLetter.toUpperCase()}P` : 'PO'
     const count = records.filter((r) => r.organizationId === selectedOrganizationId).length
     return `${prefix}-${String(count + 1).padStart(2, '0')}`
+  }
+
+  const generateSONumber = (): string => {
+    const orgName = currentOrg?.organization_name ?? ''
+    const firstLetter = orgName.match(/[A-Za-z]/)?.[0]
+    const prefix = firstLetter ? `${firstLetter.toUpperCase()}SO` : 'SO'
+    const numbers = salesOrders
+      .filter((order) => order.organizationId === selectedOrganizationId && order.soNumber.startsWith(`${prefix}-`))
+      .map((order) => Number(order.soNumber.slice(prefix.length + 1)))
+      .filter((number) => Number.isFinite(number))
+    const nextNumber = numbers.length ? Math.max(...numbers) + 1 : 1
+    return `${prefix}-${String(nextNumber).padStart(2, '0')}`
   }
 
   const resolveSupplierName = (id: string): string =>
@@ -1296,35 +1550,86 @@ const PurchaseOrderPage: React.FC = () => {
 
   const openEdit = (row: PurchaseOrder) => {
     setEditing(row)
+    setEditingSalesOrder(salesOrders.find((so) => so.sourcePOId === row.id) ?? null)
     setModalOpen(true)
   }
 
-  const persistRecords = (next: PurchaseOrder[]) => {
-    setRecords(next)
-    saveStoredPOs(next)
+  /**
+   * @description Save (create/update) a purchase order to the backend, org-scoped.
+   */
+  const handleSave = async (order: PurchaseOrder) => {
+    try {
+      const payload = {
+        poNumber: order.poNumber,
+        organizationId: order.organizationId ?? null,
+        supplierId: order.supplierId,
+        branchId: order.branchId ?? '',
+        warehouseId: order.warehouseId ?? '',
+        date: order.date,
+        remarks: order.remarks ?? '',
+        status: order.status,
+        mode: order.mode ?? 'tonage',
+        lines: order.lines.map((l) => ({
+          id: l.id,
+          itemId: l.itemId,
+          quantity: l.quantity,
+          discount: l.discount,
+          actualQuantity: l.actualQuantity ?? 0,
+          purchaseCost: l.purchaseCost,
+          purchaseAmount: l.purchaseAmount ?? 0,
+          amount: l.amount,
+          rate: l.rate,
+        })),
+      }
+      if (order.id && records.some((p) => p.id === order.id)) {
+        await updatePurchaseOrder(order.id, payload)
+      } else {
+        await createPurchaseOrder({ ...payload, id: order.id })
+      }
+      await loadRecords()
+      toast.success('Purchase order saved.')
+    } catch {
+      toast.error('Failed to save purchase order.')
+    }
   }
 
-  const handleSave = (order: PurchaseOrder) => {
-    const exists = records.some((p) => p.id === order.id)
-    const next = exists ? records.map((p) => (p.id === order.id ? order : p)) : [order, ...records]
-    persistRecords(next)
-    toast.success('Purchase order saved.')
-  }
-
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!confirmDelete) return
-    persistRecords(records.filter((p) => p.id !== confirmDelete.id))
-    toast.success('Purchase order deleted.')
-    setConfirmDelete(null)
+    try {
+      await deletePurchaseOrder(confirmDelete.id)
+      setConfirmDelete(null)
+      await loadRecords()
+      toast.success('Purchase order deleted.')
+    } catch {
+      toast.error('Failed to delete purchase order.')
+    }
   }
 
-  const approveOrder = (row: PurchaseOrder) => {
+  const approveOrder = async (row: PurchaseOrder) => {
     if (row.status === 'Approved') {
       toast.info('Purchase order already approved.')
       return
     }
-    persistRecords(records.map((p) => (p.id === row.id ? { ...p, status: 'Approved' } : p)))
-    toast.success('Purchase order approved.')
+    try {
+      await updatePurchaseOrder(row.id, { status: 'Approved' })
+      await loadRecords()
+      setEditing((prev) => (prev && prev.id === row.id ? { ...prev, status: 'Approved' } : prev))
+      toast.success('Purchase order approved.')
+    } catch {
+      toast.error('Failed to approve purchase order.')
+    }
+  }
+
+  const approveSalesOrder = async (row: SalesOrder) => {
+    const updated = { ...row, status: 'Approved' as const }
+    try {
+      await updateSalesOrder(row.id, { soNumber: row.soNumber, status: 'Approved', lines: row.lines })
+      setSalesOrders((prev) => prev.map((so) => (so.id === row.id ? updated : so)))
+      setEditingSalesOrder(updated)
+      toast.success(`Sales order ${row.soNumber} approved.`)
+    } catch {
+      toast.error('Failed to approve sales order.')
+    }
   }
 
   /**
@@ -1339,8 +1644,10 @@ const PurchaseOrderPage: React.FC = () => {
     const lines = row.lines.map((l) => ({
       itemId: l.itemId,
       quantity: l.quantity,
-      rate: l.purchaseCost ?? 0,
-      price: l.purchaseCost ?? 0,
+      discount: l.discount ?? 0,
+      actualQuantity: l.actualQuantity ?? 0,
+      saleCost: l.purchaseCost ?? 0,
+      saleAmount: Number(l.purchaseAmount ?? l.amount ?? 0),
       amount: Number(l.purchaseAmount ?? l.amount ?? 0),
     }))
     const so: SalesOrder = {
@@ -1352,11 +1659,29 @@ const PurchaseOrderPage: React.FC = () => {
       sourcePOId: row.id,
       poNumber: row.poNumber,
       organizationId: row.organizationId ?? null,
+      mode: row.mode ?? 'tonage',
+      status: 'Draft',
       lines,
       totalAmount: lines.reduce((s, l) => s + l.amount, 0),
     }
-    saveStoredSOs([so, ...loadStoredSOs()])
-    toast.success(`Sales order ${soNumber} created from ${row.poNumber}.`)
+    createSalesOrder({
+      soNumber: so.soNumber,
+      organizationId: so.organizationId,
+      customerId: so.customerId,
+      date: so.date,
+      remarks: so.remarks,
+      sourcePOId: so.sourcePOId,
+      poNumber: so.poNumber,
+      mode: so.mode,
+      totalAmount: so.totalAmount,
+      lines: so.lines,
+    })
+      .then(() => {
+        setSalesOrders((prev) => [so, ...prev])
+        setEditingSalesOrder(so)
+        toast.success(`Sales order ${soNumber} created from ${row.poNumber}.`)
+      })
+      .catch(() => toast.error('Failed to create sales order.'))
   }
 
   /**
@@ -1462,9 +1787,9 @@ const PurchaseOrderPage: React.FC = () => {
       render: (row) => resolveSupplierName(row.supplierId),
     },
     {
-      key: 'warehouseId',
-      label: 'Warehouse',
-      render: (row) => warehouses.find((w) => w.id === row.warehouseId)?.name ?? '',
+      key: 'branchId',
+      label: 'Branch',
+      render: (row) => (row.branchId ? branches.find((b) => b.id === row.branchId)?.branch_name ?? row.branchId : '-'),
     },
     {
       key: 'status',
@@ -1485,9 +1810,7 @@ const PurchaseOrderPage: React.FC = () => {
           onView={(r) => setViewing(r)}
           onEdit={openEdit}
           onPrint={printPurchaseOrder}
-          onDelete={(r) => setConfirmDelete(r)}
-          onApprove={approveOrder}
-          onConvert={convertToSalesOrder}
+          onDelete={row.status !== 'Approved' ? (r) => setConfirmDelete(r) : undefined}
         />
       ),
     },
@@ -1504,18 +1827,35 @@ const PurchaseOrderPage: React.FC = () => {
         onRefresh={() => toast.success('Purchase order list refreshed.')}
         onColumnChooser={() => toast.info('Column chooser not configurable in mock grid.')}
       />
-      <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by PO number, supplier, warehouse..." />
-      <DataGrid<PurchaseOrder> data={filtered} columns={columns} getRowId={(row) => row.id} loading={loading} />
+      <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by PO number, supplier, branch..." />
+      <div className="mt-3 rounded-3xl border border-emerald-100 bg-emerald-50/30 p-3 shadow-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-emerald-800">Purchase Orders</h3>
+          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">{filtered.length} records</span>
+        </div>
+        <DataGrid<PurchaseOrder> data={filtered} columns={columns} getRowId={(row) => row.id} loading={loading} />
+      </div>
 
       <PurchaseOrderModal
         open={modalOpen}
         existing={editing}
+        salesOrder={editingSalesOrder}
         suppliers={suppliers}
         items={items}
+        customers={customers}
+        branches={branches}
         generatePONumber={generatePONumber}
+        generateSONumber={generateSONumber}
         onClose={() => {
           setModalOpen(false)
           setEditing(null)
+          setEditingSalesOrder(null)
+        }}
+        onApprove={approveOrder}
+        onApproveSalesOrder={approveSalesOrder}
+        onSalesOrderSaved={(order) => {
+          setSalesOrders((prev) => [order, ...prev])
+          setEditingSalesOrder(order)
         }}
         onSave={handleSave}
       />
@@ -1525,6 +1865,7 @@ const PurchaseOrderPage: React.FC = () => {
         order={viewing}
         suppliers={suppliers}
         items={items}
+        branches={branches}
         resolveSupplierName={resolveSupplierName}
         onClose={() => setViewing(null)}
         onPrint={() => viewing && printPurchaseOrder(viewing)}

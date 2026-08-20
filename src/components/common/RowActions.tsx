@@ -44,6 +44,9 @@ export const RowActions: React.FC<RowActionsProps> = ({ row, onView, onEdit, onP
     fn(row)
   }
 
+  const canApprove = !!onApprove && row.status !== 'Approved'
+  const canConvert = !!onConvert && row.status === 'Approved'
+
   return (
     <div className="inline-flex items-center gap-2">
       {onView ? (
@@ -64,13 +67,13 @@ export const RowActions: React.FC<RowActionsProps> = ({ row, onView, onEdit, onP
         </button>
       ) : null}
 
-      {onApprove ? (
+      {canApprove ? (
         <button type="button" title="Approve" onClick={() => handle(onApprove)} className="rounded-full border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 hover:bg-emerald-100">
           <Check className="h-4 w-4" />
         </button>
       ) : null}
 
-      {onConvert ? (
+      {canConvert ? (
         <button type="button" title="Convert" onClick={() => handle(onConvert)} className="rounded-full border border-amber-200 bg-amber-50 p-2 text-amber-700 hover:bg-amber-100">
           <FileText className="h-4 w-4" />
         </button>

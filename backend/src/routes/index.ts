@@ -13,6 +13,9 @@ import rolesRoutes from "../modules/roles/roles.routes.js";
 import branchesRoutes from "../modules/branches/branches.routes.js";
 import usersRoutes from "../modules/users/users.routes.js";
 import profileRoutes from "../modules/profile/profile.routes.js";
+import purchaseOrderRoutes from "../modules/purchase-orders/purchaseOrder.routes.js";
+import purchaseInvoiceRoutes from "../modules/purchase-invoices/purchaseInvoice.routes.js";
+import salesOrderRoutes from "../modules/sales-orders/salesOrder.routes.js";
 
 const router = Router();
 
@@ -54,5 +57,17 @@ router.use(
 router.use(
   "/profile",
   profileRoutes
+);
+router.use(
+  "/purchase-orders",
+  purchaseOrderRoutes
+);
+router.use(
+  "/purchase-invoices",
+  purchaseInvoiceRoutes
+);
+router.use(
+  "/sales-orders",
+  salesOrderRoutes
 );
 export default router;

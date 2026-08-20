@@ -228,33 +228,35 @@ export const Sidebar: React.FC = () => {
         </div>
 
         {/* Reports */}
-        <div className="space-y-1">
-          {!sidebarCollapsed && (
-            <p className="px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Reports</p>
-          )}
-          {visibleReports.map((item) => {
-            const active = isItemActive(location.pathname, item.to)
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                className={`${baseItemClasses} ${
-                  active ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'
-                }`}
-                title={sidebarCollapsed ? item.label : undefined}
-              >
-                <span
-                  className={`${baseIconClasses} ${
-                    active ? 'border-emerald-500/60 bg-emerald-50 text-emerald-700' : ''
+        {visibleReports.length > 0 && (
+          <div className="space-y-1">
+            {!sidebarCollapsed && (
+              <p className="px-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Reports</p>
+            )}
+            {visibleReports.map((item) => {
+              const active = isItemActive(location.pathname, item.to)
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  className={`${baseItemClasses} ${
+                    active ? 'bg-emerald-50 text-emerald-700' : 'text-slate-600 hover:bg-slate-50'
                   }`}
+                  title={sidebarCollapsed ? item.label : undefined}
                 >
-                  {item.icon}
-                </span>
-                {!sidebarCollapsed && <span>{item.label}</span>}
-              </Link>
-            )
-          })}
-        </div>
+                  <span
+                    className={`${baseIconClasses} ${
+                      active ? 'border-emerald-500/60 bg-emerald-50 text-emerald-700' : ''
+                    }`}
+                  >
+                    {item.icon}
+                  </span>
+                  {!sidebarCollapsed && <span>{item.label}</span>}
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </nav>
     </aside>
   )

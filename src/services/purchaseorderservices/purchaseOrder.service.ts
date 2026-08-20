@@ -28,6 +28,7 @@ export interface PurchaseOrderDTO {
   date: string;
   remarks: string;
   status: string;
+  purchaseOrderInvoiceStatus?: boolean;
   mode: string;
   lines: PurchaseOrderLineDTO[];
 }
@@ -42,6 +43,7 @@ export interface PurchaseOrderPayload {
   date?: string;
   remarks?: string;
   status?: string;
+  purchaseOrderInvoiceStatus?: boolean;
   mode?: string;
   lines: PurchaseOrderLineDTO[];
 }

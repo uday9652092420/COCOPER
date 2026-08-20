@@ -13,7 +13,7 @@
  * - View / Edit / Print / Delete actions + organization-wise persistence (localStorage).
  */
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, useFieldArray, type FieldValues } from 'react-hook-form'
 import { toast } from 'sonner'
 import {
@@ -39,6 +39,7 @@ import {
   updatePurchaseInvoice,
   deletePurchaseInvoice,
 } from '../../services/purchaseinvoiceservices/purchaseInvoice.service'
+import { getPurchaseOrders, type PurchaseOrderDTO } from '../../services/purchaseorderservices/purchaseOrder.service'
 import {
   getOrganizations,
   getCurrentOrganization,
@@ -75,6 +76,7 @@ const todayDDMMYYYY = (): string => {
 interface PurchaseInvoiceFormValues extends FieldValues {
   supplierId: string
   branchId: string
+  purchaseOrderId: string
   invoiceNo: string
   invoiceDate: string
   lines: {
@@ -84,6 +86,7 @@ interface PurchaseInvoiceFormValues extends FieldValues {
     actualQuantity?: number
     purchaseCost?: string
     purchaseAmount?: number
+    locked?: boolean
   }[]
   loadingCost: number
   marketCess: number
@@ -103,8 +106,9 @@ const PurchaseInvoiceModal: React.FC<{
   suppliers: SupplierResponse[]
   items: ItemResponse[]
   branches: Branch[]
+  purchaseOrders: PurchaseOrderDTO[]
   generatePINumber: () => string
-}> = ({ open, onClose, onSave, existing, suppliers, items, branches, generatePINumber }) => {
+}> = ({ open, onClose, onSave, existing, suppliers, items, branches, purchaseOrders, generatePINumber }) => {
   const { selectedOrganizationId } = useAuthStore()
   const isMobile = useIsMobile()
 
@@ -123,6 +127,7 @@ const PurchaseInvoiceModal: React.FC<{
       return {
         supplierId: existing.supplierId,
         branchId: existing.branchId ?? '',
+        purchaseOrderId: existing.purchaseOrderId ?? '',
         invoiceNo: existing.invoiceNo,
         invoiceDate: toDDMMYYYY(existing.invoiceDate),
         lines:
@@ -133,6 +138,7 @@ const PurchaseInvoiceModal: React.FC<{
             actualQuantity: l.actualQuantity ?? 0,
             purchaseCost: l.purchaseCost !== undefined ? String(l.purchaseCost) : '',
             purchaseAmount: l.purchaseAmount ?? 0,
+            locked: Boolean(existing.purchaseOrderId),
           })) ?? [
             { itemId: '', quantity: '', discount: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0 },
           ],
@@ -145,6 +151,7 @@ const PurchaseInvoiceModal: React.FC<{
     return {
       supplierId: '',
       branchId: '',
+      purchaseOrderId: '',
       invoiceNo: generatePINumber(),
       invoiceDate: todayDDMMYYYY(),
       lines: [{ itemId: '', quantity: '', discount: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0 }],
@@ -167,6 +174,8 @@ const PurchaseInvoiceModal: React.FC<{
     defaultValues: buildInitial(),
   })
 
+  const invoiceDatePickerRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     // Reset form whenever modal opens or existing changes
     setMode(existing?.mode ?? 'tonage')
@@ -176,6 +185,34 @@ const PurchaseInvoiceModal: React.FC<{
 
   const linesField = useFieldArray({ control, name: 'lines' })
   const watchedLines = (watch('lines') ?? []) as PurchaseInvoiceFormValues['lines']
+  const selectedPurchaseOrderId = watch('purchaseOrderId') ?? ''
+  const availablePurchaseOrders = purchaseOrders.filter(
+    (order) => !order.purchaseOrderInvoiceStatus && order.status !== 'Invoiced' && (!watch('supplierId') || order.supplierId === watch('supplierId'))
+  )
+  const purchaseOrderSupplierIds = new Set(
+    purchaseOrders
+      .filter((order) => (!order.purchaseOrderInvoiceStatus && order.status !== 'Invoiced') || order.id === existing?.purchaseOrderId)
+      .map((order) => order.supplierId)
+  )
+
+  const applyPurchaseOrder = (orderId: string) => {
+    const order = purchaseOrders.find((candidate) => candidate.id === orderId)
+    setValue('purchaseOrderId', orderId)
+    if (!order) return
+    setValue('supplierId', order.supplierId)
+    setValue('branchId', order.branchId ?? '')
+    setValue('invoiceDate', toDDMMYYYY(order.date) || todayDDMMYYYY())
+    setMode(order.mode === 'lessing' ? 'lessing' : 'tonage')
+    linesField.replace(order.lines.map((line) => ({
+      itemId: line.itemId,
+      quantity: String(line.quantity ?? ''),
+      discount: String(line.discount ?? ''),
+      actualQuantity: line.actualQuantity ?? 0,
+      purchaseCost: String(line.purchaseCost ?? ''),
+      purchaseAmount: line.purchaseAmount ?? line.amount ?? 0,
+      locked: true,
+    })))
+  }
 
   /**
    * @description Recalculate Actual Quantity (auto from formula) and Purchase Amount (auto).
@@ -266,6 +303,7 @@ const PurchaseInvoiceModal: React.FC<{
       id: existing?.id ?? `PINV-${Date.now()}`,
       supplierId: values.supplierId,
       branchId: values.branchId,
+      purchaseOrderId: values.purchaseOrderId || null,
       invoiceNo: values.invoiceNo,
       invoiceDate: values.invoiceDate,
       lines: linesOut,
@@ -329,10 +367,47 @@ const PurchaseInvoiceModal: React.FC<{
         <form onSubmit={handleSubmit(submit)} className="flex-1 overflow-y-auto px-4 py-4 text-xs">
           <div className="grid gap-3 md:grid-cols-4">
             <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Invoice No</label>
+              <input className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('invoiceNo', { required: true })} />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Branch</label>
+              <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('branchId', { required: true })}>
+                <option value="">Select branch</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.branch_name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Date (DD/MM/YYYY)</label>
+              <div className="relative">
+                <input placeholder="DD/MM/YYYY" className="w-full rounded-full border border-slate-200 px-3 py-1.5 pr-10 text-xs" {...register('invoiceDate', { required: true, pattern: { value: /^\d{2}\/\d{2}\/\d{4}$/, message: 'Use DD/MM/YYYY' } })} />
+                <input
+                  ref={invoiceDatePickerRef}
+                  type="date"
+                  value={(() => {
+                    const value = watch('invoiceDate') ?? ''
+                    if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+                      const [day, month, year] = value.split('/')
+                      return `${year}-${month}-${day}`
+                    }
+                    return value
+                  })()}
+                  onChange={(event) => setValue('invoiceDate', toDDMMYYYY(event.target.value), { shouldDirty: true })}
+                  className="absolute right-2 top-1/2 h-6 w-6 -translate-y-1/2 cursor-pointer opacity-0"
+                  aria-label="Select invoice date"
+                />
+                <button type="button" onClick={() => invoiceDatePickerRef.current?.showPicker?.()} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600" aria-label="Open invoice date picker">
+                  &#128197;
+                </button>
+              </div>
+            </div>
+            <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Supplier</label>
               <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('supplierId', { required: true })}>
                 <option value="">Select supplier</option>
-                {suppliers.map((s) => (
+                {suppliers.filter((supplier) => purchaseOrderSupplierIds.has(supplier.id) || supplier.id === existing?.supplierId).map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
@@ -340,34 +415,11 @@ const PurchaseInvoiceModal: React.FC<{
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Branch</label>
-              <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('branchId', { required: true })}>
-                <option value="">Select branch</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.branch_name}
-                  </option>
-                ))}
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Purchase Order No</label>
+              <select value={selectedPurchaseOrderId} onChange={(event) => applyPurchaseOrder(event.target.value)} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs">
+                <option value="">Select purchase order</option>
+                {availablePurchaseOrders.map((order) => <option key={order.id} value={order.id}>{order.poNumber}</option>)}
               </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Invoice No</label>
-              <input className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('invoiceNo', { required: true })} />
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Date (DD/MM/YYYY)</label>
-              <input
-                placeholder="DD/MM/YYYY"
-                className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs"
-                {...register('invoiceDate', {
-                  required: true,
-                  pattern: { value: /^\d{2}\/\d{2}\/\d{4}$/, message: 'Use DD/MM/YYYY' },
-                })}
-              />
-              {(() => {
-                // No formState subscription kept cheap here; validation handled on submit.
-                return null
-              })()}
             </div>
           </div>
 
@@ -398,7 +450,7 @@ const PurchaseInvoiceModal: React.FC<{
                   <tr>
                     <th className="px-3 py-2">Item</th>
                     <th className="px-3 py-2">{mode === 'tonage' ? 'Quantity (Tons)' : 'Quantity (Pieces)'}</th>
-                    <th className="px-3 py-2">Discount</th>
+                    <th className="px-3 py-2">{mode === 'tonage' ? 'Discount (Kgs)' : 'Discount (Pieces)'}</th>
                     <th className="px-3 py-2">Actual Quantity</th>
                     <th className="px-3 py-2">Purchase Cost</th>
                     <th className="px-3 py-2">Purchase Amount</th>
@@ -409,7 +461,7 @@ const PurchaseInvoiceModal: React.FC<{
                   {linesField.fields.map((field, index) => (
                     <tr key={field.id} className="border-t border-slate-100">
                       <td className="px-3 py-1.5">
-                        <select className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px]" {...register(`lines.${index}.itemId` as const, { required: true })}>
+                        <select disabled={Boolean(field.locked)} className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px] disabled:bg-slate-100" {...register(`lines.${index}.itemId` as const, { required: true })}>
                           <option value="">Select item</option>
                           {items.map((it) => (
                             <option key={it.id} value={it.id}>
@@ -469,7 +521,7 @@ const PurchaseInvoiceModal: React.FC<{
                         />
                       </td>
                       <td className="px-3 py-1.5 text-right">
-                        <button type="button" onClick={() => linesField.remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100">
+                        <button type="button" disabled={Boolean(field.locked)} onClick={() => linesField.remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100 disabled:hidden">
                           Remove
                         </button>
                       </td>
@@ -675,6 +727,7 @@ const PurchaseInvoicePage: React.FC = () => {
   const [editing, setEditing] = useState<PurchaseInvoice | null>(null)
   const [viewing, setViewing] = useState<PurchaseInvoice | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<PurchaseInvoice | null>(null)
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderDTO[]>([])
 
   // Org-scoped master data + organizations for invoice number generation.
   const [suppliers, setSuppliers] = useState<SupplierResponse[]>([])
@@ -734,12 +787,21 @@ const PurchaseInvoicePage: React.FC = () => {
     }
   }
 
+  const loadPurchaseOrders = async () => {
+    try {
+      setPurchaseOrders(await getPurchaseOrders())
+    } catch {
+      setPurchaseOrders([])
+    }
+  }
+
   useEffect(() => {
     loadSuppliers()
     loadItems()
     loadBranches()
     loadOrganizations()
     loadRecords()
+    loadPurchaseOrders()
 
     const unsubscribe = onScopeChange(() => {
       loadSuppliers()
@@ -747,6 +809,7 @@ const PurchaseInvoicePage: React.FC = () => {
       loadBranches()
       loadOrganizations()
       loadRecords()
+      loadPurchaseOrders()
     })
 
     return () => unsubscribe()
@@ -757,14 +820,18 @@ const PurchaseInvoicePage: React.FC = () => {
 
   /**
    * @description Generate an organization-wise invoice number.
-   * Format: `<FirstLetterOfOrgName>I-<NN>` e.g. "Maiprosoft" -> MI-01.
+  * Format: `<FirstLetterOfOrgName>PI-<NN>` e.g. "Maiprosoft" -> MPI-01.
    */
   const generatePINumber = (): string => {
     const orgName = currentOrg?.organization_name ?? ''
     const firstLetter = orgName.match(/[A-Za-z]/)?.[0]
-    const prefix = firstLetter ? `${firstLetter.toUpperCase()}I` : 'PI'
-    const count = records.filter((r) => r.organizationId === selectedOrganizationId).length
-    return `${prefix}-${String(count + 1).padStart(2, '0')}`
+    const prefix = firstLetter ? `${firstLetter.toUpperCase()}PI` : 'PI'
+    const nextNumber = records
+      .filter((record) => record.organizationId === selectedOrganizationId && record.invoiceNo.startsWith(`${prefix}-`))
+      .map((record) => Number(record.invoiceNo.slice(prefix.length + 1)))
+      .filter((number) => Number.isFinite(number))
+      .reduce((max, number) => Math.max(max, number), 0) + 1
+    return `${prefix}-${String(nextNumber).padStart(2, '0')}`
   }
 
   const resolveSupplierName = (id: string): string =>
@@ -816,6 +883,7 @@ const PurchaseInvoicePage: React.FC = () => {
         marketCess: invoice.marketCess ?? 0,
         bagsAndSticks: invoice.bagsAndSticks ?? 0,
         freight: invoice.freight ?? 0,
+        purchaseOrderId: invoice.purchaseOrderId ?? null,
         grandTotal: invoice.grandTotal,
         lines: invoice.lines.map((l) => ({
           id: l.id,
@@ -833,6 +901,7 @@ const PurchaseInvoicePage: React.FC = () => {
         await createPurchaseInvoice({ ...payload, id: invoice.id })
       }
       await loadRecords()
+      await loadPurchaseOrders()
       toast.success('Purchase invoice saved.')
     } catch {
       toast.error('Failed to save purchase invoice.')
@@ -1017,6 +1086,7 @@ const PurchaseInvoicePage: React.FC = () => {
         suppliers={suppliers}
         items={items}
         branches={branches}
+        purchaseOrders={purchaseOrders}
         generatePINumber={generatePINumber}
         onClose={() => {
           setModalOpen(false)

@@ -19,6 +19,7 @@ export interface PurchaseInvoiceRow {
   organizationId: string | null
   supplierId: string
   branchId: string
+  purchaseOrderId: string | null
   invoiceDate: string
   mode: string
   loadingCost: number
@@ -35,6 +36,7 @@ export interface PurchaseInvoiceCreateDTO {
   organizationId?: string | null
   supplierId: string
   branchId?: string
+  purchaseOrderId?: string | null
   invoiceDate?: string
   mode?: string
   loadingCost?: number

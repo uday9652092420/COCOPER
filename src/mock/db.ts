@@ -151,6 +151,7 @@ export interface PurchaseInvoice {
   id: string
   supplierId: string
   branchId: string
+  purchaseOrderId?: string | null
   invoiceNo: string
   invoiceDate: string
   lines: PurchaseInvoiceLine[]

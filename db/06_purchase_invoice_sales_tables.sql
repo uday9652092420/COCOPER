@@ -33,12 +33,14 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
   po_date TEXT,
   remarks TEXT,
   status TEXT DEFAULT 'Draft',
+  purchase_order_invoice_status BOOLEAN NOT NULL DEFAULT FALSE,
   mode TEXT DEFAULT 'tonage',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (po_number, organization_id)
 );
 
 ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS branch_id TEXT;
+ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS purchase_order_invoice_status BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS purchase_order_items (
   id TEXT PRIMARY KEY,
@@ -66,6 +68,7 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   supplier_id TEXT,
   branch_id TEXT,
+  purchase_order_id TEXT REFERENCES purchase_orders(id) ON DELETE SET NULL,
   invoice_date TEXT,
   mode TEXT DEFAULT 'tonage',
   loading_cost NUMERIC DEFAULT 0,
@@ -76,6 +79,8 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (invoice_no, organization_id)
 );
+
+ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS purchase_order_id TEXT REFERENCES purchase_orders(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS purchase_invoice_items (
   id TEXT PRIMARY KEY,

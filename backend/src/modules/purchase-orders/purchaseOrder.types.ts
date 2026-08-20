@@ -25,6 +25,7 @@ export interface PurchaseOrderRow {
   date: string
   remarks: string
   status: string
+  purchaseOrderInvoiceStatus: boolean
   mode: string
   lines: PurchaseOrderItem[]
 }
@@ -39,6 +40,7 @@ export interface PurchaseOrderCreateDTO {
   date?: string
   remarks?: string
   status?: string
+  purchaseOrderInvoiceStatus?: boolean
   mode?: string
   lines?: PurchaseOrderItem[]
 }

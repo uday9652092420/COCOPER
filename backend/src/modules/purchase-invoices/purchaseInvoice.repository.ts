@@ -17,6 +17,7 @@ const PI_SELECT = `
     pi.organization_id AS "organizationId",
     pi.supplier_id AS "supplierId",
     pi.branch_id AS "branchId",
+    pi.purchase_order_id AS "purchaseOrderId",
     pi.invoice_date AS "invoiceDate",
     pi.mode,
     pi.loading_cost AS "loadingCost",
@@ -78,8 +79,8 @@ export async function createPurchaseInvoiceRepo(
     await client.query(
       `INSERT INTO purchase_invoices
         (id, invoice_no, organization_id, supplier_id, branch_id, invoice_date, mode,
-         loading_cost, market_cess, bags_and_sticks, freight, grand_total)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+         loading_cost, market_cess, bags_and_sticks, freight, grand_total, purchase_order_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         id,
         payload.invoiceNo,
@@ -93,6 +94,7 @@ export async function createPurchaseInvoiceRepo(
         payload.bagsAndSticks ?? 0,
         payload.freight ?? 0,
         payload.grandTotal ?? 0,
+        payload.purchaseOrderId ?? null,
       ]
     );
     for (const [i, l] of (payload.lines || []).entries()) {
@@ -110,6 +112,13 @@ export async function createPurchaseInvoiceRepo(
           l.purchaseCost ?? 0,
           l.purchaseAmount ?? 0,
         ]
+      );
+    }
+    if (payload.purchaseOrderId) {
+      await client.query(
+        `UPDATE purchase_orders SET purchase_order_invoice_status = TRUE, status = 'Invoiced'
+         WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL)`,
+        [payload.purchaseOrderId, payload.organizationId ?? null]
       );
     }
     await client.query("COMMIT");
@@ -142,6 +151,7 @@ export async function updatePurchaseInvoiceRepo(
         bags_and_sticks = COALESCE($9, bags_and_sticks),
         freight = COALESCE($10, freight),
         grand_total = COALESCE($11, grand_total)
+        ,purchase_order_id = COALESCE($12, purchase_order_id)
        WHERE id = $1`,
       [
         id,
@@ -155,6 +165,7 @@ export async function updatePurchaseInvoiceRepo(
         payload.bagsAndSticks,
         payload.freight,
         payload.grandTotal,
+        payload.purchaseOrderId,
       ]
     );
     if (payload.lines !== undefined) {

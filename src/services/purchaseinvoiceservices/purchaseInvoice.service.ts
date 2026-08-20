@@ -22,6 +22,7 @@ export interface PurchaseInvoiceDTO {
   organizationId?: string | null;
   supplierId: string;
   branchId: string;
+  purchaseOrderId?: string | null;
   invoiceDate: string;
   mode: string;
   loadingCost: number;
@@ -38,6 +39,7 @@ export interface PurchaseInvoicePayload {
   organizationId?: string | null;
   supplierId: string;
   branchId?: string;
+  purchaseOrderId?: string | null;
   invoiceDate?: string;
   mode?: string;
   loadingCost?: number;

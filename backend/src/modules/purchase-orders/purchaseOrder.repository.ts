@@ -21,6 +21,7 @@ const PO_SELECT = `
     po.po_date AS "date",
     po.remarks,
     po.status,
+    po.purchase_order_invoice_status AS "purchaseOrderInvoiceStatus",
     po.mode,
     COALESCE(
       json_agg(
@@ -138,7 +139,8 @@ export async function updatePurchaseOrderRepo(
         po_date = COALESCE($6, po_date),
         remarks = COALESCE($7, remarks),
         status = COALESCE($8, status),
-        mode = COALESCE($9, mode)
+        mode = COALESCE($9, mode),
+        purchase_order_invoice_status = COALESCE($10, purchase_order_invoice_status)
        WHERE id = $1`,
       [
         id,
@@ -150,6 +152,7 @@ export async function updatePurchaseOrderRepo(
         payload.remarks,
         payload.status,
         payload.mode,
+        payload.purchaseOrderInvoiceStatus,
       ]
     );
     if (payload.lines !== undefined) {

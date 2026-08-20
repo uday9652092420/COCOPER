@@ -7,6 +7,8 @@ import {
   getNextItemCodeHandler,
   updateItemHandler,
   deleteItemHandler,
+  listItemStockHandler,
+  replaceItemStockHandler,
 } from "./item.controller.js";
 
 const router = express.Router();
@@ -20,6 +22,10 @@ router.get("/next-code", getNextItemCodeHandler);
  * CRUD Routes
  */
 router.get("/", listItemsHandler);
+
+router.get("/:id/stock", listItemStockHandler);
+
+router.put("/:id/stock", replaceItemStockHandler);
 
 router.get("/:id", getItemHandler);
 

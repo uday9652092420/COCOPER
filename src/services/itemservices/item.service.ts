@@ -9,6 +9,7 @@ export interface ItemResponse {
   uom: string;
   status: "Active" | "Inactive";
   created_at: string;
+    branch_wise_stock?: number;
 }
 
 /**
@@ -20,6 +21,7 @@ export async function createItem(payload: {
   category: string;
   uom: string;
   status: "Active" | "Inactive";
+    branchWiseStock?: number;
 }): Promise<ItemResponse> {
   const response = await fetch(`${API}/items`, {
     method: "POST",
@@ -93,6 +95,7 @@ export async function updateItem(
     category: string;
     uom: string;
     status: "Active" | "Inactive";
+      branchWiseStock?: number;
   }
 ): Promise<ItemResponse> {
   const response = await fetch(`${API}/items/${id}`, {
@@ -128,5 +131,37 @@ export async function deleteItem(
     throw data;
   }
 
+  return data;
+}
+
+export interface ItemBranchStock {
+  id: string;
+  organization_id: string;
+  item_id: string;
+  item_code: string;
+  branch_id: string;
+  branch_name: string;
+  stock: number;
+}
+
+export interface ItemBranchStockInput {
+  branch_id: string;
+  stock: number;
+}
+
+export async function getItemBranchStock(itemId: string): Promise<ItemBranchStock[]> {
+  const response = await fetch(`${API}/items/${itemId}/stock`, { headers: getOrgHeader() });
+  if (!response.ok) throw await response.json().catch(() => ({ message: "Failed to load item branch stock" }));
+  return response.json();
+}
+
+export async function saveItemBranchStock(itemId: string, rows: ItemBranchStockInput[]): Promise<ItemBranchStock[]> {
+  const response = await fetch(`${API}/items/${itemId}/stock`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getOrgHeader() },
+    body: JSON.stringify({ rows }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw data;
   return data;
 }

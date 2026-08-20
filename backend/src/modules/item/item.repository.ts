@@ -1,5 +1,5 @@
 import { pool } from "../../config/db.js";
-import { Item, ItemCreateDTO } from "./item.types.js";
+import { Item, ItemBranchStock, ItemBranchStockInput, ItemCreateDTO } from "./item.types.js";
 import { getNextScopedCode } from "../../utils/codeGenerator.js";
 
 /**
@@ -40,6 +40,7 @@ export async function createItemRepo(
     payload.uom ?? null,
     payload.status ?? "Active",
     payload.organization_id ?? null,
+    payload.branch_wise_stock ?? 0,
   ];
 
   const { rows } = await pool.query(
@@ -53,6 +54,7 @@ export async function createItemRepo(
       uom,
       status,
       organization_id,
+      branch_wise_stock,
       created_at
     )
     VALUES
@@ -64,6 +66,7 @@ export async function createItemRepo(
       $5,
       $6,
       $7,
+      $8,
       CURRENT_DATE
     )
     RETURNING
@@ -75,6 +78,7 @@ export async function createItemRepo(
       status,
       organization_id,
       branch_id,
+      branch_wise_stock,
       created_at
     `,
     values
@@ -108,6 +112,7 @@ export async function listItemsRepo(organizationId?: string | null): Promise<Ite
       status,
       organization_id,
       branch_id,
+      branch_wise_stock,
       created_at
     FROM items
     ${where}
@@ -136,6 +141,7 @@ export async function getItemByIdRepo(
       status,
       organization_id,
       branch_id,
+      branch_wise_stock,
       created_at
     FROM items
     WHERE id=$1
@@ -161,7 +167,8 @@ export async function updateItemRepo(
       name=$3,
       category=$4,
       uom=$5,
-      status=$6
+      status=$6,
+      branch_wise_stock=$7
     WHERE id=$1
     RETURNING
       id,
@@ -172,6 +179,7 @@ export async function updateItemRepo(
       status,
       organization_id,
       branch_id,
+      branch_wise_stock,
       created_at
     `,
     [
@@ -181,6 +189,7 @@ export async function updateItemRepo(
       payload.category ?? null,
       payload.uom ?? null,
       payload.status ?? "Active",
+      payload.branch_wise_stock ?? 0,
     ]
   );
 
@@ -254,4 +263,57 @@ export async function deleteItemRepo(
   return {
     message: "Item deleted successfully",
   };
+}
+
+export async function listItemBranchStockRepo(
+  itemId: string,
+  organizationId: string
+): Promise<ItemBranchStock[]> {
+  const { rows } = await pool.query(
+    `SELECT id, organization_id, item_id, item_code, branch_id, branch_name, stock
+     FROM item_branch_stock
+     WHERE item_id = $1 AND organization_id = $2
+     ORDER BY branch_name`,
+    [itemId, organizationId]
+  );
+  return rows;
+}
+
+export async function replaceItemBranchStockRepo(
+  itemId: string,
+  organizationId: string,
+  itemCode: string,
+  rows: ItemBranchStockInput[]
+): Promise<ItemBranchStock[]> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query(
+      "DELETE FROM item_branch_stock WHERE item_id = $1 AND organization_id = $2",
+      [itemId, organizationId]
+    );
+    for (const row of rows) {
+      await client.query(
+        `INSERT INTO item_branch_stock
+          (id, organization_id, item_id, item_code, branch_id, branch_name, stock)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [
+          `IBS-${Date.now()}-${row.branch_id}`,
+          organizationId,
+          itemId,
+          itemCode,
+          row.branch_id,
+          row.branch_name,
+          row.stock,
+        ]
+      );
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+  return listItemBranchStockRepo(itemId, organizationId);
 }

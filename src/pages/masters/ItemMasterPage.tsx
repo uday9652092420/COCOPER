@@ -20,8 +20,11 @@ import {
   createItem,
   updateItem,
   deleteItem,
+  getItemBranchStock,
+  saveItemBranchStock,
   type ItemResponse,
 } from "../../services/itemservices/item.service";
+import { getBranches, type Branch } from "../../services/branchesservices/branches.service";
 import { onScopeChange } from "../../utils/scopeEvents";
 import { usePermissions } from "../../hooks/usePermissions";
 
@@ -35,6 +38,12 @@ interface ItemFormValues {
   category: string
   uom: string
   status: string
+  branchWiseStock: number
+}
+
+interface BranchStockRow {
+  branchId: string
+  stock: string
 }
 
 /**
@@ -50,6 +59,9 @@ const ItemMasterPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false)
  const [editing, setEditing] = useState<ItemResponse | null>(null)
  const [confirmDelete, setConfirmDelete] = useState<ItemResponse | null>(null)
+ const [branches, setBranches] = useState<Branch[]>([])
+ const [branchStockRows, setBranchStockRows] = useState<BranchStockRow[]>([])
+ const [branchWiseStockTotal, setBranchWiseStockTotal] = useState(0)
 
   const loadItems = async () => {
   try {
@@ -67,11 +79,30 @@ const ItemMasterPage: React.FC = () => {
 
 useEffect(() => {
   loadItems();
+  getBranches().then(setBranches).catch(() => setBranches([]));
 
   // Re-fetch when the organization or branch changes in the header.
   return onScopeChange(() => loadItems());
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
+
+useEffect(() => {
+  if (!modalOpen) return;
+  if (!editing?.id) {
+    setBranchStockRows([]);
+    setBranchWiseStockTotal(0);
+    return;
+  }
+  getItemBranchStock(editing.id)
+    .then((rows) => {
+      setBranchStockRows(rows.map((row) => ({ branchId: row.branch_id, stock: String(row.stock) })));
+      setBranchWiseStockTotal(rows.reduce((sum, row) => sum + Number(row.stock || 0), 0));
+    })
+    .catch(() => {
+      setBranchStockRows([]);
+      setBranchWiseStockTotal(0);
+    });
+}, [editing, modalOpen]);
 
   const filtered = useMemo(
     () =>
@@ -142,6 +173,7 @@ useEffect(() => {
     { name: 'name', label: 'Item Name', type: 'text', required: true },
     { name: 'category', label: 'Category', type: 'text', required: true },
     { name: 'uom', label: 'UOM', type: 'text', required: true },
+    { name: 'branchWiseStock', label: 'Branch wise stock', type: 'number', required: true },
     {
       name: 'status',
       label: 'Status',
@@ -156,6 +188,8 @@ useEffect(() => {
 
 const openAdd = async () => {
   setEditing(null);
+  setBranchStockRows([]);
+  setBranchWiseStockTotal(0);
 
   const code = await getNextItemCode();
 
@@ -173,6 +207,8 @@ const openAdd = async () => {
 };
 
 const openEdit = (row: ItemResponse) => {
+  setBranchStockRows([]);
+  setBranchWiseStockTotal(0);
   setEditing(row);
   setModalOpen(true);
 };
@@ -182,27 +218,44 @@ const openEdit = (row: ItemResponse) => {
   resetAfter: boolean
 ) => {
   try {
+    const stockTotal = branchStockRows.reduce((sum, row) => sum + (Number(row.stock) || 0), 0);
+    const declaredStock = Number(values.branchWiseStock) || 0;
+    if (Math.abs(stockTotal - declaredStock) > 0.000001) {
+      toast.error("Branch wise stock total must equal the total branch stock.");
+      return;
+    }
+
+    let savedItem: ItemResponse;
     if (editing?.id) {
-      await updateItem(editing.id, {
+      savedItem = await updateItem(editing.id, {
         code: values.code,
         name: values.name,
         category: values.category,
         uom: values.uom,
         status: values.status as "Active" | "Inactive",
+          branchWiseStock: declaredStock,
       });
 
       toast.success("Item updated successfully");
     } else {
-      await createItem({
+      savedItem = await createItem({
         code: values.code,
         name: values.name,
         category: values.category,
         uom: values.uom,
         status: values.status as "Active" | "Inactive",
+          branchWiseStock: declaredStock,
       });
 
       toast.success("Item created successfully");
     }
+
+    await saveItemBranchStock(
+      savedItem.id,
+      branchStockRows
+        .filter((row) => row.branchId)
+        .map((row) => ({ branch_id: row.branchId, stock: Number(row.stock) || 0 }))
+    );
 
     await loadItems();
 
@@ -221,6 +274,8 @@ const openEdit = (row: ItemResponse) => {
         status: "Active",
         created_at: "",
       });
+      setBranchStockRows([]);
+      setBranchWiseStockTotal(0);
     }
   } catch (error: any) {
     toast.error(error.message || "Operation failed");
@@ -262,9 +317,76 @@ const openEdit = (row: ItemResponse) => {
                 category: editing.category,
                 uom: editing.uom,
                 status: editing.status,
+                        branchWiseStock: branchWiseStockTotal,
               }
-            : { code: '', name: '', category: '', uom: '', status: 'Active' }
+                    : { code: '', name: '', category: '', uom: '', status: 'Active', branchWiseStock: 0 }
         }
+                customSection={
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700">Branch wise stock</label>
+                        <p className="mt-1 text-[10px] text-slate-500">Enter stock for each branch. The row total must match this value.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setBranchStockRows((rows) => [...rows, { branchId: '', stock: '' }])}
+                        className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
+                      >
+                        Add Branch
+                      </button>
+                    </div>
+                    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                      <table className="min-w-full text-left text-[11px]">
+                        <thead className="bg-slate-100 text-slate-600">
+                          <tr>
+                            <th className="px-3 py-2">Branch</th>
+                            <th className="px-3 py-2">Stock</th>
+                            <th className="px-3 py-2 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {branchStockRows.map((row, index) => (
+                            <tr key={`${row.branchId}-${index}`} className="border-t border-slate-100">
+                              <td className="px-3 py-2">
+                                <select
+                                  value={row.branchId}
+                                  onChange={(event) => setBranchStockRows((rows) => rows.map((current, rowIndex) => rowIndex === index ? { ...current, branchId: event.target.value } : current))}
+                                  className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px]"
+                                >
+                                  <option value="">Select branch</option>
+                                  {branches.filter((branch) => branch.status?.toUpperCase() !== 'INACTIVE').map((branch) => (
+                                    <option key={branch.id} value={branch.id}>{branch.branch_name}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={row.stock}
+                                  onChange={(event) => setBranchStockRows((rows) => rows.map((current, rowIndex) => rowIndex === index ? { ...current, stock: event.target.value } : current))}
+                                  className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px]"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <button type="button" onClick={() => setBranchStockRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index))} className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] text-rose-700">Remove</button>
+                              </td>
+                            </tr>
+                          ))}
+                          {!branchStockRows.length && <tr><td colSpan={3} className="px-3 py-3 text-center text-slate-400">No branch stock rows</td></tr>}
+                        </tbody>
+                        <tfoot className="border-t border-slate-200 bg-slate-50">
+                          <tr>
+                            <td className="px-3 py-2 font-semibold text-slate-700">Total branch stock</td>
+                            <td className="px-3 py-2 font-semibold text-slate-700">{branchStockRows.reduce((sum, row) => sum + (Number(row.stock) || 0), 0)}</td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                }
         onClose={() => {
           setModalOpen(false)
           setEditing(null)

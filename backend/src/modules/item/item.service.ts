@@ -1,4 +1,4 @@
-import { Item, ItemCreateDTO } from "./item.types.js";
+import { Item, ItemBranchStock, ItemBranchStockInput, ItemCreateDTO } from "./item.types.js";
 
 import {
   createItemRepo,
@@ -8,6 +8,8 @@ import {
   getItemByIdRepo,
   getNextItemCodeRepo,
   checkItemUsageRepo,
+  listItemBranchStockRepo,
+  replaceItemBranchStockRepo,
 } from "./item.repository.js";
 
 /**
@@ -80,4 +82,17 @@ export async function listItems(organizationId?: string | null): Promise<Item[]>
  */
 export async function getNextItemCode(organizationId?: string | null): Promise<string> {
   return getNextItemCodeRepo(organizationId ?? null);
+}
+
+export async function listItemBranchStock(itemId: string, organizationId: string): Promise<ItemBranchStock[]> {
+  return listItemBranchStockRepo(itemId, organizationId);
+}
+
+export async function replaceItemBranchStock(
+  itemId: string,
+  organizationId: string,
+  itemCode: string,
+  rows: ItemBranchStockInput[]
+): Promise<ItemBranchStock[]> {
+  return replaceItemBranchStockRepo(itemId, organizationId, itemCode, rows);
 }

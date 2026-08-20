@@ -7,16 +7,19 @@ import {
   listItems as listItemsService,
   getItemById as getItemByIdService,
   getNextItemCode,
+  listItemBranchStock,
+  replaceItemBranchStock,
 } from "./item.service.js";
 
 import { validateItemPayload } from "./item.validation.js";
 import { AppError } from "../../utils/AppError.js";
+import { pool } from "../../config/db.js";
 
 interface ItemParams {
   id: string;
 }
 
-function resolveOrganizationId(req: Request): string | undefined {
+function resolveOrganizationId(req: Request<any>): string | undefined {
   return (
     (req.query.organizationId as string | undefined) ||
     req.header("x-organization-id")
@@ -48,6 +51,7 @@ export async function createItemHandler(
 
     const created = await createItemService({
       ...payload,
+      branch_wise_stock: payload.branch_wise_stock ?? payload.branchWiseStock ?? 0,
       organization_id: payload.organization_id ?? organizationId ?? null,
       // Items are organization-scoped (not branch-scoped) now.
       branch_id: null,
@@ -155,7 +159,7 @@ export async function updateItemHandler(
   try {
     const updated = await updateItemService(
       req.params.id,
-      payload
+      { ...payload, branch_wise_stock: payload.branch_wise_stock ?? payload.branchWiseStock ?? 0 }
     );
 
     if (!updated) {
@@ -197,5 +201,66 @@ export async function deleteItemHandler(
         cause: error,
       })
     );
+  }
+}
+
+export async function listItemStockHandler(
+  req: Request<ItemParams>,
+  res: Response,
+  next: NextFunction
+) {
+  const organizationId = resolveOrganizationId(req);
+  if (!organizationId) {
+    return next(new AppError("Organization is required", 400));
+  }
+  try {
+    const rows = await listItemBranchStock(req.params.id, organizationId);
+    return res.status(200).json(rows);
+  } catch (error) {
+    return next(new AppError("Failed to load item branch stock", 500, { cause: error }));
+  }
+}
+
+export async function replaceItemStockHandler(
+  req: Request<ItemParams>,
+  res: Response,
+  next: NextFunction
+) {
+  const organizationId = resolveOrganizationId(req);
+  if (!organizationId) {
+    return next(new AppError("Organization is required", 400));
+  }
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (rows.some((row: any) => !row.branch_id || Number(row.stock) < 0 || !Number.isFinite(Number(row.stock)))) {
+    return next(new AppError("Each branch stock row requires a valid branch and non-negative stock", 400));
+  }
+  try {
+    const itemResult = await pool.query(
+      "SELECT id, code FROM items WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL)",
+      [req.params.id, organizationId]
+    );
+    const item = itemResult.rows[0];
+    if (!item) return next(new AppError("Item not found", 404));
+
+    const branchIds = rows.map((row: any) => row.branch_id);
+    const branchResult = branchIds.length
+      ? await pool.query(
+          "SELECT id, branch_name FROM branches WHERE organization_id = $1 AND id = ANY($2::uuid[])",
+          [organizationId, branchIds]
+        )
+      : { rows: [] };
+    const branchMap = new Map(branchResult.rows.map((branch: any) => [branch.id, branch.branch_name]));
+    if (branchMap.size !== new Set(branchIds).size) {
+      return next(new AppError("Every selected branch must belong to the organization", 400));
+    }
+    const normalizedRows = rows.map((row: any) => ({
+      branch_id: row.branch_id,
+      branch_name: branchMap.get(row.branch_id),
+      stock: Number(row.stock),
+    }));
+    const saved = await replaceItemBranchStock(req.params.id, organizationId, item.code, normalizedRows);
+    return res.status(200).json(saved);
+  } catch (error) {
+    return next(new AppError("Failed to save item branch stock", 500, { cause: error }));
   }
 }

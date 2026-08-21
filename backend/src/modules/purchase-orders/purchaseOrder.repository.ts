@@ -6,6 +6,7 @@
 import { pool } from "../../config/db.js";
 import {
   PurchaseOrderCreateDTO,
+  PurchaseOrderItem,
   PurchaseOrderRow,
   PurchaseOrderUpdateDTO,
 } from "./purchaseOrder.types.js";
@@ -42,6 +43,69 @@ const PO_SELECT = `
   FROM purchase_orders po
   LEFT JOIN purchase_order_items poi ON poi.purchase_order_id = po.id
 `;
+
+type PurchaseOrderStockLine = Pick<PurchaseOrderItem, "itemId" | "quantity">;
+
+async function updateItemStockForPurchaseOrder(
+  client: import("pg").PoolClient,
+  purchaseOrderId: string,
+  organizationId: string | null | undefined,
+  branchId: string | null | undefined,
+  previousLines: PurchaseOrderStockLine[],
+  currentLines: PurchaseOrderStockLine[]
+): Promise<void> {
+  if (!organizationId || !branchId) return;
+
+  const converted = await client.query(
+    "SELECT EXISTS (SELECT 1 FROM sales_orders WHERE source_po_id = $1) AS converted",
+    [purchaseOrderId]
+  );
+  if (converted.rows[0]?.converted) return;
+
+  const deltas = new Map<string, number>();
+  for (const line of previousLines) {
+    deltas.set(line.itemId, (deltas.get(line.itemId) ?? 0) - (Number(line.quantity) || 0));
+  }
+  for (const line of currentLines) {
+    deltas.set(line.itemId, (deltas.get(line.itemId) ?? 0) + (Number(line.quantity) || 0));
+  }
+
+  const branch = await client.query(
+    "SELECT branch_name AS \"branchName\" FROM branches WHERE id = $1",
+    [branchId]
+  );
+  const branchName = branch.rows[0]?.branchName ?? "";
+
+  for (const [itemId, delta] of deltas) {
+    if (!itemId || delta === 0) continue;
+    const item = await client.query(
+      `SELECT code
+       FROM items
+       WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL)`,
+      [itemId, organizationId]
+    );
+    if (!item.rows[0]) continue;
+
+    await client.query(
+      `INSERT INTO item_branch_stock
+        (id, organization_id, item_id, item_code, branch_id, branch_name, stock)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (organization_id, item_id, branch_id)
+       DO UPDATE SET
+         stock = item_branch_stock.stock + EXCLUDED.stock,
+         item_code = EXCLUDED.item_code,
+         branch_name = EXCLUDED.branch_name,
+         updated_at = NOW()`,
+      [`IBS-${Date.now()}-${itemId}-${branchId}`, organizationId, itemId, item.rows[0].code, branchId, branchName, delta]
+    );
+    await client.query(
+      `UPDATE items
+       SET branch_wise_stock = COALESCE(branch_wise_stock, 0) + $1
+       WHERE id = $2 AND (organization_id = $3 OR organization_id IS NULL)`,
+      [delta, itemId, organizationId]
+    );
+  }
+}
 
 export async function listPurchaseOrdersRepo(
   organizationId?: string | null
@@ -112,6 +176,14 @@ export async function createPurchaseOrderRepo(
         ]
       );
     }
+    await updateItemStockForPurchaseOrder(
+      client,
+      id,
+      payload.organizationId,
+      payload.branchId,
+      [],
+      payload.lines || []
+    );
     await client.query("COMMIT");
   } catch (e) {
     await client.query("ROLLBACK");
@@ -130,6 +202,10 @@ export async function updatePurchaseOrderRepo(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const previousLinesResult = await client.query(
+      "SELECT item_id AS \"itemId\", quantity FROM purchase_order_items WHERE purchase_order_id = $1",
+      [id]
+    );
     await client.query(
       `UPDATE purchase_orders SET
         po_number = COALESCE($2, po_number),
@@ -179,6 +255,20 @@ export async function updatePurchaseOrderRepo(
           ]
         );
       }
+    }
+    if (payload.lines !== undefined) {
+      const currentOrder = await client.query(
+        "SELECT organization_id AS \"organizationId\", branch_id AS \"branchId\" FROM purchase_orders WHERE id = $1",
+        [id]
+      );
+      await updateItemStockForPurchaseOrder(
+        client,
+        id,
+        payload.organizationId ?? currentOrder.rows[0]?.organizationId,
+        payload.branchId ?? currentOrder.rows[0]?.branchId,
+        previousLinesResult.rows,
+        payload.lines
+      );
     }
     await client.query("COMMIT");
   } catch (e) {

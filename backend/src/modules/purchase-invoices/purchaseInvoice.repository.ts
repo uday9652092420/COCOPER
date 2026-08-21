@@ -25,6 +25,7 @@ const PI_SELECT = `
     pi.bags_and_sticks AS "bagsAndSticks",
     pi.freight,
     pi.grand_total AS "grandTotal",
+    pi.status,
     COALESCE(
       json_agg(
         json_build_object(
@@ -79,8 +80,8 @@ export async function createPurchaseInvoiceRepo(
     await client.query(
       `INSERT INTO purchase_invoices
         (id, invoice_no, organization_id, supplier_id, branch_id, invoice_date, mode,
-         loading_cost, market_cess, bags_and_sticks, freight, grand_total, purchase_order_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+         loading_cost, market_cess, bags_and_sticks, freight, grand_total, status, purchase_order_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       [
         id,
         payload.invoiceNo,
@@ -94,6 +95,7 @@ export async function createPurchaseInvoiceRepo(
         payload.bagsAndSticks ?? 0,
         payload.freight ?? 0,
         payload.grandTotal ?? 0,
+        payload.status ?? "Draft",
         payload.purchaseOrderId ?? null,
       ]
     );
@@ -151,7 +153,8 @@ export async function updatePurchaseInvoiceRepo(
         bags_and_sticks = COALESCE($9, bags_and_sticks),
         freight = COALESCE($10, freight),
         grand_total = COALESCE($11, grand_total)
-        ,purchase_order_id = COALESCE($12, purchase_order_id)
+        ,status = COALESCE($12, status)
+        ,purchase_order_id = COALESCE($13, purchase_order_id)
        WHERE id = $1`,
       [
         id,
@@ -165,6 +168,7 @@ export async function updatePurchaseInvoiceRepo(
         payload.bagsAndSticks,
         payload.freight,
         payload.grandTotal,
+        payload.status,
         payload.purchaseOrderId,
       ]
     );

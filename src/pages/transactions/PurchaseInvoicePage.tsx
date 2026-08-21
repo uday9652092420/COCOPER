@@ -29,7 +29,7 @@ import { SearchFilterPanel } from '../../components/common/SearchFilterPanel'
 import { DataGrid, type ColumnDef } from '../../components/common/DataGrid'
 import RowActions from '../../components/common/RowActions'
 import { ConfirmDialog } from '../../components/common/ConfirmDialog'
-import { formatCurrency } from '../../utils/format'
+import { formatAmount, formatCurrency } from '../../utils/format'
 import { getSuppliers, type SupplierResponse } from '../../services/supplierservices/supplier.service'
 import { getItems, type ItemResponse } from '../../services/itemservices/item.service'
 import { getBranches, type Branch } from '../../services/branchesservices/branches.service'
@@ -108,9 +108,11 @@ const PurchaseInvoiceModal: React.FC<{
   branches: Branch[]
   purchaseOrders: PurchaseOrderDTO[]
   generatePINumber: () => string
-}> = ({ open, onClose, onSave, existing, suppliers, items, branches, purchaseOrders, generatePINumber }) => {
+  onApprove: (invoice: PurchaseInvoice) => void
+}> = ({ open, onClose, onSave, existing, suppliers, items, branches, purchaseOrders, generatePINumber, onApprove }) => {
   const { selectedOrganizationId } = useAuthStore()
   const isMobile = useIsMobile()
+  const isApproved = existing?.status === 'Approved'
 
   /**
    * @description Mode for actual quantity calculation.
@@ -187,11 +189,13 @@ const PurchaseInvoiceModal: React.FC<{
   const watchedLines = (watch('lines') ?? []) as PurchaseInvoiceFormValues['lines']
   const selectedPurchaseOrderId = watch('purchaseOrderId') ?? ''
   const availablePurchaseOrders = purchaseOrders.filter(
-    (order) => !order.purchaseOrderInvoiceStatus && order.status !== 'Invoiced' && (!watch('supplierId') || order.supplierId === watch('supplierId'))
+    (order) =>
+      (order.status === 'Approved' && order.purchaseOrderInvoiceStatus === false || order.id === existing?.purchaseOrderId) &&
+      (!watch('supplierId') || order.supplierId === watch('supplierId'))
   )
   const purchaseOrderSupplierIds = new Set(
     purchaseOrders
-      .filter((order) => (!order.purchaseOrderInvoiceStatus && order.status !== 'Invoiced') || order.id === existing?.purchaseOrderId)
+      .filter((order) => (order.status === 'Approved' && order.purchaseOrderInvoiceStatus === false) || order.id === existing?.purchaseOrderId)
       .map((order) => order.supplierId)
   )
 
@@ -310,6 +314,7 @@ const PurchaseInvoiceModal: React.FC<{
       gunnyBags: [],
       grandTotal: linesTotal + additionalTotalVal,
       organizationId: selectedOrganizationId ?? null,
+      status: existing?.status ?? 'Draft',
       mode,
       loadingCost: Number(values.loadingCost) || 0,
       marketCess: Number(values.marketCess) || 0,
@@ -329,34 +334,6 @@ const PurchaseInvoiceModal: React.FC<{
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
           <div className="flex items-center gap-4">
             <h2 className="text-sm font-semibold text-slate-900">{existing ? 'Edit Purchase Invoice' : 'New Purchase Invoice'}</h2>
-
-            {/* Tonnage / Lessing mode */}
-            <div className="flex items-center gap-2 text-[11px]">
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="mode"
-                  checked={mode === 'tonage'}
-                  onChange={() => {
-                    setMode('tonage')
-                    ;(linesField.fields || []).forEach((_, idx) => recalcLine(idx, 'tonage'))
-                  }}
-                />
-                <span>Tonnage</span>
-              </label>
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="mode"
-                  checked={mode === 'lessing'}
-                  onChange={() => {
-                    setMode('lessing')
-                    ;(linesField.fields || []).forEach((_, idx) => recalcLine(idx, 'lessing'))
-                  }}
-                />
-                <span>Lessing</span>
-              </label>
-            </div>
           </div>
 
           <button type="button" onClick={onClose} className="rounded-full px-3 py-1 text-xs text-slate-500 hover:bg-slate-100">
@@ -368,11 +345,11 @@ const PurchaseInvoiceModal: React.FC<{
           <div className="grid gap-3 md:grid-cols-4">
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Invoice No</label>
-              <input className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('invoiceNo', { required: true })} />
+              <input disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('invoiceNo', { required: true })} />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Branch</label>
-              <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('branchId', { required: true })}>
+              <select disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('branchId', { required: true })}>
                 <option value="">Select branch</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>{b.branch_name}</option>
@@ -382,10 +359,11 @@ const PurchaseInvoiceModal: React.FC<{
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Date (DD/MM/YYYY)</label>
               <div className="relative">
-                <input placeholder="DD/MM/YYYY" className="w-full rounded-full border border-slate-200 px-3 py-1.5 pr-10 text-xs" {...register('invoiceDate', { required: true, pattern: { value: /^\d{2}\/\d{2}\/\d{4}$/, message: 'Use DD/MM/YYYY' } })} />
+                <input disabled={isApproved} placeholder="DD/MM/YYYY" className="w-full rounded-full border border-slate-200 px-3 py-1.5 pr-10 text-xs disabled:bg-slate-100" {...register('invoiceDate', { required: true, pattern: { value: /^\d{2}\/\d{2}\/\d{4}$/, message: 'Use DD/MM/YYYY' } })} />
                 <input
                   ref={invoiceDatePickerRef}
                   type="date"
+                  disabled={isApproved}
                   value={(() => {
                     const value = watch('invoiceDate') ?? ''
                     if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
@@ -398,14 +376,14 @@ const PurchaseInvoiceModal: React.FC<{
                   className="absolute right-2 top-1/2 h-6 w-6 -translate-y-1/2 cursor-pointer opacity-0"
                   aria-label="Select invoice date"
                 />
-                <button type="button" onClick={() => invoiceDatePickerRef.current?.showPicker?.()} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600" aria-label="Open invoice date picker">
+                <button type="button" disabled={isApproved} onClick={() => invoiceDatePickerRef.current?.showPicker?.()} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 disabled:cursor-not-allowed" aria-label="Open invoice date picker">
                   &#128197;
                 </button>
               </div>
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Supplier</label>
-              <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('supplierId', { required: true })}>
+              <select disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('supplierId', { required: true })}>
                 <option value="">Select supplier</option>
                 {suppliers.filter((supplier) => purchaseOrderSupplierIds.has(supplier.id) || supplier.id === existing?.supplierId).map((s) => (
                   <option key={s.id} value={s.id}>
@@ -416,17 +394,48 @@ const PurchaseInvoiceModal: React.FC<{
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Purchase Order No</label>
-              <select value={selectedPurchaseOrderId} onChange={(event) => applyPurchaseOrder(event.target.value)} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs">
+              <select disabled={isApproved} value={selectedPurchaseOrderId} onChange={(event) => applyPurchaseOrder(event.target.value)} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100">
                 <option value="">Select purchase order</option>
                 {availablePurchaseOrders.map((order) => <option key={order.id} value={order.id}>{order.poNumber}</option>)}
               </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Quantity Mode</label>
+              <div className="flex h-[34px] items-center gap-3 rounded-full border border-slate-200 px-3 text-[11px]">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="mode"
+                    disabled={isApproved}
+                    checked={mode === 'tonage'}
+                    onChange={() => {
+                      setMode('tonage')
+                      ;(linesField.fields || []).forEach((_, idx) => recalcLine(idx, 'tonage'))
+                    }}
+                  />
+                  <span>Tonnage</span>
+                </label>
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="mode"
+                    disabled={isApproved}
+                    checked={mode === 'lessing'}
+                    onChange={() => {
+                      setMode('lessing')
+                      ;(linesField.fields || []).forEach((_, idx) => recalcLine(idx, 'lessing'))
+                    }}
+                  />
+                  <span>Lessing</span>
+                </label>
+              </div>
             </div>
           </div>
 
           <div className="mt-3 space-y-2">
             <div className="flex items-center justify-between text-[11px] font-medium text-slate-700">
               <span>Line Items</span>
-              <button
+              {!isApproved && <button
                 type="button"
                 onClick={() =>
                   linesField.append({
@@ -441,7 +450,7 @@ const PurchaseInvoiceModal: React.FC<{
                 className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
               >
                 Add Line
-              </button>
+              </button>}
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-slate-100">
@@ -461,7 +470,7 @@ const PurchaseInvoiceModal: React.FC<{
                   {linesField.fields.map((field, index) => (
                     <tr key={field.id} className="border-t border-slate-100">
                       <td className="px-3 py-1.5">
-                        <select disabled={Boolean(field.locked)} className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px] disabled:bg-slate-100" {...register(`lines.${index}.itemId` as const, { required: true })}>
+                        <select disabled={isApproved || Boolean(field.locked)} className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px] disabled:bg-slate-100" {...register(`lines.${index}.itemId` as const, { required: true })}>
                           <option value="">Select item</option>
                           {items.map((it) => (
                             <option key={it.id} value={it.id}>
@@ -474,7 +483,8 @@ const PurchaseInvoiceModal: React.FC<{
                         <input
                           type="text"
                           inputMode="decimal"
-                          className="w-28 rounded-full border border-slate-200 px-2 py-1"
+                          disabled={isApproved}
+                          className="w-28 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
                           {...register(`lines.${index}.quantity` as const, {
                             onChange: () => recalcLine(index),
                           })}
@@ -485,7 +495,8 @@ const PurchaseInvoiceModal: React.FC<{
                         <input
                           type="text"
                           inputMode="decimal"
-                          className="w-20 rounded-full border border-slate-200 px-2 py-1"
+                          disabled={isApproved}
+                          className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
                           {...register(`lines.${index}.discount` as const, {
                             onChange: () => recalcLine(index),
                           })}
@@ -504,7 +515,8 @@ const PurchaseInvoiceModal: React.FC<{
                         <input
                           type="text"
                           inputMode="decimal"
-                          className="w-24 rounded-full border border-slate-200 px-2 py-1"
+                          disabled={isApproved}
+                          className="w-24 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
                           {...register(`lines.${index}.purchaseCost` as const, {
                             onChange: () => recalcLine(index),
                           })}
@@ -512,16 +524,12 @@ const PurchaseInvoiceModal: React.FC<{
                         />
                       </td>
                       <td className="px-3 py-1.5">
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          readOnly
-                          className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
-                          {...register(`lines.${index}.purchaseAmount` as const)}
-                        />
+                          <div className="w-24 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                            {formatAmount(Number(arr[index]?.purchaseAmount ?? 0))}
+                          </div>
                       </td>
                       <td className="px-3 py-1.5 text-right">
-                        <button type="button" disabled={Boolean(field.locked)} onClick={() => linesField.remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100 disabled:hidden">
+                        <button type="button" disabled={isApproved || Boolean(field.locked)} onClick={() => linesField.remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100 disabled:hidden">
                           Remove
                         </button>
                       </td>
@@ -542,7 +550,7 @@ const PurchaseInvoiceModal: React.FC<{
                     <td className="px-3 py-2" />
                     <td className="px-3 py-2" />
                     <td className="px-3 py-2" />
-                    <td className="px-3 py-2 font-semibold text-slate-700">{totalAmount.toFixed(2)}</td>
+                    <td className="px-3 py-2 font-semibold text-slate-700">{formatAmount(totalAmount)}</td>
                     <td className="px-3 py-2" />
                   </tr>
                 </tfoot>
@@ -554,31 +562,40 @@ const PurchaseInvoiceModal: React.FC<{
           <div className="mt-3 grid gap-3 md:grid-cols-4">
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Loading Cost</label>
-              <input type="number" className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('loadingCost', { valueAsNumber: true })} />
+              <input type="number" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('loadingCost', { valueAsNumber: true })} />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Market Cess</label>
-              <input type="number" className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('marketCess', { valueAsNumber: true })} />
+              <input type="number" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('marketCess', { valueAsNumber: true })} />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Bags & Sticks</label>
-              <input type="number" className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('bagsAndSticks', { valueAsNumber: true })} />
+              <input type="number" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('bagsAndSticks', { valueAsNumber: true })} />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Freight</label>
-              <input type="number" className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('freight', { valueAsNumber: true })} />
+              <input type="number" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('freight', { valueAsNumber: true })} />
             </div>
           </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs">
             <div className="space-y-1 text-[11px] text-slate-500">
-              <p>Lines Total: {formatCurrency(totalAmount)}</p>
+              <p>Lines Total: {formatAmount(totalAmount)}</p>
               <p>Additional Charges: {formatCurrency(additionalTotal)}</p>
               <p className="font-semibold text-slate-700">Grand Total: {formatCurrency(grandTotal)}</p>
             </div>
-            <button type="submit" className="rounded-full bg-[#2E7D32] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#256427]">
-              Save
-            </button>
+            {!isApproved && (
+              <div className="flex gap-2">
+                {existing && (
+                  <button type="button" onClick={() => onApprove(existing)} className="rounded-full bg-[#0EA5A4] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0b8b89]">
+                    Approve
+                  </button>
+                )}
+                <button type="submit" className="rounded-full bg-[#2E7D32] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#256427]">
+                  Save
+                </button>
+              </div>
+            )}
           </div>
         </form>
       </div>
@@ -666,7 +683,7 @@ const ViewPurchaseInvoiceModal: React.FC<{
                       <td className="px-3 py-1.5">{l.discount ?? 0}</td>
                       <td className="px-3 py-1.5">{l.actualQuantity ?? 0}</td>
                       <td className="px-3 py-1.5">{Number(l.purchaseCost ?? 0).toFixed(2)}</td>
-                      <td className="px-3 py-1.5 text-right font-semibold">{Number(l.purchaseAmount ?? 0).toFixed(2)}</td>
+                      <td className="px-3 py-1.5 text-right font-semibold">{formatAmount(Number(l.purchaseAmount ?? 0))}</td>
                     </tr>
                   )
                 })}
@@ -676,7 +693,7 @@ const ViewPurchaseInvoiceModal: React.FC<{
                   <td className="px-3 py-2 font-semibold text-slate-700" colSpan={5}>
                     Lines Total
                   </td>
-                  <td className="px-3 py-2 text-right font-semibold text-slate-700">{linesTotal.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-slate-700">{formatAmount(linesTotal)}</td>
                 </tr>
                 {charges > 0 && (
                   <tr className="border-t bg-slate-50">
@@ -885,6 +902,7 @@ const PurchaseInvoicePage: React.FC = () => {
         freight: invoice.freight ?? 0,
         purchaseOrderId: invoice.purchaseOrderId ?? null,
         grandTotal: invoice.grandTotal,
+        status: invoice.status ?? 'Draft',
         lines: invoice.lines.map((l) => ({
           id: l.id,
           itemId: l.itemId,
@@ -905,6 +923,17 @@ const PurchaseInvoicePage: React.FC = () => {
       toast.success('Purchase invoice saved.')
     } catch {
       toast.error('Failed to save purchase invoice.')
+    }
+  }
+
+  const handleApprove = async (invoice: PurchaseInvoice) => {
+    try {
+      await updatePurchaseInvoice(invoice.id, { status: 'Approved' })
+      setEditing((current) => (current?.id === invoice.id ? { ...current, status: 'Approved' } : current))
+      await loadRecords()
+      toast.success('Purchase invoice approved.')
+    } catch {
+      toast.error('Failed to approve purchase invoice.')
     }
   }
 
@@ -939,7 +968,7 @@ const PurchaseInvoicePage: React.FC = () => {
           <td class="right">${l.discount ?? 0}</td>
           <td class="right">${l.actualQuantity ?? 0}</td>
           <td class="right">${Number(l.purchaseCost ?? 0).toFixed(2)}</td>
-          <td class="right">${Number(l.purchaseAmount ?? 0).toFixed(2)}</td>
+          <td class="right">${formatAmount(Number(l.purchaseAmount ?? 0))}</td>
         </tr>`
       })
       .join('')
@@ -995,7 +1024,7 @@ const PurchaseInvoicePage: React.FC = () => {
     <tfoot>
       <tr>
         <td colspan="6" class="right">Lines Total</td>
-        <td class="right total">${linesTotal.toFixed(2)}</td>
+        <td class="right total">${formatAmount(linesTotal)}</td>
       </tr>
       ${
         charges > 0
@@ -1007,7 +1036,7 @@ const PurchaseInvoicePage: React.FC = () => {
       }
       <tr>
         <td colspan="6" class="right">Grand Total</td>
-        <td class="right total">${Number(row.grandTotal ?? 0).toFixed(2)}</td>
+        <td class="right total">${formatAmount(Number(row.grandTotal ?? 0))}</td>
       </tr>
     </tfoot>
   </table>
@@ -1059,7 +1088,7 @@ const PurchaseInvoicePage: React.FC = () => {
             onView={(r: any) => setViewing(r)}
             onEdit={(r: any) => openEdit(r)}
             onPrint={(r: any) => printPurchaseInvoice(r)}
-            onDelete={(r: any) => setConfirmDelete(r)}
+            onDelete={row.status === 'Approved' ? undefined : (r: any) => setConfirmDelete(r)}
           />
         </div>
       ),
@@ -1088,6 +1117,7 @@ const PurchaseInvoicePage: React.FC = () => {
         branches={branches}
         purchaseOrders={purchaseOrders}
         generatePINumber={generatePINumber}
+        onApprove={handleApprove}
         onClose={() => {
           setModalOpen(false)
           setEditing(null)

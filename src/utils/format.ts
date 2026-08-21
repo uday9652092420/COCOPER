@@ -14,6 +14,12 @@ export const formatCurrency = (value: number): string =>
   }).format(value)
 
 /**
+ * @description Format rounded line amounts as INR with Indian grouping and the requested suffix.
+ */
+export const formatAmount = (value: number): string =>
+  `₹${new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Math.round(value || 0))}/-`
+
+/**
  * @description Format ISO date string into short human-readable format.
  */
 export const formatDate = (value: string): string => {

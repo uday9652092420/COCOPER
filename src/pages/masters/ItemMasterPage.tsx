@@ -140,29 +140,25 @@ useEffect(() => {
       width: '180px',
       render: (row: ItemResponse) => (
         <div className="flex items-center gap-2">
-          {can('item', 'edit') ? (
-            <button
-              type="button"
-              aria-label={`Edit ${row.name}`}
-              onClick={() => openEdit(row)}
-              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-            >
-              <Edit2 className="h-3 w-3" />
-              Edit
-            </button>
-          ) : null}
+          <button
+            type="button"
+            aria-label={`Edit ${row.name}`}
+            onClick={() => openEdit(row)}
+            className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+          >
+            <Edit2 className="h-3 w-3" />
+            Edit
+          </button>
 
-          {can('item', 'delete') ? (
-            <button
-              type="button"
-              aria-label={`Delete ${row.name}`}
-              onClick={() => setConfirmDelete(row)}
-              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
-            >
-              <Trash2 className="h-3 w-3" />
-              Delete
-            </button>
-          ) : null}
+          <button
+            type="button"
+            aria-label={`Delete ${row.name}`}
+            onClick={() => setConfirmDelete(row)}
+            className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-medium text-rose-700 hover:bg-rose-100"
+          >
+            <Trash2 className="h-3 w-3" />
+            Delete
+          </button>
         </div>
       ),
     },
@@ -173,7 +169,7 @@ useEffect(() => {
     { name: 'name', label: 'Item Name', type: 'text', required: true },
     { name: 'category', label: 'Category', type: 'text', required: true },
     { name: 'uom', label: 'UOM', type: 'text', required: true },
-    { name: 'branchWiseStock', label: 'Branch wise stock', type: 'number', required: true },
+    { name: 'branchWiseStock', label: 'Stock', type: 'number', required: true },
     {
       name: 'status',
       label: 'Status',
@@ -221,7 +217,7 @@ const openEdit = (row: ItemResponse) => {
     const stockTotal = branchStockRows.reduce((sum, row) => sum + (Number(row.stock) || 0), 0);
     const declaredStock = Number(values.branchWiseStock) || 0;
     if (Math.abs(stockTotal - declaredStock) > 0.000001) {
-      toast.error("Branch wise stock total must equal the total branch stock.");
+      toast.error("Stock total must equal the total branch stock.");
       return;
     }
 
@@ -307,7 +303,7 @@ const openEdit = (row: ItemResponse) => {
     />
       <MasterFormModal<ItemFormValues>
         open={modalOpen}
-        title={editing ? 'Edit Item' : 'Add Item'}
+        title={editing?.id ? 'Edit Item' : 'New Item'}
         fields={fields}
         defaultValues={
           editing
@@ -325,7 +321,7 @@ const openEdit = (row: ItemResponse) => {
                   <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
                     <div className="mb-2 flex items-center justify-between">
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-700">Branch wise stock</label>
+                        <label className="block text-[11px] font-semibold text-slate-700">Stock <span className="text-rose-500">*</span></label>
                         <p className="mt-1 text-[10px] text-slate-500">Enter stock for each branch. The row total must match this value.</p>
                       </div>
                       <button

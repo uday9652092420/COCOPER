@@ -158,6 +158,7 @@ export interface PurchaseInvoice {
   gunnyBags: PurchaseInvoiceGunny[]
   grandTotal: number
   organizationId?: string | null
+  status?: 'Draft' | 'Approved'
   mode?: 'tonage' | 'lessing'
   loadingCost?: number
   marketCess?: number

@@ -27,6 +27,7 @@ export interface PurchaseInvoiceRow {
   bagsAndSticks: number
   freight: number
   grandTotal: number
+  status: "Draft" | "Approved"
   lines: PurchaseInvoiceItem[]
 }
 
@@ -44,6 +45,7 @@ export interface PurchaseInvoiceCreateDTO {
   bagsAndSticks?: number
   freight?: number
   grandTotal?: number
+  status?: "Draft" | "Approved"
   lines?: PurchaseInvoiceItem[]
 }
 

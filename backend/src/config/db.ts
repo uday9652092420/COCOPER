@@ -29,6 +29,9 @@ export async function initializeDatabase(): Promise<void> {
   await pool.query(
     "ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS purchase_order_id TEXT REFERENCES purchase_orders(id) ON DELETE SET NULL"
   );
+  await pool.query(
+    "ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Draft'"
+  );
   await pool.query(`
     CREATE TABLE IF NOT EXISTS item_branch_stock (
       id TEXT PRIMARY KEY,

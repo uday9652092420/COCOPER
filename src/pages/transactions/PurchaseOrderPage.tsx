@@ -38,6 +38,7 @@ import {
 import { useAuthStore } from '../../store/authStore'
 import { onScopeChange } from '../../utils/scopeEvents'
 import { useIsMobile } from '../../hooks/use-mobile'
+import { formatAmount } from '../../utils/format'
 
 /**
  * @description Convert a date string to DD/MM/YYYY.
@@ -567,6 +568,35 @@ const PurchaseOrderModal: React.FC<{
   const [salesMode, setSalesMode] = useState<'tonage' | 'lessing'>(existing?.mode ?? 'tonage')
   const discountLabel = mode === 'tonage' ? 'Discount (Kgs)' : 'Discount (Pieces)'
 
+  const printSalesOrder = (order: SalesOrder) => {
+    const win = window.open('', '_blank', 'width=900,height=700')
+    if (!win) {
+      toast.error('Popup blocked. Please allow popups and try again.')
+      return
+    }
+    const customerName = customers.find((customer) => customer.id === order.customerId)?.name ?? '-'
+    const lineRows = order.lines.map((line, index) => {
+      const itemName = items.find((item) => item.id === line.itemId)?.name ?? line.itemId
+      return `<tr>
+        <td>${index + 1}</td>
+        <td>${itemName}</td>
+        <td class="right">${line.quantity}</td>
+        <td class="right">${line.discount ?? 0}</td>
+        <td class="right">${Math.round(Number(line.actualQuantity ?? 0))}</td>
+        <td class="right">${Number(line.saleCost ?? 0).toFixed(2)}</td>
+        <td class="right">${formatAmount(Number(line.saleAmount ?? line.amount ?? 0))}</td>
+      </tr>`
+    }).join('')
+
+    win.document.write(`<!DOCTYPE html><html><head><title>Sales Order ${order.soNumber}</title>
+      <style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}.muted{color:#555}.head{display:flex;justify-content:space-between;align-items:flex-start}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ccc;padding:6px 8px;font-size:12px;text-align:left}th{background:#f3f4f6}.right{text-align:right}.total{font-weight:bold;font-size:14px}.sign{margin-top:40px;display:flex;justify-content:space-between}</style>
+      </head><body><div class="head"><div><h1>Sales Order</h1><div class="muted">SO No: ${order.soNumber}</div><div class="muted">Date: ${toDDMMYYYY(order.date)}</div></div><div class="muted" style="text-align:right"><div>Customer: <b>${customerName}</b></div><div>PO No: ${order.poNumber ?? '-'}</div><div>Status: ${order.status}</div></div></div>
+      ${order.remarks ? `<p class="muted">Remarks: ${order.remarks}</p>` : ''}<table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="right">Discount</th><th class="right">Actual Qty</th><th class="right">Sale Cost</th><th class="right">Sale Amount</th></tr></thead><tbody>${lineRows}</tbody><tfoot><tr><td colspan="6" class="right">Total Lines Amount</td><td class="right total">${formatAmount(order.totalAmount)}</td></tr></tfoot></table><div class="sign"><div>Prepared By: ______________________</div><div>Authorized Signature: ______________________</div></div></body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
   useEffect(() => {
     // Reset sales form whenever modal opens or existing changes (but keep conversion collapsed)
     setSalesMode(existing?.mode ?? 'tonage')
@@ -841,13 +871,9 @@ const PurchaseOrderModal: React.FC<{
                         </td>
 
                         <td className="px-3 py-1.5">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            readOnly
-                            className="w-24 rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
-                            {...register(`lines.${index}.purchaseAmount` as const)}
-                          />
+                          <div className="w-24 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                            {formatAmount(Number(watchedLines[index]?.purchaseAmount ?? 0))}
+                          </div>
                         </td>
 
                         <td className="px-3 py-1.5 text-right">
@@ -869,7 +895,7 @@ const PurchaseOrderModal: React.FC<{
                     <td className="px-3 py-2" />
                     <td className="px-3 py-2" />
                     <td className="px-3 py-2" />
-                    <td className="px-3 py-2 font-semibold text-slate-700">{totals.totalAmount.toFixed(2)}</td>
+                    <td className="px-3 py-2 font-semibold text-slate-700">{formatAmount(totals.totalAmount)}</td>
                     <td className="px-3 py-2" />
                   </tr>
                 </tfoot>
@@ -947,13 +973,9 @@ const PurchaseOrderModal: React.FC<{
                       </div>
                       <div>
                         <label className="mb-1 block text-[11px] font-medium text-slate-700">Purchase Amount</label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          readOnly
-                          className="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1"
-                          {...register(`lines.${index}.purchaseAmount` as const)}
-                        />
+                          <div className="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1">
+                            {formatAmount(Number(watchedLines[index]?.purchaseAmount ?? 0))}
+                          </div>
                       </div>
                     </div>
 
@@ -974,7 +996,7 @@ const PurchaseOrderModal: React.FC<{
                 </div>
                 <div className="mt-1 flex items-center justify-between text-[13px] font-semibold text-slate-700">
                   <span>Total Lines Amount</span>
-                  <span>{totals.totalAmount.toFixed(2)}</span>
+                  <span>{formatAmount(totals.totalAmount)}</span>
                 </div>
               </div>
             </div>
@@ -1049,37 +1071,6 @@ const PurchaseOrderModal: React.FC<{
                 </div>
               </div>
 
-              {/* Tonnage / Lessing mode for sales lines (same as purchase) */}
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 text-[11px]">
-                <span className="font-semibold text-slate-700">Quantity Mode</span>
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="so-mode"
-                    checked={salesMode === 'tonage'}
-                    disabled={isSalesLocked}
-                    onChange={() => {
-                      setSalesMode('tonage')
-                      ;(salesFields || []).forEach((_, idx) => recalcSalesLine(idx, 'tonage'))
-                    }}
-                  />
-                  <span>Tonnage</span>
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="so-mode"
-                    checked={salesMode === 'lessing'}
-                    disabled={isSalesLocked}
-                    onChange={() => {
-                      setSalesMode('lessing')
-                      ;(salesFields || []).forEach((_, idx) => recalcSalesLine(idx, 'lessing'))
-                    }}
-                  />
-                  <span>Lessing</span>
-                </label>
-              </div>
-
               {/* Sales lines: mirror of PO lines but editable */}
               <div className="mt-3 space-y-2">
                 <div className="flex items-center justify-between text-[11px] font-medium text-slate-700">
@@ -1121,7 +1112,14 @@ const PurchaseOrderModal: React.FC<{
                         return (
                           <tr key={field.id} className="border-t border-slate-100">
                             <td className="px-3 py-1.5">
-                              <select disabled={isSalesLocked} className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.itemId` as const, { required: true })}>
+                              <select
+                                aria-disabled="true"
+                                tabIndex={-1}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onKeyDown={(event) => event.preventDefault()}
+                                className="pointer-events-none w-full rounded-full border border-slate-200 bg-[#e8f4c8] px-2 py-1 text-[11px]"
+                                {...registerS(`lines.${index}.itemId` as const, { required: true })}
+                              >
                                 <option value="">Select item</option>
                                 {items.map((it) => (
                                   <option key={it.id} value={it.id}>
@@ -1132,7 +1130,7 @@ const PurchaseOrderModal: React.FC<{
                             </td>
 
                             <td className="px-3 py-1.5">
-                              <input type="text" inputMode="decimal" disabled={isSalesLocked} className="w-24 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.quantity` as const, { onChange: () => recalcSalesLine(index) })} onBlur={() => syncSalesLineOnBlur(index)} />
+                              <input type="text" inputMode="decimal" disabled className="w-24 rounded-full border border-slate-200 bg-[#e8f4c8] px-2 py-1" {...registerS(`lines.${index}.quantity` as const)} />
                             </td>
 
                             <td className="px-3 py-1.5">
@@ -1140,7 +1138,10 @@ const PurchaseOrderModal: React.FC<{
                             </td>
 
                             <td className="px-3 py-1.5">
-                              <input type="text" inputMode="decimal" readOnly className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1" {...registerS(`lines.${index}.actualQuantity` as const)} />
+                              <div className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                                {Math.round(Number(watchedSalesLines?.[index]?.actualQuantity ?? 0))}
+                              </div>
+                              <input type="hidden" {...registerS(`lines.${index}.actualQuantity` as const)} />
                             </td>
 
                             <td className="px-3 py-1.5">
@@ -1148,7 +1149,9 @@ const PurchaseOrderModal: React.FC<{
                             </td>
 
                             <td className="px-3 py-1.5">
-                              <input type="text" inputMode="decimal" readOnly className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1" {...registerS(`lines.${index}.saleAmount` as const)} />
+                              <div className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                                {formatAmount(Number(watchedSalesLines?.[index]?.saleAmount ?? 0))}
+                              </div>
                             </td>
 
                             <td className="px-3 py-1.5 text-right">
@@ -1168,7 +1171,7 @@ const PurchaseOrderModal: React.FC<{
                         <td className="px-3 py-2" />
                         <td className="px-3 py-2" />
                         <td className="px-3 py-2" />
-                        <td className="px-3 py-2 font-semibold text-slate-700">{salesTotals.totalAmount.toFixed(2)}</td>
+                        <td className="px-3 py-2 font-semibold text-slate-700">{formatAmount(salesTotals.totalAmount)}</td>
                         <td className="px-3 py-2" />
                       </tr>
                     </tfoot>
@@ -1178,7 +1181,9 @@ const PurchaseOrderModal: React.FC<{
 
               <div className="mt-3 flex justify-end gap-2">
                 {salesOrder?.status === 'Approved' ? (
-                  <span className="rounded-full border border-[#8bc53f] bg-[#e8f4c8] px-3 py-1.5 text-[10px] font-semibold text-[#00534f]">Locked</span>
+                  <button type="button" onClick={() => printSalesOrder(salesOrder)} className="rounded-full bg-[#00534f] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#003f3b]">
+                    Print
+                  </button>
                 ) : (
                   <>
                     <button type="button" onClick={() => setConvertOpen(false)} className="rounded-full bg-[#E0E7D9] px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
@@ -1215,7 +1220,7 @@ const PurchaseOrderModal: React.FC<{
               </button>
             )}
 
-            {existing && existing.status === 'Approved' && (!salesOrder || salesOrder.status !== 'Approved') && (
+            {existing && existing.status === 'Approved' && !convertOpen && !salesOrder && (
               <button
                 type="button"
                 onClick={openConversionFromPO}
@@ -1334,7 +1339,7 @@ const ViewPurchaseOrderModal: React.FC<{
                       <td className="px-3 py-1.5">{l.discount ?? 0}</td>
                       <td className="px-3 py-1.5">{l.actualQuantity ?? 0}</td>
                       <td className="px-3 py-1.5">{Number(l.purchaseCost ?? 0).toFixed(2)}</td>
-                      <td className="px-3 py-1.5 text-right font-semibold">{amount.toFixed(2)}</td>
+                            <td className="px-3 py-1.5 text-right font-semibold">{formatAmount(amount)}</td>
                     </tr>
                   )
                 })}
@@ -1354,7 +1359,7 @@ const ViewPurchaseOrderModal: React.FC<{
                   <td className="px-3 py-2 font-semibold text-slate-700">{totalQty}</td>
                   <td className="px-3 py-2 font-semibold text-slate-700">Total Lines Amount</td>
                   <td className="px-3 py-2" />
-                  <td className="px-3 py-2 text-right font-semibold text-slate-700">{totalAmount.toFixed(2)}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-slate-700">{formatAmount(totalAmount)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -1499,12 +1504,12 @@ const PurchaseOrderPage: React.FC = () => {
 
   /**
    * @description Generate an organization-wise PO number.
-   * Format: `<FirstLetterOfOrgName>P-<NN>` e.g. "Maiprosoft" -> MP-01.
+  * Format: `<FirstLetterOfOrgName>PO-<NN>` e.g. "Maiprosoft" -> MPO-01.
    */
   const generatePONumber = (): string => {
     const orgName = currentOrg?.organization_name ?? ''
     const firstLetter = orgName.match(/[A-Za-z]/)?.[0]
-    const prefix = firstLetter ? `${firstLetter.toUpperCase()}P` : 'PO'
+    const prefix = firstLetter ? `${firstLetter.toUpperCase()}PO` : 'PO'
     const count = records.filter((r) => r.organizationId === selectedOrganizationId).length
     return `${prefix}-${String(count + 1).padStart(2, '0')}`
   }
@@ -1704,7 +1709,7 @@ const PurchaseOrderPage: React.FC = () => {
           <td class="right">${l.discount ?? 0}</td>
           <td class="right">${l.actualQuantity ?? 0}</td>
           <td class="right">${Number(l.purchaseCost ?? 0).toFixed(2)}</td>
-          <td class="right">${amount.toFixed(2)}</td>
+          <td class="right">${formatAmount(amount)}</td>
         </tr>`
       })
       .join('')
@@ -1759,7 +1764,7 @@ const PurchaseOrderPage: React.FC = () => {
     <tfoot>
       <tr>
         <td colspan="6" class="right">Total Lines Amount</td>
-        <td class="right total">${total.toFixed(2)}</td>
+        <td class="right total">${formatAmount(total)}</td>
       </tr>
     </tfoot>
   </table>
@@ -1810,7 +1815,11 @@ const PurchaseOrderPage: React.FC = () => {
           onView={(r) => setViewing(r)}
           onEdit={openEdit}
           onPrint={printPurchaseOrder}
-          onDelete={row.status !== 'Approved' ? (r) => setConfirmDelete(r) : undefined}
+          onDelete={((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).status !== 'Approved' &&
+          ((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).status !== 'Invoiced' &&
+          !((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).purchaseOrderInvoiceStatus
+            ? (r) => setConfirmDelete(r)
+            : undefined}
         />
       ),
     },

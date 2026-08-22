@@ -21,6 +21,9 @@ export async function initializeDatabase(): Promise<void> {
     "ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Draft'"
   );
   await pool.query(
+    "ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS sales_invoice_status BOOLEAN NOT NULL DEFAULT FALSE"
+  );
+  await pool.query(
     "ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS branch_id TEXT"
   );
   await pool.query(
@@ -52,5 +55,26 @@ export async function initializeDatabase(): Promise<void> {
   await pool.query(
     "ALTER TABLE items ADD COLUMN IF NOT EXISTS branch_wise_stock NUMERIC NOT NULL DEFAULT 0"
   );
+  await pool.query("ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS organization_id UUID");
+  await pool.query("ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS branch_id UUID");
+  await pool.query("ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS sales_order_no TEXT");
+  await pool.query("ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT FALSE");
+  await pool.query("ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS gunny_bags_total NUMERIC NOT NULL DEFAULT 0");
+  await pool.query("ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS transportation_charges NUMERIC NOT NULL DEFAULT 0");
+  await pool.query("ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS loading_charges NUMERIC NOT NULL DEFAULT 0");
+  await pool.query("ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'tonage'");
+  await pool.query("ALTER TABLE direct_sale_items ADD COLUMN IF NOT EXISTS discount NUMERIC NOT NULL DEFAULT 0");
+  await pool.query("ALTER TABLE direct_sale_items ADD COLUMN IF NOT EXISTS actual_quantity NUMERIC NOT NULL DEFAULT 0");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS direct_sale_gunny_bags (
+      id TEXT PRIMARY KEY,
+      direct_sale_id TEXT NOT NULL REFERENCES direct_sales(id) ON DELETE CASCADE,
+      gunny_bag_id TEXT NOT NULL REFERENCES gunny_bags(id),
+      bharthi_type_id TEXT REFERENCES gunny_bag_bharthi_types(id),
+      quantity NUMERIC NOT NULL DEFAULT 0,
+      rate NUMERIC NOT NULL DEFAULT 0,
+      amount NUMERIC NOT NULL DEFAULT 0
+    )
+  `);
   console.log("Database connected successfully.");
 }

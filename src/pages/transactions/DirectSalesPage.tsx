@@ -3,19 +3,13 @@
  * @description Direct sales list and entry page implementing Red-customer receipt rule.
  */
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, useFieldArray, type FieldValues } from 'react-hook-form'
 import { toast } from 'sonner'
 import {
-  directSales as dbDirectSales,
-  customers,
-  warehouses,
-  items,
-  gunnyBags as masterGunnyBags,
-  purchaseOrders,
+  customers as mockCustomers,
   type DirectSales,
   type DirectSalesLine,
-  type DirectSalesCharges,
 } from '../../mock/db'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Toolbar } from '../../components/common/Toolbar'
@@ -23,15 +17,36 @@ import { SearchFilterPanel } from '../../components/common/SearchFilterPanel'
 import { DataGrid, type ColumnDef } from '../../components/common/DataGrid'
 import RowActions from '../../components/common/RowActions'
 import { ConfirmDialog } from '../../components/common/ConfirmDialog'
-import { formatCurrency, formatDate } from '../../utils/format'
+import { formatAmount, formatCurrency, formatDate } from '../../utils/format'
+import { getCustomers, type CustomerResponse } from '../../services/customerservices/customer.service'
+import { getBranches, type Branch } from '../../services/branchesservices/branches.service'
+import { getItems, type ItemResponse } from '../../services/itemservices/item.service'
+import { getSalesOrders, type SalesOrderDTO } from '../../services/salesorderservices/salesOrder.service'
+import { getGunnyBags, type GunnyBagResponse } from '../../services/gunnybagservices/gunnybag.service'
+import { approveDirectSale, createDirectSale, getDirectSales } from '../../services/directsalesservices/directSale.service'
+import { getCurrentOrganization } from '../../services/organizationservices/organization.service'
+import { useAuthStore } from '../../store/authStore'
+
+const todayDDMMYYYY = (): string => {
+  const date = new Date()
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
+}
+
+const formatDirectSaleDate = (value: string): string => {
+  if (!value) return ''
+  const ddmmyyyy = /^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/.exec(value)
+  const date = ddmmyyyy ? new Date(`${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}T00:00:00`) : new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: '2-digit' })
+}
 
 /**
  * @interface DirectSalesFormValues
  * @description Form values used for direct sales modal.
  */
 interface DirectSalesFormValues extends FieldValues {
+  saleNo: string
   customerId: string
-  warehouseId: string
+  branchId: string
   /** Optional Sales Order No selection at header level */
   salesOrderNo?: string
   invoiceDate: string
@@ -45,10 +60,17 @@ interface DirectSalesFormValues extends FieldValues {
   }[]
   gunnyBags: {
     bagTypeId: string
+    bharthiTypeId: string
     quantity: number
     rate: number
     amount: number
   }[]
+  loadingCharges: number
+}
+
+interface DirectSalesCharges {
+  gunnyBags: number
+  transportation: number
   loadingCharges: number
 }
 
@@ -99,13 +121,21 @@ const ReceiptPopup: React.FC<{
 const DirectSalesModal: React.FC<{
   open: boolean
   onClose: () => void
-  onSave: (invoice: DirectSales, requiresReceipt: boolean) => void
+  onSave: (invoice: DirectSales, requiresReceipt: boolean) => Promise<void>
+  onApprove: (invoice: DirectSales) => Promise<void>
   existing?: DirectSales | null
-}> = ({ open, onClose, onSave, existing }) => {
+  customers: CustomerResponse[]
+  branches: Branch[]
+  items: ItemResponse[]
+  salesOrders: SalesOrderDTO[]
+  gunnyBags: GunnyBagResponse[]
+  generateDirectSaleNo: () => string
+}> = ({ open, onClose, onSave, onApprove, existing, customers, branches, items, salesOrders, gunnyBags, generateDirectSaleNo }) => {
   const {
     register,
     control,
     watch,
+    getValues,
     setValue,
     handleSubmit,
     reset,
@@ -113,12 +143,13 @@ const DirectSalesModal: React.FC<{
     defaultValues:
       existing ??
       ({
+        saleNo: generateDirectSaleNo(),
         customerId: '',
-        warehouseId: '',
+        branchId: '',
         salesOrderNo: '',
-        invoiceDate: new Date().toISOString().slice(0, 10),
+        invoiceDate: todayDDMMYYYY(),
         lines: [{ itemId: '', quantity: 0, discount: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 }],
-        gunnyBags: [{ bagTypeId: '', quantity: 0, rate: 0, amount: 0 }],
+        gunnyBags: [{ bagTypeId: '', bharthiTypeId: '', quantity: 0, rate: 0, amount: 0 }],
         loadingCharges: 0,
       } as DirectSalesFormValues),
   })
@@ -130,6 +161,8 @@ const DirectSalesModal: React.FC<{
   const gunny = watch('gunnyBags') ?? []
   const loadingCharges = watch('loadingCharges') || 0
   const customerId = watch('customerId')
+  const selectedSalesOrderNo = watch('salesOrderNo') ?? ''
+  const isApproved = Boolean(existing?.approved)
 
   /**
    * @description Mode for actual quantity calculation. 'tonage' => (q/(1000+discount))*1000, 'lessing' => q-discount
@@ -141,8 +174,9 @@ const DirectSalesModal: React.FC<{
     reset(
       existing
         ? {
+            saleNo: existing.directSaleNo ?? generateDirectSaleNo(),
             customerId: existing.customerId,
-            warehouseId: existing.warehouseId,
+            branchId: existing.branchId ?? '',
             salesOrderNo: (existing as any).salesOrderNo ?? '',
             invoiceDate: existing.invoiceDate,
             lines:
@@ -163,13 +197,48 @@ const DirectSalesModal: React.FC<{
                   salesAmount: 0,
                 },
               ],
-            gunnyBags: [{ bagTypeId: '', quantity: 0, rate: 0, amount: 0 }],
+            gunnyBags: existing.gunnyBags?.length
+              ? existing.gunnyBags.map((bag) => ({
+                  bagTypeId: bag.bagTypeId,
+                  bharthiTypeId: bag.bharthiTypeId ?? '',
+                  quantity: Number(bag.quantity) || 0,
+                  rate: Number(bag.rate) || 0,
+                  amount: Number(bag.amount) || 0,
+                }))
+              : [{ bagTypeId: '', bharthiTypeId: '', quantity: 0, rate: 0, amount: 0 }],
+            loadingCharges: Number(existing.charges?.loadingCharges) || 0,
+          }
+        : {
+            saleNo: generateDirectSaleNo(),
+            customerId: '',
+            branchId: '',
+            salesOrderNo: '',
+            invoiceDate: todayDDMMYYYY(),
+            lines: [{ itemId: '', quantity: 0, discount: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 }],
+            gunnyBags: [{ bagTypeId: '', bharthiTypeId: '', quantity: 0, rate: 0, amount: 0 }],
             loadingCharges: 0,
           }
-        : undefined
     )
+    setMode(existing?.mode === 'lessing' ? 'lessing' : 'tonage')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing, open])
+
+  const invoiceDatePickerRef = useRef<HTMLInputElement>(null)
+  const applySalesOrder = (salesOrderNo: string) => {
+    const order = salesOrders.find((candidate) => candidate.soNumber === salesOrderNo)
+    setValue('salesOrderNo', salesOrderNo)
+    if (!order) return
+    setMode(order.mode === 'lessing' ? 'lessing' : 'tonage')
+    setValue('invoiceDate', order.date ? order.date.split('-').reverse().join('/') : todayDDMMYYYY())
+    linesField.replace(order.lines.map((line) => ({
+      itemId: line.itemId,
+      quantity: line.quantity,
+      discount: line.discount,
+      actualQuantity: line.actualQuantity,
+      salesPrice: line.saleCost,
+      salesAmount: line.saleAmount,
+    })))
+  }
 
   /**
    * @function recalcLine
@@ -180,17 +249,17 @@ const DirectSalesModal: React.FC<{
    * - Lessing: actualQuantity = (quantity - discount)
    * SalesAmount = actualQuantity * salesPrice
    */
-  const recalcLine = (index: number) => {
+  const recalcLine = (index: number, modeOverride: 'tonage' | 'lessing' = mode) => {
     const line = (watch('lines') ?? [])[index]
     if (!line) return
     const quantity = Number(line.quantity) || 0
     const discount = Number(line.discount) || 0
 
     let actualQuantity = 0
-    if (mode === 'tonage') {
+    if (modeOverride === 'tonage') {
       const denom = 1000 + discount
       const safeDenom = denom === 0 ? 1 : denom
-      actualQuantity = (quantity / safeDenom) * 1000
+      actualQuantity = (quantity * 1000) / safeDenom
     } else {
       actualQuantity = quantity - discount
     }
@@ -218,11 +287,11 @@ const DirectSalesModal: React.FC<{
    * @function recalcGunny
    * @description Recalculate gunny bag rate and amount for a given index.
    */
-  const recalcGunny = (index: number) => {
-    const row = (watch('gunnyBags') ?? [])[index]
+  const recalcGunny = (index: number, useDefaultRate = false) => {
+    const row = (getValues('gunnyBags') ?? [])[index]
     if (!row) return
-    const bag = masterGunnyBags.find((b) => b.id === row.bagTypeId)
-    const rate = bag ? Number(bag.defaultRate) : Number(row.rate || 0)
+    const bag = gunnyBags.find((b) => b.id === row.bagTypeId)
+    const rate = useDefaultRate && bag ? Number(bag.rate_per_bag) : Number(row.rate || 0)
     const qty = Number(row.quantity) || 0
     const amount = qty * rate
     setValue(`gunnyBags.${index}.rate`, Number.isFinite(rate) ? Number(rate.toFixed(2)) : 0)
@@ -239,6 +308,7 @@ const DirectSalesModal: React.FC<{
       itemId: l.itemId,
       quantity: Number(l.quantity),
       discount: Number(l.discount),
+      actualQuantity: Number(l.actualQuantity),
       salesPrice: Number(l.salesPrice),
       salesAmount: Number(l.salesAmount),
     }))
@@ -257,10 +327,13 @@ const DirectSalesModal: React.FC<{
       id: existing?.id ?? `DS-${Date.now()}`,
       customerId: values.customerId,
       customerType: (customer?.type as DirectSales['customerType']) ?? 'Local',
-      warehouseId: values.warehouseId,
+      directSaleNo: values.saleNo,
+      branchId: values.branchId,
       invoiceDate: values.invoiceDate,
       salesOrderNo: values.salesOrderNo,
       lines: linesOut,
+      mode,
+      gunnyBags: values.gunnyBags,
       charges: {
         gunnyBags: chargesOut.gunnyBags,
         transportation: chargesOut.transportation,
@@ -270,14 +343,14 @@ const DirectSalesModal: React.FC<{
     }
 
     const requiresReceipt = customer?.type === 'Red'
-    onSave(invoice, requiresReceipt)
-    onClose()
+    void onSave(invoice, requiresReceipt).then(onClose)
   }
 
   if (!open) return null
 
   const lineTotal = lines?.reduce((sum, l) => sum + Number(l.salesAmount || 0), 0) ?? 0
   const gunnyTotal = gunny?.reduce((sum, g) => sum + Number(g.amount || 0), 0) ?? 0
+  const gunnyQuantityTotal = gunny?.reduce((sum, g) => sum + Number(g.quantity || 0), 0) ?? 0
   const invoiceTotal = lineTotal + gunnyTotal + Number(loadingCharges || 0)
 
   return (
@@ -287,34 +360,6 @@ const DirectSalesModal: React.FC<{
           <div className="flex items-center gap-4">
             <h2 className="text-sm font-semibold text-slate-900">{existing ? 'Edit Direct Sales' : 'New Direct Sales'}</h2>
 
-            {/* Mode radio buttons */}
-            <div className="flex items-center gap-3 text-[11px]">
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="ds-mode"
-                  checked={mode === 'tonage'}
-                  onChange={() => {
-                    setMode('tonage')
-                    // recalc all lines
-                    ;(linesField.fields || []).forEach((_, idx) => recalcLine(idx))
-                  }}
-                />
-                <span>Tonage</span>
-              </label>
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="radio"
-                  name="ds-mode"
-                  checked={mode === 'lessing'}
-                  onChange={() => {
-                    setMode('lessing')
-                    ;(linesField.fields || []).forEach((_, idx) => recalcLine(idx))
-                  }}
-                />
-                <span>Lessing</span>
-              </label>
-            </div>
           </div>
 
           <button type="button" onClick={onClose} className="rounded-full px-3 py-1 text-xs text-slate-500 hover:bg-slate-100">
@@ -323,80 +368,84 @@ const DirectSalesModal: React.FC<{
         </div>
 
         <form onSubmit={handleSubmit(submit)} className="grid max-h-[80vh] grid-rows-[auto,1fr,auto] gap-3 overflow-y-auto px-5 py-4 text-xs">
+          <fieldset disabled={isApproved} className="contents">
           <div className="grid gap-3 md:grid-cols-5">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Sale No</label>
+              <input readOnly className="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs" {...register('saleNo', { required: true })} />
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Invoice Date</label>
+              <div className="relative">
+                <input placeholder="DD/MM/YYYY" className="w-full rounded-full border border-slate-200 px-3 py-1.5 pr-10 text-xs" {...register('invoiceDate', { required: true })} />
+                <input ref={invoiceDatePickerRef} type="date" className="absolute right-2 top-1/2 h-6 w-6 -translate-y-1/2 cursor-pointer opacity-0" onChange={(event) => setValue('invoiceDate', event.target.value.split('-').reverse().join('/'))} />
+                <button type="button" onClick={() => invoiceDatePickerRef.current?.showPicker?.()} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600" aria-label="Open invoice date picker">&#128197;</button>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Sales Order No</label>
+              <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('salesOrderNo', { onChange: (event) => applySalesOrder(event.target.value) })}>
+                <option value="">Select sales order</option>
+                {salesOrders.filter((order) => Boolean(order.sourcePOId) && !order.salesInvoiceStatus).map((order) => (
+                  <option key={order.id} value={order.soNumber}>
+                    {order.soNumber}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Customer</label>
               <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('customerId', { required: true })}>
                 <option value="">Select customer</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.type})
-                  </option>
-                ))}
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Warehouse</label>
-              <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('warehouseId', { required: true })}>
-                <option value="">Select warehouse</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Branch</label>
+              <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('branchId', { required: true })}>
+                <option value="">Select branch</option>
+                {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.branch_name}</option>)}
               </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Sales Order No</label>
-              <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('salesOrderNo')}>
-                <option value="">Select sales order</option>
-                {purchaseOrders.map((po) => (
-                  <option key={po.id} value={po.poNumber}>
-                    {po.poNumber}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Invoice Date</label>
-              <input type="date" className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('invoiceDate', { required: true })} />
-            </div>
-            <div className="flex flex-col justify-center rounded-2xl bg-emerald-50/60 px-3 py-2 text-[11px] text-emerald-800">
-              <span className="font-semibold">Customer Type</span>
-              <span>
-                {customerId
-                  ? customers.find((c) => c.id === customerId)?.type === 'Red'
-                    ? 'Red – Cash only, receipt required immediately.'
-                    : customers.find((c) => c.id === customerId)?.type === 'Premium'
-                    ? 'Premium – Credit allowed.'
-                    : 'Local – Cash and credit permitted.'
-                  : 'Select a customer to view type and business rules.'}
-              </span>
             </div>
           </div>
 
+          {!selectedSalesOrderNo && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 text-[11px]">
+            <span className="font-semibold text-slate-700">Quantity Mode</span>
+            <label className="inline-flex items-center gap-2"><input type="radio" name="ds-mode" checked={mode === 'tonage'} onChange={() => { setMode('tonage'); linesField.fields.forEach((_, idx) => recalcLine(idx, 'tonage')) }} /><span>Tonnage</span></label>
+            <label className="inline-flex items-center gap-2"><input type="radio" name="ds-mode" checked={mode === 'lessing'} onChange={() => { setMode('lessing'); linesField.fields.forEach((_, idx) => recalcLine(idx, 'lessing')) }} /><span>Lessing</span></label>
+            </div>
+          )}
+
           <div className="mt-2 space-y-2">
-            <p className="text-[11px] font-medium text-slate-700">Sales Details</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-medium text-slate-700">Sales Details</p>
+              {!selectedSalesOrderNo && <button
+                type="button"
+                onClick={() => linesField.append({ itemId: '', quantity: 0, discount: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 })}
+                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
+              >
+                Add Line
+              </button>}
+            </div>
             <div className="overflow-x-auto rounded-2xl border border-slate-100">
               <table className="min-w-full text-left text-[11px]">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
                     <th className="px-3 py-2">Item</th>
-                    <th className="px-3 py-2">Quantity</th>
-                    <th className="px-3 py-2">Discount</th>
+                    <th className="px-3 py-2">{`Quantity (${mode === 'tonage' ? 'Tons' : 'Pieces'})`}</th>
+                    <th className="px-3 py-2">{`Discount (${mode === 'tonage' ? 'Kgs' : 'Pieces'})`}</th>
                     <th className="px-3 py-2">Actual Quantity</th>
                     <th className="px-3 py-2">Sales Price</th>
                     <th className="px-3 py-2">Sales Amount</th>
-                    <th className="px-3 py-2 text-right">Actions</th>
+                    {!selectedSalesOrderNo && <th className="px-3 py-2 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {linesField.fields.map((field, index) => (
                     <tr key={field.id} className="border-t border-slate-100">
                       <td className="px-3 py-1.5">
-                        <select className="w-full rounded-full border border-slate-200 px-2 py-1" {...register(`lines.${index}.itemId` as const, { required: true })}>
+                        <select disabled={Boolean(selectedSalesOrderNo)} className="w-full rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100" {...register(`lines.${index}.itemId` as const, { required: true })}>
                           <option value="">Select item</option>
                           {items.map((it) => (
                             <option key={it.id} value={it.id}>
@@ -408,7 +457,8 @@ const DirectSalesModal: React.FC<{
                       <td className="px-3 py-1.5">
                         <input
                           type="number"
-                          className="w-24 rounded-full border border-slate-200 px-2 py-1"
+                          disabled={Boolean(selectedSalesOrderNo)}
+                          className="w-24 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
                           {...register(`lines.${index}.quantity` as const, {
                             valueAsNumber: true,
                             onChange: () => recalcLine(index),
@@ -418,7 +468,7 @@ const DirectSalesModal: React.FC<{
                       <td className="px-3 py-1.5">
                         <input
                           type="number"
-                          className="w-20 rounded-full border border-slate-200 px-2 py-1"
+                          className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
                           {...register(`lines.${index}.discount` as const, {
                             valueAsNumber: true,
                             onChange: () => recalcLine(index),
@@ -428,19 +478,17 @@ const DirectSalesModal: React.FC<{
 
                       {/* Actual Quantity */}
                       <td className="px-3 py-1.5">
-                        <input
-                          type="number"
-                          className="w-28 rounded-full border border-slate-200 px-2 py-1 bg-slate-50"
-                          {...register(`lines.${index}.actualQuantity` as const, { valueAsNumber: true })}
-                          readOnly
-                        />
+                        <div className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                          {Math.round(Number(lines[index]?.actualQuantity ?? 0))}
+                        </div>
+                        <input type="hidden" {...register(`lines.${index}.actualQuantity` as const, { valueAsNumber: true })} />
                       </td>
 
                       {/* Sales Price editable */}
                       <td className="px-3 py-1.5">
                         <input
                           type="number"
-                          className="w-24 rounded-full border border-slate-200 px-2 py-1"
+                          className="w-24 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
                           {...register(`lines.${index}.salesPrice` as const, {
                             valueAsNumber: true,
                             onChange: (e) => onSalesPriceChange(index, Number(e.target.value)),
@@ -449,34 +497,28 @@ const DirectSalesModal: React.FC<{
                       </td>
 
                       <td className="px-3 py-1.5">
-                        <input type="number" className="w-28 rounded-full border border-slate-200 px-2 py-1" {...register(`lines.${index}.salesAmount` as const, { valueAsNumber: true })} readOnly />
+                        <div className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                          {formatAmount(Number(lines[index]?.salesAmount ?? 0))}
+                        </div>
+                        <input type="hidden" {...register(`lines.${index}.salesAmount` as const, { valueAsNumber: true })} />
                       </td>
-                      <td className="px-3 py-1.5 text-right">
+                      {!selectedSalesOrderNo && <td className="px-3 py-1.5 text-right">
                         <button type="button" onClick={() => linesField.remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100">
                           Remove
                         </button>
-                      </td>
+                      </td>}
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t bg-slate-50">
+                    <td colSpan={selectedSalesOrderNo ? 5 : 5} className="px-3 py-2 font-semibold text-slate-700">Total Sales Line Amount</td>
+                    <td className="px-3 py-2 font-semibold text-slate-700">{formatAmount(lineTotal)}</td>
+                    {!selectedSalesOrderNo && <td />}
+                  </tr>
+                </tfoot>
               </table>
             </div>
-            <button
-              type="button"
-              onClick={() =>
-                linesField.append({
-                  itemId: '',
-                  quantity: 0,
-                  discount: 0,
-                  actualQuantity: 0,
-                  salesPrice: 0,
-                  salesAmount: 0,
-                })
-              }
-              className="mt-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
-            >
-              Add Line
-            </button>
           </div>
 
           {/* Additional Charges Section */}
@@ -494,13 +536,23 @@ const DirectSalesModal: React.FC<{
               </div>
 
               <div className="md:col-span-2">
-                <label className="mb-1 block text-[11px] font-medium text-slate-700">Gunny Bags</label>
+                <div className="mb-1 flex items-center justify-between">
+                  <label className="block text-[11px] font-medium text-slate-700">Gunny Bags</label>
+                  <button
+                    type="button"
+                    onClick={() => gunnyField.append({ bagTypeId: '', bharthiTypeId: '', quantity: 0, rate: 0, amount: 0 })}
+                    className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
+                  >
+                    Add Bag
+                  </button>
+                </div>
 
                 <div className="overflow-x-auto rounded-2xl border border-slate-100">
                   <table className="min-w-full text-left text-[11px]">
                     <thead className="bg-slate-50 text-slate-500">
                       <tr>
                         <th className="px-3 py-2">Bag Type</th>
+                        <th className="px-3 py-2">Bharthi Type</th>
                         <th className="px-3 py-2">Quantity</th>
                         <th className="px-3 py-2">Rate</th>
                         <th className="px-3 py-2">Amount</th>
@@ -514,14 +566,22 @@ const DirectSalesModal: React.FC<{
                             <select
                               className="w-full rounded-full border border-slate-200 px-2 py-1"
                               {...register(`gunnyBags.${index}.bagTypeId` as const, {
-                                onChange: () => recalcGunny(index),
+                                onChange: () => recalcGunny(index, true),
                               })}
                             >
                               <option value="">Select bag</option>
-                              {masterGunnyBags.map((b) => (
+                                {gunnyBags.map((b) => (
                                 <option key={b.id} value={b.id}>
-                                  {b.code} ({b.bharthi}kg)
+                                    {b.name} ({b.size})
                                 </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <select className="w-full rounded-full border border-slate-200 px-2 py-1" {...register(`gunnyBags.${index}.bharthiTypeId` as const)}>
+                              <option value="">Select bharthi type</option>
+                              {(gunnyBags.find((bag) => bag.id === gunny[index]?.bagTypeId)?.bharthi_types ?? []).map((bharthi) => (
+                                <option key={bharthi.id} value={bharthi.id}>{bharthi.bharthi}</option>
                               ))}
                             </select>
                           </td>
@@ -536,10 +596,20 @@ const DirectSalesModal: React.FC<{
                             />
                           </td>
                           <td className="px-3 py-1.5">
-                            <input type="number" readOnly className="w-28 rounded-full border border-slate-200 px-2 py-1 bg-slate-50" {...register(`gunnyBags.${index}.rate` as const, { valueAsNumber: true })} />
+                            <input
+                              type="number"
+                              className="w-28 rounded-full border border-slate-200 px-2 py-1"
+                              {...register(`gunnyBags.${index}.rate` as const, {
+                                valueAsNumber: true,
+                                onChange: () => recalcGunny(index),
+                              })}
+                            />
                           </td>
                           <td className="px-3 py-1.5">
-                            <input type="number" readOnly className="w-28 rounded-full border border-slate-200 px-2 py-1 bg-slate-50" {...register(`gunnyBags.${index}.amount` as const, { valueAsNumber: true })} />
+                            <div className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                              {formatAmount(Number(gunny[index]?.amount ?? 0))}
+                            </div>
+                            <input type="hidden" {...register(`gunnyBags.${index}.amount` as const, { valueAsNumber: true })} />
                           </td>
                           <td className="px-3 py-1.5 text-right">
                             <button type="button" onClick={() => gunnyField.remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100">
@@ -549,45 +619,37 @@ const DirectSalesModal: React.FC<{
                         </tr>
                       ))}
                     </tbody>
+                    <tfoot>
+                      <tr className="border-t bg-slate-50">
+                        <td colSpan={3} className="px-3 py-2 text-right font-semibold text-slate-700">Total Gunnybags Quantity = {gunnyQuantityTotal}</td>
+                        <td className="px-3 py-2 font-semibold text-slate-700">Total Lines Amount = {formatAmount(gunnyTotal)}</td>
+                        <td />
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
 
-                <div className="mt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      gunnyField.append({
-                        bagTypeId: '',
-                        quantity: 0,
-                        rate: 0,
-                        amount: 0,
-                      })
-                    }
-                    className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
-                  >
-                    Add Bag
-                  </button>
-
-                  <div className="ml-auto grid w-full max-w-xs gap-2 text-[11px]">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-600">Gunny Total</span>
-                      <span className="font-semibold text-slate-800">{formatCurrency(gunnyTotal)}</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
 
+          </fieldset>
           <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
             <div className="space-y-1 text-[11px] text-slate-600">
-              <p>Lines Total: {formatCurrency(lineTotal)}</p>
-              <p>Charges Total: {formatCurrency(gunnyTotal + Number(loadingCharges || 0))}</p>
-              <p className="font-semibold text-slate-800">Invoice Total: {formatCurrency(invoiceTotal)}</p>
+              <p>Total Sales Lines Amount: {formatAmount(lineTotal)}</p>
+              <p>Charges Total: {formatAmount(Number(loadingCharges || 0))}</p>
+              <p className="font-semibold text-slate-800">Invoice Total: {formatAmount(invoiceTotal)}</p>
             </div>
-            <button type="submit" className="rounded-full bg-[#2E7D32] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#256427]">
-              Save
-            </button>
+            <div className="flex items-center gap-2">
+              {existing && !isApproved && (
+                <button type="button" onClick={() => void onApprove(existing)} className="rounded-full bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700">
+                  Approve
+                </button>
+              )}
+              <button type="submit" disabled={isApproved} className="rounded-full bg-[#2E7D32] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#256427] disabled:cursor-not-allowed disabled:opacity-50">
+                Save
+              </button>
+            </div>
           </div>
         </form>
       </div>
@@ -600,7 +662,14 @@ const DirectSalesModal: React.FC<{
  * @description Page displaying direct sales list and entry modal with Red-customer receipt rule.
  */
 const DirectSalesPage: React.FC = () => {
+  const { selectedOrganizationId } = useAuthStore()
   const [records, setRecords] = useState<DirectSales[]>([])
+  const [organizationName, setOrganizationName] = useState('')
+  const [masterCustomers, setMasterCustomers] = useState<CustomerResponse[]>([])
+  const [masterBranches, setMasterBranches] = useState<Branch[]>([])
+  const [masterItems, setMasterItems] = useState<ItemResponse[]>([])
+  const [convertedSalesOrders, setConvertedSalesOrders] = useState<SalesOrderDTO[]>([])
+  const [masterGunnyBags, setMasterGunnyBags] = useState<GunnyBagResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -609,44 +678,112 @@ const DirectSalesPage: React.FC = () => {
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [receiptAmount, setReceiptAmount] = useState(0)
 
-  useEffect(() => {
-    const id = setTimeout(() => {
-      setRecords(dbDirectSales)
+  const loadDirectSales = async () => {
+    setLoading(true)
+    try {
+      setRecords(await getDirectSales())
+    } catch (error) {
+      setRecords([])
+      toast.error(error instanceof Error ? error.message : 'Failed to load saved sales invoices')
+    } finally {
       setLoading(false)
-    }, 500)
-    return () => clearTimeout(id)
-  }, [])
+    }
+  }
+
+  useEffect(() => {
+    void loadDirectSales()
+    getCustomers().then(setMasterCustomers).catch(() => setMasterCustomers([]))
+    getBranches().then(setMasterBranches).catch(() => setMasterBranches([]))
+    getItems().then(setMasterItems).catch(() => setMasterItems([]))
+    getSalesOrders().then(setConvertedSalesOrders).catch(() => setConvertedSalesOrders([]))
+    getGunnyBags().then(setMasterGunnyBags).catch(() => setMasterGunnyBags([]))
+    getCurrentOrganization(selectedOrganizationId).then((organization) => setOrganizationName(organization.organization_name)).catch(() => setOrganizationName(''))
+  }, [selectedOrganizationId])
+
+  const generateDirectSaleNo = (): string => {
+    const firstLetter = organizationName.match(/[A-Za-z]/)?.[0]?.toUpperCase() ?? 'M'
+    const prefix = `${firstLetter}SO-`
+    const usedNumbers = records
+      .map((record) => record.directSaleNo ?? '')
+      .filter((number) => number.startsWith(prefix))
+      .map((number) => Number(number.slice(prefix.length)))
+      .filter((number) => Number.isFinite(number))
+    let next = usedNumbers.length ? Math.max(...usedNumbers) + 1 : 1
+    while (records.some((record) => record.directSaleNo === `${prefix}${String(next).padStart(2, '0')}`)) {
+      next += 1
+    }
+    return `${prefix}${String(next).padStart(2, '0')}`
+  }
 
   const filtered = useMemo(
     () =>
       records.filter((inv) => {
         const q = search.toLowerCase()
-        const customer = customers.find((c) => c.id === inv.customerId)
-        const wh = warehouses.find((w) => w.id === inv.warehouseId)
-        return !q || customer?.name.toLowerCase().includes(q) || wh?.name.toLowerCase().includes(q) || inv.id.toLowerCase().includes(q)
+        const customer = masterCustomers.find((c) => c.id === inv.customerId) ?? mockCustomers.find((c) => c.id === inv.customerId)
+        const branch = masterBranches.find((b) => b.id === inv.branchId)
+        return !q || customer?.name.toLowerCase().includes(q) || branch?.branch_name.toLowerCase().includes(q) || inv.id.toLowerCase().includes(q)
       }),
-    [records, search]
+    [records, search, masterCustomers, masterBranches]
   )
+
+  const printSalesInvoice = (invoice: DirectSales) => {
+    if (!invoice.approved) {
+      toast.info('Only approved sales can be printed.')
+      return
+    }
+    const printWindow = window.open('', '_blank', 'width=900,height=700')
+    if (!printWindow) {
+      toast.error('Popup blocked. Please allow popups to print the sales invoice.')
+      return
+    }
+    const customer = masterCustomers.find((item) => item.id === invoice.customerId) ?? mockCustomers.find((item) => item.id === invoice.customerId)
+    const branch = masterBranches.find((item) => item.id === invoice.branchId)
+    const quantityLabel = invoice.mode === 'lessing' ? 'Quantity (Pieces)' : 'Quantity (Tons)'
+    const discountLabel = invoice.mode === 'lessing' ? 'Discount (Pieces)' : 'Discount (Kgs)'
+    const salesLinesTotal = (invoice.lines ?? []).reduce((total, line) => total + Number(line.salesAmount ?? 0), 0)
+    const gunnyBagsTotal = Number(invoice.charges?.gunnyBags ?? 0)
+    const loadingChargesTotal = Number(invoice.charges?.loadingCharges ?? 0)
+    const lineRows = (invoice.lines ?? []).map((line, index) => {
+      const item = masterItems.find((value) => value.id === line.itemId)
+      return `<tr><td>${index + 1}</td><td>${item?.name ?? line.itemId}</td><td>${line.quantity}</td><td>${line.discount}</td><td>${line.actualQuantity ?? 0}</td><td>${Number(line.salesPrice ?? 0).toFixed(2)}</td><td>${formatAmount(Number(line.salesAmount ?? 0))}</td></tr>`
+    }).join('')
+    const gunnyRows = (invoice.gunnyBags ?? []).map((bag, index) => `<tr><td>${index + 1}</td><td>${bag.bagTypeId}</td><td>${bag.bharthiTypeId ?? ''}</td><td>${bag.quantity}</td><td>${Number(bag.rate ?? 0).toFixed(2)}</td><td>${formatAmount(Number(bag.amount ?? 0))}</td></tr>`).join('')
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>Sales Invoice ${invoice.directSaleNo ?? invoice.id}</title><style>body{font-family:Arial,sans-serif;color:#111;margin:32px}h1{font-size:22px;margin:0 0 16px}h2{font-size:18px;margin:24px 0 8px}.header{display:flex;justify-content:space-between;margin-bottom:20px}.muted{color:#555}table{width:100%;border-collapse:collapse;margin-top:18px}th,td{border:1px solid #ccc;padding:8px;text-align:left;font-size:12px}th{background:#f3f4f6}.right{text-align:right}.total{font-weight:bold;font-size:14px}.summary{width:360px;margin:18px 0 0 auto}.summary div{display:flex;justify-content:space-between;padding:4px 0}.grand{border-top:2px solid #111;margin-top:6px;padding-top:8px!important;font-weight:bold;font-size:14px}.sign{margin-top:50px;display:flex;justify-content:space-between}</style></head><body><h1>Sales Invoice</h1><div class="header"><div><div><b>Organization:</b> ${organizationName}</div><div><b>Branch:</b> ${branch?.branch_name ?? invoice.branchId}</div><div><b>Sales Invoice No:</b> ${invoice.directSaleNo ?? invoice.id}</div><div><b>Invoice Date:</b> ${formatDirectSaleDate(invoice.invoiceDate)}</div></div><div class="muted"><div><b>Customer:</b> ${customer?.name ?? invoice.customerId}</div></div></div><table><thead><tr><th>#</th><th>Item</th><th>${quantityLabel}</th><th>${discountLabel}</th><th>Actual Quantity</th><th>Sales Price</th><th>Sales Amount</th></tr></thead><tbody>${lineRows}</tbody></table><h2>Gunny Bags</h2><table><thead><tr><th>#</th><th>Bag Type</th><th>Bharthi Type</th><th>Quantity</th><th>Rate</th><th>Amount</th></tr></thead><tbody>${gunnyRows || '<tr><td colspan="6">No gunny bags</td></tr>'}</tbody></table><div class="summary"><div><span>Total Sales Lines Amount</span><span>${formatCurrency(salesLinesTotal)}</span></div><div><span>Total Gunny Bags Lines Amount</span><span>${formatCurrency(gunnyBagsTotal)}</span></div><div><span>Loading Charges</span><span>${formatCurrency(loadingChargesTotal)}</span></div><div class="grand"><span>Invoice Total</span><span>${formatCurrency(invoice.invoiceTotal)}</span></div></div><div class="sign"><div>Prepared By: ____________________</div><div>Authorized Signature: ____________________</div></div></body></html>`)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => printWindow.print(), 300)
+  }
 
   const columns: ColumnDef<DirectSales>[] = [
     {
+      key: 'directSaleNo',
+      label: 'Sales Invoice No',
+      render: (row) => row.directSaleNo ?? row.id,
+    },
+    {
       key: 'invoiceDate',
       label: 'Invoice Date',
-      render: (row) => formatDate(row.invoiceDate),
+      render: (row) => formatDirectSaleDate(row.invoiceDate),
+    },
+    {
+      key: 'branchId',
+      label: 'Branch',
+      render: (row) => masterBranches.find((b) => b.id === row.branchId)?.branch_name ?? '',
     },
     {
       key: 'customerId',
       label: 'Customer',
-      render: (row) => customers.find((c) => c.id === row.customerId)?.name ?? '',
+      render: (row) => masterCustomers.find((c) => c.id === row.customerId)?.name ?? mockCustomers.find((c) => c.id === row.customerId)?.name ?? '',
     },
     {
       key: 'customerType',
       label: 'Type',
+      render: (row) => row.customerType ?? masterCustomers.find((c) => c.id === row.customerId)?.type ?? '',
     },
     {
-      key: 'warehouseId',
-      label: 'Warehouse',
-      render: (row) => warehouses.find((w) => w.id === row.warehouseId)?.name ?? '',
+      key: 'quantity',
+      label: 'Quantity',
+      render: (row) => row.lines?.reduce((total, line) => total + Number(line.quantity || 0), 0) ?? 0,
     },
     {
       key: 'invoiceTotal',
@@ -661,16 +798,16 @@ const DirectSalesPage: React.FC = () => {
         <div className="flex justify-end">
           <RowActions
             row={row as any}
-            onView={(r: DirectSales) => {
+            onView={(r: any) => {
               setEditing(r)
               setModalOpen(true)
             }}
-            onEdit={(r: DirectSales) => {
+            onEdit={(r: any) => {
               setEditing(r)
               setModalOpen(true)
             }}
-            onPrint={(r: DirectSales) => toast.info(`Printing direct sales ${r.id} (mock).`)}
-            onDelete={(r: DirectSales) => setConfirmDelete(r)}
+            onPrint={(r: any) => printSalesInvoice(r)}
+            onDelete={!row.approved ? (r: any) => setConfirmDelete(r) : undefined}
           />
         </div>
       ),
@@ -682,7 +819,15 @@ const DirectSalesPage: React.FC = () => {
     setModalOpen(true)
   }
 
-  const handleSave = (invoice: DirectSales, requiresReceipt: boolean) => {
+  const handleSave = async (invoice: DirectSales, requiresReceipt: boolean) => {
+    if (!editing) {
+      try {
+        invoice = await createDirectSale(invoice)
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to save direct sale')
+        return
+      }
+    }
     setRecords((prev) => {
       const exists = prev.some((x) => x.id === invoice.id)
       if (exists) {
@@ -690,6 +835,9 @@ const DirectSalesPage: React.FC = () => {
       }
       return [invoice, ...prev]
     })
+    if (invoice.salesOrderNo) {
+      setConvertedSalesOrders((prev) => prev.filter((order) => order.soNumber !== invoice.salesOrderNo))
+    }
     toast.success('Direct sales saved.')
 
     if (requiresReceipt) {
@@ -697,6 +845,17 @@ const DirectSalesPage: React.FC = () => {
       setReceiptOpen(true)
     } else {
       setReceiptOpen(false)
+    }
+  }
+
+  const handleApprove = async (invoice: DirectSales) => {
+    try {
+      await approveDirectSale(invoice.id)
+      setRecords((prev) => prev.map((record) => (record.id === invoice.id ? { ...record, approved: true } : record)))
+      setEditing((prev) => (prev?.id === invoice.id ? { ...prev, approved: true } : prev))
+      toast.success('Direct sales approved.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to approve direct sale')
     }
   }
 
@@ -725,9 +884,9 @@ const DirectSalesPage: React.FC = () => {
         onExportExcel={() => toast.info('Exported direct sales to Excel (mock).')}
         onExportPdf={() => toast.info('Exported direct sales to PDF (mock).')}
         onPrint={() => toast.info('Sending direct sales list to printer (mock).')}
-        onRefresh={() => toast.success('Direct sales list refreshed.')}
+        onRefresh={() => void loadDirectSales()}
       />
-      <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by customer, warehouse, invoice id..." />
+      <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by customer, branch, direct sale no..." />
       <DataGrid<DirectSales>
         data={filtered}
         columns={columns}
@@ -743,6 +902,13 @@ const DirectSalesPage: React.FC = () => {
           setEditing(null)
         }}
         onSave={handleSave}
+        onApprove={handleApprove}
+        customers={masterCustomers}
+        branches={masterBranches}
+        items={masterItems}
+        salesOrders={convertedSalesOrders}
+        gunnyBags={masterGunnyBags}
+        generateDirectSaleNo={generateDirectSaleNo}
       />
 
       <ReceiptPopup open={receiptOpen} amount={receiptAmount} onConfirm={handleReceiptConfirm} onCancel={handleReceiptCancel} />

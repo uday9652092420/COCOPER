@@ -22,6 +22,15 @@ const SO_SELECT = `
     so.po_number AS "poNumber",
     so.mode,
     so.status,
+    (
+      COALESCE(so.sales_invoice_status, FALSE)
+      OR EXISTS (
+        SELECT 1
+        FROM direct_sales ds
+        WHERE ds.sales_order_no = so.so_number
+          AND (ds.organization_id = so.organization_id OR ds.organization_id IS NULL)
+      )
+    ) AS "salesInvoiceStatus",
     so.total_amount AS "totalAmount",
     COALESCE(
       json_agg(

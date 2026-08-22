@@ -25,6 +25,7 @@ export interface SalesOrderRow {
   poNumber: string
   mode: string
   status: "Draft" | "Approved"
+  salesInvoiceStatus: boolean
   totalAmount: number
   lines: SalesOrderItem[]
 }
@@ -40,6 +41,7 @@ export interface SalesOrderCreateDTO {
   poNumber?: string
   mode?: string
   status?: "Draft" | "Approved"
+  salesInvoiceStatus?: boolean
   totalAmount?: number
   lines?: SalesOrderItem[]
 }

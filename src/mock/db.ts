@@ -189,6 +189,7 @@ export interface DirectSalesLine {
   itemId: string
   quantity: number
   discount: number
+  actualQuantity?: number
   salesPrice: number
   salesAmount: number
 }
@@ -198,19 +199,30 @@ export interface DirectSalesLine {
  */
 export interface DirectSales {
   id: string
+  directSaleNo?: string
   customerId: string
   customerType: CustomerType
-  warehouseId: string
+  branchId?: string
+  warehouseId?: string
   invoiceDate: string
   /** Optional linked sales order number for reference */
   salesOrderNo?: string
+  mode?: 'tonage' | 'lessing'
   lines: DirectSalesLine[]
+  gunnyBags?: {
+    bagTypeId: string
+    bharthiTypeId?: string
+    quantity: number
+    rate: number
+    amount: number
+  }[]
   charges: {
     gunnyBags: number
     transportation: number
     loadingCharges: number
   }
   invoiceTotal: number
+  approved?: boolean
 }
 
 /**

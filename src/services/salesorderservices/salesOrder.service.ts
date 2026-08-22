@@ -28,6 +28,7 @@ export interface SalesOrderDTO {
   poNumber: string;
   mode: string;
   status?: 'Draft' | 'Approved';
+  salesInvoiceStatus?: boolean;
   totalAmount: number;
   lines: SalesOrderLineDTO[];
 }

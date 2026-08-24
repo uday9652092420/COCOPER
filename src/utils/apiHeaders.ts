@@ -11,7 +11,16 @@ export function getOrgHeader(): Record<string, string> {
   if (typeof window === 'undefined') return {}
 
   const organizationId = localStorage.getItem('cocoper_org_id')
-  return organizationId ? { 'x-organization-id': organizationId } : {}
+  return {
+    ...(organizationId ? { 'x-organization-id': organizationId } : {}),
+    ...getAuthHeader(),
+  }
+}
+
+export function getAuthHeader(): Record<string, string> {
+  if (typeof window === 'undefined') return {}
+  const token = localStorage.getItem('cocoper_auth_token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 /**
@@ -37,5 +46,6 @@ export function getUserHeaders(
   return {
     'x-user-id': userId,
     'x-user-type': userType,
+    ...getAuthHeader(),
   }
 }

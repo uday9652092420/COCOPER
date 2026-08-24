@@ -1,9 +1,9 @@
 /**
  * @file register.service.ts
- * @description Business logic for organization registration.
+ * @description Business logic for COCOPER ERP organization registration.
  */
 
-import * as bcrypt from "bcryptjs";
+import bcrypt from "bcryptjs";
 
 import type {
   RegisterOrganizationPayload,
@@ -24,32 +24,59 @@ export async function registerOrganizationService(
   payload: RegisterOrganizationPayload
 ) {
   /**
-   * Validate input.
+   * Validate request.
    */
   validateRegisterPayload(payload);
 
   /**
-   * Normalize values.
+   * Normalize important fields.
    */
   const organizationName =
     String(payload.organization_name).trim();
+
+  const registrationNo =
+    payload.registration_no
+      ? String(payload.registration_no).trim()
+      : null;
+
+  const contactPersonName =
+    String(
+      payload.contact_person_name
+    ).trim();
+
+  const contactNo =
+    String(payload.contact_no).trim();
 
   const email =
     String(payload.email)
       .trim()
       .toLowerCase();
 
+  const addressLine1 =
+    String(payload.address_line1).trim();
+
+  const addressLine2 =
+    payload.address_line2
+      ? String(payload.address_line2).trim()
+      : null;
+
+  const city =
+    String(payload.city).trim();
+
+  const pincode =
+    String(payload.pincode).trim();
+
+  const state =
+    String(payload.state).trim();
+
+  const country =
+    String(payload.country).trim();
+
   const username =
     String(payload.username).trim();
 
-  const contactPersonName =
-    String(payload.contact_person_name).trim();
-
-  const contactNo =
-    String(payload.contact_no).trim();
-
   /**
-   * Get database pool.
+   * Check duplicates.
    */
   const { pool } =
     await import("../../config/db.js");
@@ -58,9 +85,6 @@ export async function registerOrganizationService(
     await pool.connect();
 
   try {
-    /**
-     * Check duplicate organization name.
-     */
     if (
       await isOrganizationNameExists(
         client,
@@ -72,9 +96,6 @@ export async function registerOrganizationService(
       );
     }
 
-    /**
-     * Check duplicate organization email.
-     */
     if (
       await isOrganizationEmailExists(
         client,
@@ -86,9 +107,6 @@ export async function registerOrganizationService(
       );
     }
 
-    /**
-     * Check duplicate username.
-     */
     if (
       await isUsernameExists(
         client,
@@ -115,57 +133,45 @@ export async function registerOrganizationService(
   /**
    * Build normalized payload.
    */
-  const normalizedPayload: RegisterOrganizationPayload = {
-    ...payload,
+  const normalizedPayload: RegisterOrganizationPayload =
+    {
+      organization_name:
+        organizationName,
 
-    organization_name:
-      organizationName,
+      registration_no:
+        registrationNo,
 
-    contact_person_name:
-      contactPersonName,
+      contact_person_name:
+        contactPersonName,
 
-    contact_no:
-      contactNo,
+      contact_no:
+        contactNo,
 
-    email,
+      email,
 
-    username,
+      address_line1:
+        addressLine1,
 
-    registration_no:
-      payload.registration_no
-        ? String(
-            payload.registration_no
-          ).trim()
-        : null,
+      address_line2:
+        addressLine2,
 
-    address_line1:
-      String(
-        payload.address_line1
-      ).trim(),
+      city,
 
-    address_line2:
-      payload.address_line2
-        ? String(
-            payload.address_line2
-          ).trim()
-        : null,
+      pincode,
 
-    city:
-      String(payload.city).trim(),
+      state,
 
-    pincode:
-      String(payload.pincode).trim(),
+      country,
 
-    state:
-      String(payload.state).trim(),
+      username,
 
-    country:
-      String(payload.country).trim(),
-  };
+      password:
+        payload.password,
+    };
 
   /**
-   * Create organization
-   * and initial administrator.
+   * Create organization and owner
+   * inside one database transaction.
    */
   return createOrganizationRepository(
     normalizedPayload,

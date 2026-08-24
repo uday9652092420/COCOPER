@@ -19,4 +19,7 @@ export interface AuthUserResult {
 
 export interface LoginResult {
   user: AuthUserResult;
+  token: string;
+  tokenId: string;
+  expiresAt: number;
 }

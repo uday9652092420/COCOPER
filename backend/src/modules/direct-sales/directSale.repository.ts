@@ -224,3 +224,67 @@ export async function approveDirectSale(id: string, organizationId?: string | nu
   if (!result.rowCount) throw new Error('Direct sale not found')
   return { approved: true }
 }
+
+export async function deleteDirectSale(id: string, organizationId?: string | null) {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const saleResult = await client.query(
+      `SELECT sales_order_no AS "salesOrderNo", branch_id AS "branchId", approved
+       FROM direct_sales
+       WHERE id = $1 AND ($2::uuid IS NULL OR organization_id = $2)
+       FOR UPDATE`,
+      [id, organizationId ?? null]
+    )
+    const sale = saleResult.rows[0]
+    if (!sale) throw new Error('Direct sale not found')
+    if (sale.approved) throw new Error('Approved direct sales cannot be deleted')
+
+    if (!sale.salesOrderNo) {
+      const itemLines = await client.query(
+        'SELECT item_id AS "itemId", qty FROM direct_sale_items WHERE direct_sale_id = $1',
+        [id]
+      )
+      for (const line of itemLines.rows) {
+        await client.query(
+          `UPDATE item_branch_stock
+           SET stock = stock + $1, updated_at = NOW()
+           WHERE organization_id = $2 AND item_id = $3 AND branch_id = $4`,
+          [Number(line.qty) || 0, organizationId, line.itemId, sale.branchId]
+        )
+        await client.query(
+          `UPDATE items SET branch_wise_stock = COALESCE(branch_wise_stock, 0) + $1
+           WHERE id = $2 AND (organization_id = $3 OR organization_id IS NULL)`,
+          [Number(line.qty) || 0, line.itemId, organizationId]
+        )
+      }
+
+      const bagLines = await client.query(
+        'SELECT gunny_bag_id AS "bagTypeId", bharthi_type_id AS "bharthiTypeId", quantity FROM direct_sale_gunny_bags WHERE direct_sale_id = $1',
+        [id]
+      )
+      for (const bag of bagLines.rows) {
+        const quantity = Number(bag.quantity) || 0
+        await client.query(
+          `UPDATE gunny_bags SET opening_stock = opening_stock + $1
+           WHERE id = $2 AND organization_id = $3 AND branch_id = $4`,
+          [quantity, bag.bagTypeId, organizationId, sale.branchId]
+        )
+        if (bag.bharthiTypeId) {
+          await client.query(
+            'UPDATE gunny_bag_bharthi_types SET stock = stock + $1 WHERE id = $2 AND gunny_bag_id = $3',
+            [quantity, bag.bharthiTypeId, bag.bagTypeId]
+          )
+        }
+      }
+    }
+
+    await client.query('DELETE FROM direct_sales WHERE id = $1', [id])
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  } finally {
+    client.release()
+  }
+}

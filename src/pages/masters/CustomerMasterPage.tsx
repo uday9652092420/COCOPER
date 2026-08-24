@@ -558,7 +558,7 @@ useEffect(() => {
 
       <MasterFormModal<CustomerFormValues>
         open={modalOpen}
-        title={editing ? 'Edit Customer' : 'Add Customer'}
+        title={editing?.id ? 'Edit Customer' : 'Add Customer'}
         fields={fields}
         defaultValues={
           editing

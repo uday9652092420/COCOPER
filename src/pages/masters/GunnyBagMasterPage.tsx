@@ -14,6 +14,8 @@ import DataGrid, {
   type Column,
 } from "../../components/common/DataGrid";
 
+import { PageHeader } from "../../components/common/PageHeader";
+
 import { SearchFilterPanel } from "../../components/common/SearchFilterPanel";
 
 import ConfirmDialog from "../../components/common/ConfirmDialog";
@@ -1947,6 +1949,11 @@ const GunnyBagMasterPage: React.FC =
      */
     return (
       <>
+        <PageHeader
+          title="Gunny Bag Master"
+          breadcrumb={["Masters", "Gunny Bag Master"]}
+        />
+
         {/* ==================================================
             Main Page Container
             ================================================== */}

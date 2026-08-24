@@ -145,7 +145,6 @@ const { can } = usePermissions();
 
 const [records,setRecords]=useState<Supplier[]>([]);
 
-
 const [loading,setLoading]=useState(false);
 
 
@@ -1006,7 +1005,7 @@ open={modalOpen}
 
 
 title={
-editing
+editing?.id
 
 ?
 

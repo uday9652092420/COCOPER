@@ -5,6 +5,8 @@
 
 import { API } from "../../config/api";
 
+export const AUTH_TOKEN_STORAGE_KEY = "cocoper_auth_token";
+
 export interface AuthUserResponse {
   id: string;
   username: string;
@@ -18,6 +20,9 @@ export interface LoginResponse {
   success: boolean;
   message?: string;
   user: AuthUserResponse;
+  token: string;
+  tokenId: string;
+  expiresAt: number;
 }
 
 interface LoginRawResponse {
@@ -31,6 +36,9 @@ interface LoginRawResponse {
     is_super_admin: boolean;
     organization_id: string | null;
   };
+  token: string;
+  tokenId: string;
+  expiresAt: number;
 }
 
 /**
@@ -59,6 +67,9 @@ export async function login(
   return {
     success: data.success,
     message: data.message,
+    token: data.token,
+    tokenId: data.tokenId,
+    expiresAt: data.expiresAt,
     user: {
       id: data.user.id,
       username: data.user.username,
@@ -68,4 +79,12 @@ export async function login(
       organizationId: data.user.organization_id,
     },
   };
+}
+
+export async function logout(token: string): Promise<void> {
+  const response = await fetch(`${API}/auth/logout`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) throw await response.json().catch(() => ({ message: "Logout failed" }));
 }

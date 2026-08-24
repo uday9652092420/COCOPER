@@ -6,6 +6,7 @@
 import bcrypt from 'bcryptjs';
 import { AppError } from '../../utils/AppError.js';
 import type { LoginPayload, LoginResult } from './auth.types.js';
+import { generateAuthToken } from './auth.token.js';
 import {
   findOrgUserByUsername,
   findSuperUserByUsername,
@@ -31,16 +32,17 @@ export async function loginService(payload: LoginPayload): Promise<LoginResult> 
     if (valid) {
       await updateSuperUserLastLogin(superUser.id);
 
-      return {
-        user: toAuthUserResult(
+      const user = toAuthUserResult(
           superUser.id,
           superUser.username,
           superUser.full_name,
           superUser.role,
           true,
           null
-        ),
-      };
+        );
+      const token = generateAuthToken({ id: user.id, username: user.username, role: user.role, isSuperAdmin: user.is_super_admin, organizationId: user.organization_id });
+      console.info('auth.login', { userId: user.id, username: user.username, tokenId: token.jti });
+      return { user, token: token.token, tokenId: token.jti, expiresAt: token.exp };
     }
 
     throw new AppError('Invalid username or password', 401);
@@ -55,16 +57,17 @@ export async function loginService(payload: LoginPayload): Promise<LoginResult> 
     if (valid) {
       await updateOrgUserLastLogin(orgUser.id);
 
-      return {
-        user: toAuthUserResult(
+      const user = toAuthUserResult(
           orgUser.id,
           orgUser.username,
           orgUser.full_name,
           orgUser.role,
           false,
           orgUser.organization_id
-        ),
-      };
+        );
+      const token = generateAuthToken({ id: user.id, username: user.username, role: user.role, isSuperAdmin: user.is_super_admin, organizationId: user.organization_id });
+      console.info('auth.login', { userId: user.id, username: user.username, tokenId: token.jti });
+      return { user, token: token.token, tokenId: token.jti, expiresAt: token.exp };
     }
   }
 

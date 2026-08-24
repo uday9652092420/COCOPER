@@ -26,3 +26,14 @@ export async function approveDirectSale(id: string): Promise<void> {
   })
   if (!response.ok) throw new Error('Failed to approve direct sale')
 }
+
+export async function deleteDirectSale(id: string): Promise<void> {
+  const response = await fetch(`${API}/direct-sales/${id}`, {
+    method: 'DELETE',
+    headers: getOrgHeader(),
+  })
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.message ?? 'Failed to delete direct sale')
+  }
+}

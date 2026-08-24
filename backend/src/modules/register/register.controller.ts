@@ -1,6 +1,6 @@
 /**
  * @file register.controller.ts
- * @description Controller for organization registration.
+ * @description Controller for COCOPER ERP organization registration.
  */
 
 import type {

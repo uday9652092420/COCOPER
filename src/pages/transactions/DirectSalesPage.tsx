@@ -23,7 +23,7 @@ import { getBranches, type Branch } from '../../services/branchesservices/branch
 import { getItems, type ItemResponse } from '../../services/itemservices/item.service'
 import { getSalesOrders, type SalesOrderDTO } from '../../services/salesorderservices/salesOrder.service'
 import { getGunnyBags, type GunnyBagResponse } from '../../services/gunnybagservices/gunnybag.service'
-import { approveDirectSale, createDirectSale, getDirectSales } from '../../services/directsalesservices/directSale.service'
+import { approveDirectSale, createDirectSale, deleteDirectSale, getDirectSales } from '../../services/directsalesservices/directSale.service'
 import { getCurrentOrganization } from '../../services/organizationservices/organization.service'
 import { useAuthStore } from '../../store/authStore'
 
@@ -859,11 +859,16 @@ const DirectSalesPage: React.FC = () => {
     }
   }
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!confirmDelete) return
-    setRecords((prev) => prev.filter((x) => x.id !== confirmDelete.id))
-    toast.success('Direct sales deleted.')
-    setConfirmDelete(null)
+    try {
+      await deleteDirectSale(confirmDelete.id)
+      setRecords((prev) => prev.filter((x) => x.id !== confirmDelete.id))
+      toast.success('Direct sales deleted.')
+      setConfirmDelete(null)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete direct sale')
+    }
   }
 
   const handleReceiptCancel = () => {

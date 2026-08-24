@@ -169,7 +169,7 @@ useEffect(() => {
     { name: 'name', label: 'Item Name', type: 'text', required: true },
     { name: 'category', label: 'Category', type: 'text', required: true },
     { name: 'uom', label: 'UOM', type: 'text', required: true },
-    { name: 'branchWiseStock', label: 'Stock', type: 'number', required: true },
+    { name: 'branchWiseStock', label: 'Opening Stock', type: 'number', required: true },
     {
       name: 'status',
       label: 'Status',
@@ -204,7 +204,7 @@ const openAdd = async () => {
 
 const openEdit = (row: ItemResponse) => {
   setBranchStockRows([]);
-  setBranchWiseStockTotal(0);
+  setBranchWiseStockTotal(Number(row.branch_wise_stock) || 0);
   setEditing(row);
   setModalOpen(true);
 };
@@ -217,7 +217,7 @@ const openEdit = (row: ItemResponse) => {
     const stockTotal = branchStockRows.reduce((sum, row) => sum + (Number(row.stock) || 0), 0);
     const declaredStock = Number(values.branchWiseStock) || 0;
     if (Math.abs(stockTotal - declaredStock) > 0.000001) {
-      toast.error("Stock total must equal the total branch stock.");
+      toast.error("Opening stock must equal the total branch stock.");
       return;
     }
 
@@ -232,7 +232,6 @@ const openEdit = (row: ItemResponse) => {
           branchWiseStock: declaredStock,
       });
 
-      toast.success("Item updated successfully");
     } else {
       savedItem = await createItem({
         code: values.code,
@@ -243,7 +242,6 @@ const openEdit = (row: ItemResponse) => {
           branchWiseStock: declaredStock,
       });
 
-      toast.success("Item created successfully");
     }
 
     await saveItemBranchStock(
@@ -252,6 +250,8 @@ const openEdit = (row: ItemResponse) => {
         .filter((row) => row.branchId)
         .map((row) => ({ branch_id: row.branchId, stock: Number(row.stock) || 0 }))
     );
+
+    toast.success(editing?.id ? "Item updated successfully" : "Item created successfully");
 
     await loadItems();
 
@@ -313,9 +313,9 @@ const openEdit = (row: ItemResponse) => {
                 category: editing.category,
                 uom: editing.uom,
                 status: editing.status,
-                        branchWiseStock: branchWiseStockTotal,
+                branchWiseStock: branchWiseStockTotal,
               }
-                    : { code: '', name: '', category: '', uom: '', status: 'Active', branchWiseStock: 0 }
+                  : { code: '', name: '', category: '', uom: '', status: 'Active', branchWiseStock: 0 }
         }
                 customSection={
                   <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
@@ -366,7 +366,7 @@ const openEdit = (row: ItemResponse) => {
                                 />
                               </td>
                               <td className="px-3 py-2 text-right">
-                                <button type="button" onClick={() => setBranchStockRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index))} className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] text-rose-700">Remove</button>
+                                <button type="button" disabled={!!editing?.id} onClick={() => setBranchStockRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index))} className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] text-rose-700 disabled:cursor-not-allowed disabled:opacity-50">Remove</button>
                               </td>
                             </tr>
                           ))}

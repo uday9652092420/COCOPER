@@ -5,7 +5,7 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { login as loginApi } from '../services/authservices/auth.service'
+import { AUTH_TOKEN_STORAGE_KEY, login as loginApi, logout as logoutApi } from '../services/authservices/auth.service'
 import { getUserPermissions } from '../services/usersservices/users.service'
 
 /**
@@ -41,7 +41,7 @@ interface AuthState {
   user: AuthUser | null
   selectedOrganizationId: string | null
   login: (username: string, password: string) => Promise<LoginResult>
-  logout: () => void
+  logout: () => Promise<void>
   setSelectedOrganization: (organizationId: string | null) => void
   updateUser: (partial: Partial<AuthUser>) => void
 }
@@ -83,6 +83,7 @@ export const useAuthStore = create<AuthState>()(
         user,
         selectedOrganizationId: data.user.organizationId,
       })
+      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.token)
 
       if (data.user.organizationId) {
         localStorage.setItem('cocoper_org_id', data.user.organizationId)
@@ -100,8 +101,17 @@ export const useAuthStore = create<AuthState>()(
     }
   },
 
-  logout: () => {
+  logout: async () => {
+    const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY)
+    if (token) {
+      try {
+        await logoutApi(token)
+      } catch {
+      }
+    }
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
     localStorage.removeItem('cocoper_org_id')
+    localStorage.removeItem('cocoper_branch_id')
     set({ user: null, selectedOrganizationId: null })
   },
 

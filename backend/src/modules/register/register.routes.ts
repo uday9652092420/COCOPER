@@ -9,8 +9,7 @@ import {
   registerOrganizationController,
 } from "./register.controller.js";
 
-const router =
-  express.Router();
+const router = express.Router();
 
 /**
  * POST

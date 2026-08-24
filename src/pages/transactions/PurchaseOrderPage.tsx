@@ -157,6 +157,7 @@ const PurchaseOrderModal: React.FC<{
   open: boolean
   onClose: () => void
   onSave: (order: PurchaseOrder) => void
+  onPrintPurchaseOrder?: (order: PurchaseOrder) => void
   onApprove?: (order: PurchaseOrder) => void
   onApproveSalesOrder?: (order: SalesOrder) => void
   onSalesOrderSaved?: (order: SalesOrder) => void
@@ -168,7 +169,7 @@ const PurchaseOrderModal: React.FC<{
   branches: Branch[]
   generatePONumber: () => string
   generateSONumber: () => string
-}> = ({ open, onClose, onSave, onApprove, onApproveSalesOrder, onSalesOrderSaved, salesOrder, existing, suppliers, items, customers, branches, generatePONumber, generateSONumber }) => {
+}> = ({ open, onClose, onSave, onPrintPurchaseOrder, onApprove, onApproveSalesOrder, onSalesOrderSaved, salesOrder, existing, suppliers, items, customers, branches, generatePONumber, generateSONumber }) => {
   const { selectedOrganizationId } = useAuthStore()
 
   /**
@@ -491,6 +492,7 @@ const PurchaseOrderModal: React.FC<{
     const totalAmount = arr.reduce((s, l) => s + (Number((l as any)?.saleAmount) || 0), 0)
     return { totalQuantity, totalAmount }
   }, [watchedSalesLines])
+  const profitLossAmount = salesTotals.totalAmount - totals.totalAmount
 
   /**
    * @description Sync sales line numeric fields on blur.
@@ -538,7 +540,7 @@ const PurchaseOrderModal: React.FC<{
       mode: salesMode,
       lines: sanitized,
       totalAmount: sanitized.reduce((s, l) => s + l.amount, 0),
-      status: 'Approved',
+      status: 'Draft',
     }
     createSalesOrder({
       soNumber: so.soNumber,
@@ -554,8 +556,8 @@ const PurchaseOrderModal: React.FC<{
       lines: so.lines,
     })
       .then((created) => {
-        onSalesOrderSaved?.({ ...so, id: created.id, status: 'Approved' })
-        toast.success(`Sales order ${so.soNumber} approved with ${sanitized.length} lines.`)
+        onSalesOrderSaved?.({ ...so, id: created.id, status: 'Draft' })
+        toast.success(`Sales order ${so.soNumber} saved as draft.`)
       })
       .catch(() => toast.error('Failed to create sales order.'))
   }
@@ -653,14 +655,13 @@ const PurchaseOrderModal: React.FC<{
 
         {/* Content */}
         <form onSubmit={handleSubmit(submit)} className="flex-1 overflow-y-auto px-4 py-4 text-xs">
-          {existing && existing.status === 'Approved' && (
-            <div className="mb-3 flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2">
-              <span className="text-xs font-semibold text-emerald-700">Purchase Order Approved</span>
-              {isPurchaseLocked ? (
-                <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-1 text-[10px] font-semibold text-violet-700">Locked</span>
+          <div className="rounded-2xl border border-pink-200 bg-pink-50/70 p-4 shadow-sm">
+            <div className="mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-pink-800">Purchase Order</h3>
+              {existing?.status === 'Approved' ? (
+                <span className="rounded-full border border-pink-300 bg-pink-100 px-2 py-0.5 text-[10px] font-semibold text-pink-700">Approved</span>
               ) : null}
             </div>
-          )}
 
           <div className="grid gap-3 md:grid-cols-4">
             <div className="max-w-[220px]">
@@ -1001,6 +1002,20 @@ const PurchaseOrderModal: React.FC<{
               </div>
             </div>
             )}
+            {existing && onPrintPurchaseOrder ? (
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onPrintPurchaseOrder(existing)}
+                  className="rounded-full bg-pink-700 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-pink-800"
+                >
+                  Print
+                </button>
+              </div>
+            ) : null}
+
+          </div>
+
           </div>
 
           {/* Sales Order Conversion Section (expands modal when open) */}
@@ -1177,6 +1192,11 @@ const PurchaseOrderModal: React.FC<{
                     </tfoot>
                   </table>
                 </div>
+                <div className={`text-left text-2xl font-bold ${profitLossAmount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {profitLossAmount < 0
+                    ? `Loss Amount = ${formatAmount(Math.abs(profitLossAmount))}`
+                    : `Profit Amount = ${formatAmount(profitLossAmount)}`}
+                </div>
               </div>
 
               <div className="mt-3 flex justify-end gap-2">
@@ -1184,21 +1204,22 @@ const PurchaseOrderModal: React.FC<{
                   <button type="button" onClick={() => printSalesOrder(salesOrder)} className="rounded-full bg-[#00534f] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#003f3b]">
                     Print
                   </button>
+                ) : salesOrder ? (
+                  onApproveSalesOrder ? (
+                    <button type="button" onClick={() => onApproveSalesOrder(salesOrder)} className="rounded-full bg-[#00534f] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#003f3b]">
+                      Approve
+                    </button>
+                  ) : null
                 ) : (
                   <>
                     <button type="button" onClick={() => setConvertOpen(false)} className="rounded-full bg-[#E0E7D9] px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
                       Cancel
                     </button>
                     <button type="button" onClick={handleSubmitS(onSaveSales)} className="rounded-full bg-[#00534f] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#003f3b]">
-                      Approve
+                      Save
                     </button>
                   </>
                 )}
-                {salesOrder && salesOrder.status !== 'Approved' && onApproveSalesOrder ? (
-                  <button type="button" onClick={() => onApproveSalesOrder(salesOrder)} className="rounded-full bg-[#00534f] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#003f3b]">
-                    Approve
-                  </button>
-                ) : null}
               </div>
             </div>
           )}
@@ -1398,6 +1419,7 @@ const PurchaseOrderPage: React.FC = () => {
   const [editingSalesOrder, setEditingSalesOrder] = useState<SalesOrder | null>(null)
   const [viewing, setViewing] = useState<PurchaseOrder | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<PurchaseOrder | null>(null)
+  const [printSelection, setPrintSelection] = useState<PurchaseOrder | null>(null)
 
   // Org-scoped item / supplier / customer master data + organizations for PO number generation.
   const [suppliers, setSuppliers] = useState<SupplierResponse[]>([])
@@ -1779,6 +1801,34 @@ const PurchaseOrderPage: React.FC = () => {
     setTimeout(() => win.print(), 300)
   }
 
+  const printSavedOrder = async (row: PurchaseOrder, type: 'purchase' | 'sales') => {
+    setPrintSelection(null)
+    if (type === 'purchase') {
+      printPurchaseOrder(row)
+      return
+    }
+
+    let salesOrder = salesOrders.find(
+      (order) => order.sourcePOId === row.id || order.poNumber === row.poNumber
+    )
+    if (!salesOrder) {
+      try {
+        const refreshedSalesOrders = (await getSalesOrders()) as unknown as SalesOrder[]
+        setSalesOrders(refreshedSalesOrders)
+        salesOrder = refreshedSalesOrders.find(
+          (order) => order.sourcePOId === row.id || order.poNumber === row.poNumber
+        )
+      } catch {
+        salesOrder = undefined
+      }
+    }
+    if (!salesOrder) {
+      toast.info('No Sales Order has been saved for this Purchase Order.')
+      return
+    }
+    printSalesOrder(salesOrder)
+  }
+
   const columns: ColumnDef<PurchaseOrder>[] = [
     { key: 'poNumber', label: 'PO Number' },
     {
@@ -1814,7 +1864,7 @@ const PurchaseOrderPage: React.FC = () => {
           row={row}
           onView={(r) => setViewing(r)}
           onEdit={openEdit}
-          onPrint={printPurchaseOrder}
+          onPrint={(row) => setPrintSelection(row)}
           onDelete={((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).status !== 'Approved' &&
           ((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).status !== 'Invoiced' &&
           !((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).purchaseOrderInvoiceStatus
@@ -1860,6 +1910,7 @@ const PurchaseOrderPage: React.FC = () => {
           setEditing(null)
           setEditingSalesOrder(null)
         }}
+        onPrintPurchaseOrder={printPurchaseOrder}
         onApprove={approveOrder}
         onApproveSalesOrder={approveSalesOrder}
         onSalesOrderSaved={(order) => {
@@ -1879,6 +1930,36 @@ const PurchaseOrderPage: React.FC = () => {
         onClose={() => setViewing(null)}
         onPrint={() => viewing && printPurchaseOrder(viewing)}
       />
+
+      {printSelection ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-800">Select Print Document</h3>
+              <button type="button" onClick={() => setPrintSelection(null)} className="rounded-full px-2 py-1 text-xs text-slate-500 hover:bg-slate-100">
+                Close
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Choose a document to print for {printSelection.poNumber}.</p>
+            <div className="mt-4 grid gap-2">
+              <button
+                type="button"
+                onClick={() => printSavedOrder(printSelection, 'purchase')}
+                className="rounded-full bg-[#1E40AF] px-4 py-2 text-xs font-semibold text-white hover:bg-[#12337a]"
+              >
+                Print Purchase Order
+              </button>
+              <button
+                type="button"
+                onClick={() => printSavedOrder(printSelection, 'sales')}
+                className="rounded-full bg-[#00534f] px-4 py-2 text-xs font-semibold text-white hover:bg-[#003f3b]"
+              >
+                Print Sales Order
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <ConfirmDialog
         open={!!confirmDelete}

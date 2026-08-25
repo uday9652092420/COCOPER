@@ -204,7 +204,6 @@ const PurchaseInvoiceModal: React.FC<{
     setValue('purchaseOrderId', orderId)
     if (!order) return
     setValue('supplierId', order.supplierId)
-    setValue('branchId', order.branchId ?? '')
     setValue('invoiceDate', toDDMMYYYY(order.date) || todayDDMMYYYY())
     setMode(order.mode === 'lessing' ? 'lessing' : 'tonage')
     linesField.replace(order.lines.map((line) => ({

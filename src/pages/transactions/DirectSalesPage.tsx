@@ -163,6 +163,13 @@ const DirectSalesModal: React.FC<{
   const customerId = watch('customerId')
   const selectedSalesOrderNo = watch('salesOrderNo') ?? ''
   const isApproved = Boolean(existing?.approved)
+  const availableSalesOrders = salesOrders.filter(
+    (order) =>
+      Boolean(order.sourcePOId) &&
+      !order.salesInvoiceStatus &&
+      Boolean(customerId) &&
+      order.customerId === customerId
+  )
 
   /**
    * @description Mode for actual quantity calculation. 'tonage' => (q/(1000+discount))*1000, 'lessing' => q-discount
@@ -238,6 +245,14 @@ const DirectSalesModal: React.FC<{
       salesPrice: line.saleCost,
       salesAmount: line.saleAmount,
     })))
+  }
+
+  const handleCustomerChange = (nextCustomerId: string) => {
+    if (!selectedSalesOrderNo) return
+    const selectedOrder = salesOrders.find((order) => order.soNumber === selectedSalesOrderNo)
+    if (selectedOrder && selectedOrder.customerId !== nextCustomerId) {
+      setValue('salesOrderNo', '')
+    }
   }
 
   /**
@@ -383,21 +398,21 @@ const DirectSalesModal: React.FC<{
               </div>
             </div>
             <div>
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Customer</label>
+              <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('customerId', { required: true, onChange: (event) => handleCustomerChange(event.target.value) })}>
+                <option value="">Select customer</option>
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
+              </select>
+            </div>
+            <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Sales Order No</label>
               <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('salesOrderNo', { onChange: (event) => applySalesOrder(event.target.value) })}>
                 <option value="">Select sales order</option>
-                {salesOrders.filter((order) => Boolean(order.sourcePOId) && !order.salesInvoiceStatus).map((order) => (
+                {availableSalesOrders.map((order) => (
                   <option key={order.id} value={order.soNumber}>
                     {order.soNumber}
                   </option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Customer</label>
-              <select className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs" {...register('customerId', { required: true })}>
-                <option value="">Select customer</option>
-                {customers.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
               </select>
             </div>
             <div>

@@ -1801,6 +1801,35 @@ const PurchaseOrderPage: React.FC = () => {
     setTimeout(() => win.print(), 300)
   }
 
+  const printSalesOrder = (order: SalesOrder) => {
+    const win = window.open('', '_blank', 'width=900,height=700')
+    if (!win) {
+      toast.error('Popup blocked. Please allow popups and try again.')
+      return
+    }
+    const customerName = customers.find((customer) => customer.id === order.customerId)?.name ?? '-'
+    const lineRows = order.lines.map((line, index) => {
+      const itemName = items.find((item) => item.id === line.itemId)?.name ?? line.itemId
+      return `<tr>
+        <td>${index + 1}</td>
+        <td>${itemName}</td>
+        <td class="right">${line.quantity}</td>
+        <td class="right">${line.discount ?? 0}</td>
+        <td class="right">${Math.round(Number(line.actualQuantity ?? 0))}</td>
+        <td class="right">${Number(line.saleCost ?? 0).toFixed(2)}</td>
+        <td class="right">${formatAmount(Number(line.saleAmount ?? line.amount ?? 0))}</td>
+      </tr>`
+    }).join('')
+
+    win.document.write(`<!DOCTYPE html><html><head><title>Sales Order ${order.soNumber}</title>
+      <style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}.muted{color:#555}.head{display:flex;justify-content:space-between;align-items:flex-start}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ccc;padding:6px 8px;font-size:12px;text-align:left}th{background:#f3f4f6}.right{text-align:right}.total{font-weight:bold;font-size:14px}.sign{margin-top:40px;display:flex;justify-content:space-between}</style>
+      </head><body><div class="head"><div><h1>Sales Order</h1><div class="muted">SO No: ${order.soNumber}</div><div class="muted">Date: ${toDDMMYYYY(order.date)}</div></div><div class="muted" style="text-align:right"><div>Customer: <b>${customerName}</b></div><div>PO No: ${order.poNumber ?? '-'}</div><div>Status: ${order.status}</div></div></div>
+      ${order.remarks ? `<p class="muted">Remarks: ${order.remarks}</p>` : ''}<table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="right">Discount</th><th class="right">Actual Qty</th><th class="right">Sale Cost</th><th class="right">Sale Amount</th></tr></thead><tbody>${lineRows}</tbody><tfoot><tr><td colspan="6" class="right">Total Lines Amount</td><td class="right total">${formatAmount(order.totalAmount)}</td></tr></tfoot></table><div class="sign"><div>Prepared By: ______________________</div><div>Authorized Signature: ______________________</div></div></body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
   const printSavedOrder = async (row: PurchaseOrder, type: 'purchase' | 'sales') => {
     setPrintSelection(null)
     if (type === 'purchase') {

@@ -16,6 +16,36 @@ export const pool = new Pool({
 export async function initializeDatabase(): Promise<void> {
   // Only verify database connection
   await pool.query("SELECT 1");
+  // Keep existing installations compatible with organization registration fields.
+  await pool.query(
+    "ALTER TABLE organizations ADD COLUMN IF NOT EXISTS street VARCHAR(255)"
+  );
+  await pool.query(
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_organizations_email ON organizations (LOWER(email))"
+  );
+  // Keep existing installations compatible with protected owner roles.
+  await pool.query(
+    "ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_system_role BOOLEAN NOT NULL DEFAULT FALSE"
+  );
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_owner_role_per_organization
+    ON roles (organization_id)
+    WHERE is_system_role = TRUE AND role_name = 'OWNER'
+  `);
+  await pool.query(
+    "CREATE INDEX IF NOT EXISTS idx_organization_users_email ON organization_users (LOWER(email))"
+  );
+  await pool.query(
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_organization_users_email ON organization_users (LOWER(email)) WHERE email IS NOT NULL"
+  );
+  await pool.query(`
+    UPDATE organization_users ou
+    SET email = o.email
+    FROM organizations o
+    WHERE ou.organization_id = o.id
+      AND ou.is_primary_user = TRUE
+      AND ou.email IS NULL
+  `);
   // Keep existing installations compatible with persisted sales-order approval.
   await pool.query(
     "ALTER TABLE sales_orders ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'Draft'"

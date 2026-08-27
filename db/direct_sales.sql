@@ -24,7 +24,6 @@ END$$;
 CREATE TABLE IF NOT EXISTS direct_sales (
   id TEXT PRIMARY KEY,
   invoice_no TEXT NOT NULL UNIQUE,
-  sales_order_no TEXT,
   organization_id UUID,
   branch_id UUID,
   customer_id TEXT,
@@ -35,10 +34,6 @@ CREATE TABLE IF NOT EXISTS direct_sales (
   reference_no TEXT,
   remarks TEXT,
   status direct_sale_status DEFAULT 'Draft',
-  approved BOOLEAN NOT NULL DEFAULT FALSE,
-  gunny_bags_total NUMERIC NOT NULL DEFAULT 0,
-  transportation_charges NUMERIC NOT NULL DEFAULT 0,
-  loading_charges NUMERIC NOT NULL DEFAULT 0,
   mode TEXT NOT NULL DEFAULT 'tonage',
   created_at DATE DEFAULT CURRENT_DATE
 );

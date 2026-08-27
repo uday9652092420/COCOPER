@@ -1,0 +1,5 @@
+(() => {
+  // src/public/logo.jpg
+  var logo_default = "./logo.jpg";
+})();
+//# sourceMappingURL=logo.js.map

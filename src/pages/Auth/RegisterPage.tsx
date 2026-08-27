@@ -40,8 +40,7 @@ import {
  * organizationCode is NOT sent to backend because
  * backend generates ORG-001, ORG-002, etc.
  *
- * street is also NOT sent because the current backend
- * registration API does not have a street field.
+ * street is persisted as a separate organization field.
  */
 interface RegisterFormValues {
   organizationCode: string;
@@ -171,11 +170,10 @@ const RegisterPage: React.FC = () => {
        * username
        * password
        *
-       * Do NOT send:
-       *
-       * organizationCode
-       * street
-       * confirmPassword
+      * Do NOT send:
+      *
+      * organizationCode
+      * confirmPassword
        */
       const payload: RegisterOrganizationPayload = {
         organization_name:
@@ -200,6 +198,9 @@ const RegisterPage: React.FC = () => {
         address_line2:
           values.addressLine2.trim() ||
           undefined,
+
+        street:
+          values.street.trim(),
 
         city:
           values.city.trim(),
@@ -827,13 +828,15 @@ const RegisterPage: React.FC = () => {
                   </label>
 
                   <input
-                    {...register("street")}
+                    {...register("street", {
+                      required: "Street is required",
+                    })}
                     className="w-full rounded-full border border-slate-200 bg-white py-2 px-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
                     placeholder="Enter street"
                   />
 
                   <p className="mt-1 text-[10px] text-slate-400">
-                    Used for address details; not sent as a separate API field.
+                    Saved as a separate organization address field.
                   </p>
 
                   {errors.street && (

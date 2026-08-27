@@ -12,6 +12,7 @@ interface RoleRow {
   role_name: string;
   description: string | null;
   status: string;
+  is_system_role: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -31,7 +32,7 @@ export async function listRolesRepo(organizationId?: string | null): Promise<Rol
 
   const { rows } = await pool.query(
     `
-    SELECT r.id, r.organization_id, r.role_name, r.description, r.status, r.created_at, r.updated_at,
+    SELECT r.id, r.organization_id, r.role_name, r.description, r.status, r.is_system_role, r.created_at, r.updated_at,
            COALESCE(array_agg(rp.permission_code) FILTER (WHERE rp.permission_code IS NOT NULL), '{}') AS permissions
     FROM roles r
     LEFT JOIN role_permissions rp ON rp.role_id = r.id
@@ -45,17 +46,18 @@ export async function listRolesRepo(organizationId?: string | null): Promise<Rol
   return rows.map((r) => ({ ...r, permissions: r.permissions }));
 }
 
-export async function getRoleByIdRepo(id: string): Promise<Role | null> {
+export async function getRoleByIdRepo(id: string, organizationId?: string | null): Promise<Role | null> {
   const { rows } = await pool.query(
     `
-    SELECT r.id, r.organization_id, r.role_name, r.description, r.status, r.created_at, r.updated_at,
+    SELECT r.id, r.organization_id, r.role_name, r.description, r.status, r.is_system_role, r.created_at, r.updated_at,
            COALESCE(array_agg(rp.permission_code) FILTER (WHERE rp.permission_code IS NOT NULL), '{}') AS permissions
     FROM roles r
     LEFT JOIN role_permissions rp ON rp.role_id = r.id
     WHERE r.id = $1
+      AND ($2::uuid IS NULL OR r.organization_id = $2::uuid OR r.organization_id IS NULL)
     GROUP BY r.id
     `,
-    [id]
+    [id, organizationId ?? null]
   );
 
   if (rows.length === 0) return null;
@@ -68,7 +70,7 @@ export async function createRoleRepo(payload: RoleCreateDTO): Promise<Role> {
     `
     INSERT INTO roles (organization_id, role_name, description, status)
     VALUES ($1, $2, $3, $4)
-    RETURNING id, organization_id, role_name, description, status, created_at, updated_at
+    RETURNING id, organization_id, role_name, description, status, is_system_role, created_at, updated_at
     `,
     [payload.organization_id ?? null, payload.role_name, payload.description ?? null, payload.status ?? 'ACTIVE']
   );
@@ -76,25 +78,29 @@ export async function createRoleRepo(payload: RoleCreateDTO): Promise<Role> {
   return roleToDTO(rows[0], []);
 }
 
-export async function updateRoleRepo(id: string, payload: RoleUpdateDTO): Promise<Role | null> {
+export async function updateRoleRepo(id: string, payload: RoleUpdateDTO, organizationId?: string | null): Promise<Role | null> {
   const { rows } = await pool.query(
     `
     UPDATE roles
     SET role_name = $2, description = $3, status = $4, updated_at = CURRENT_TIMESTAMP
     WHERE id = $1
-    RETURNING id, organization_id, role_name, description, status, created_at, updated_at
+      AND ($5::uuid IS NULL OR organization_id = $5::uuid)
+    RETURNING id, organization_id, role_name, description, status, is_system_role, created_at, updated_at
     `,
-    [id, payload.role_name, payload.description ?? null, payload.status ?? 'ACTIVE']
+    [id, payload.role_name, payload.description ?? null, payload.status ?? 'ACTIVE', organizationId ?? null]
   );
 
   if (rows.length === 0) return null;
 
-  const current = await getRoleByIdRepo(id);
+  const current = await getRoleByIdRepo(id, organizationId);
   return current ?? roleToDTO(rows[0], []);
 }
 
-export async function deleteRoleRepo(id: string): Promise<boolean> {
-  const result = await pool.query(`DELETE FROM roles WHERE id = $1`, [id]);
+export async function deleteRoleRepo(id: string, organizationId?: string | null): Promise<boolean> {
+  const result = await pool.query(
+    `DELETE FROM roles WHERE id = $1 AND is_system_role = FALSE AND ($2::uuid IS NULL OR organization_id = $2::uuid)`,
+    [id, organizationId ?? null]
+  );
   return (result.rowCount ?? 0) > 0;
 }
 

@@ -63,6 +63,9 @@ CREATE INDEX IF NOT EXISTS idx_organization_users_org_status
 CREATE INDEX IF NOT EXISTS idx_organization_users_username
     ON organization_users (LOWER(username));
 
+CREATE INDEX IF NOT EXISTS idx_organization_users_email
+    ON organization_users (LOWER(email));
+
 -- At most one primary user per organization.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_one_primary_user_per_org
     ON organization_users (organization_id)

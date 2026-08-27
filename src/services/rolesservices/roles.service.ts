@@ -12,6 +12,7 @@ export interface Role {
   role_name: string;
   description: string | null;
   status: string;
+  is_system_role: boolean;
   created_at: string;
   updated_at: string;
   permissions: string[];
@@ -56,7 +57,7 @@ export async function createRole(payload: RolePayload): Promise<Role> {
 export async function updateRole(id: string, payload: Partial<RolePayload>): Promise<Role> {
   const response = await fetch(`${API}/roles/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...getOrgHeader() },
     body: JSON.stringify(payload),
   });
   const data = await response.json();
@@ -65,7 +66,7 @@ export async function updateRole(id: string, payload: Partial<RolePayload>): Pro
 }
 
 export async function deleteRole(id: string): Promise<void> {
-  const response = await fetch(`${API}/roles/${id}`, { method: "DELETE" });
+  const response = await fetch(`${API}/roles/${id}`, { method: "DELETE", headers: getOrgHeader() });
   if (!response.ok) throw await response.json().catch(() => ({ message: "Failed to delete role" }));
 }
 

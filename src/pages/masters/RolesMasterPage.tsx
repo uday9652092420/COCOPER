@@ -155,7 +155,7 @@ const RolesMasterPage: React.FC = () => {
               Edit
             </button>
           ) : null}
-          {can('roles', 'delete') ? (
+          {can('roles', 'delete') && !row.is_system_role ? (
             <button
               type="button"
               onClick={() => setConfirmDelete(row)}

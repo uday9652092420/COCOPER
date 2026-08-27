@@ -20,14 +20,14 @@
  * grid from causing the standard form fields to be cleared.
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   useForm,
   type FieldValues,
   type Path,
   type DefaultValues,
 } from "react-hook-form";
-import { X } from "lucide-react";
+import { Eye, EyeOff, X } from "lucide-react";
 
 /**
  * @description
@@ -36,7 +36,7 @@ import { X } from "lucide-react";
 export interface FormFieldConfig {
   name: string;
   label: string;
-  type: "text" | "textarea" | "number" | "select";
+  type: "text" | "password" | "textarea" | "number" | "select";
   required?: boolean;
   readOnly?: boolean;
   options?: {
@@ -146,6 +146,7 @@ export const MasterFormModal = <
    * It does not affect the rendered UI.
    */
   const defaultValuesKey = JSON.stringify(defaultValues ?? {});
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
 
   /**
    * Reset only when the actual default values change.
@@ -284,6 +285,28 @@ export const MasterFormModal = <
                       </option>
                     ))}
                   </select>
+                ) : field.type === "password" ? (
+                  <div className="relative">
+                    <input
+                      type={visiblePasswords[field.name] ? "text" : "password"}
+                      readOnly={field.readOnly}
+                      className={`w-full rounded-full border border-slate-200 px-3 py-2 pr-9 text-xs text-slate-800
+                      focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]
+                      ${field.readOnly ? "cursor-not-allowed bg-slate-100" : ""}`}
+                      {...register(field.name as Path<TValues>, { required: field.required })}
+                    />
+                    <button
+                      type="button"
+                      aria-label={visiblePasswords[field.name] ? "Hide password" : "Show password"}
+                      onClick={() => setVisiblePasswords((current) => ({
+                        ...current,
+                        [field.name]: !current[field.name],
+                      }))}
+                      className="absolute right-3 top-2 text-slate-400 hover:text-slate-600"
+                    >
+                      {visiblePasswords[field.name] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 ) : (
                   /* Text / Number */
                   <input

@@ -68,14 +68,15 @@ module.exports = {
       // [C] LIVE / PRODUCTION SERVER - uncomment & fill in to activate
       // env: {
       //   NODE_ENV: 'production',
-      //   PORT: process.env.PORT || '3000',
-      //   DB_HOST: process.env.DB_HOST || '<live-db-host>',
+      //   PORT: process.env.PORT || '3005',
+      //   DB_HOST: process.env.DB_HOST || 'localhost',
       //   DB_PORT: process.env.DB_PORT || '5432',
       //   DB_NAME: process.env.DB_NAME || 'CoconutCocktailDB',
-      //   DB_USER: process.env.DB_USER || '<live-db-user>',
-      //   DB_PASSWORD: process.env.DB_PASSWORD || '<live-db-password>',
-      //   API_BASE_URL: process.env.API_BASE_URL || 'http://<live-server-ip>:3000',
-      //   FRONTEND_URL: process.env.FRONTEND_URL || 'http://<live-server-ip>',
+      //   DB_USER: process.env.DB_USER || 'postgres',
+      //   DB_PASSWORD: process.env.DB_PASSWORD || 'StrongPassword@123',
+      //   DATABASE_URL: process.env.DATABASE_URL || 'postgresql://postgres:StrongPassword@123@localhost:5432/CoconutCocktailDB',
+      //   API_BASE_URL: process.env.API_BASE_URL || 'http://109.199.106.107:3005',
+      //   FRONTEND_URL: process.env.FRONTEND_URL || 'http://109.199.106.107',
       // },
 
       // ============================================

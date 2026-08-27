@@ -8,7 +8,7 @@ import { AppError } from '../../utils/AppError.js';
 import type { LoginPayload, LoginResult } from './auth.types.js';
 import { generateAuthToken } from './auth.token.js';
 import {
-  findOrgUserByUsername,
+  findOrgUserByEmail,
   findSuperUserByUsername,
   toAuthUserResult,
   updateOrgUserLastLogin,
@@ -16,15 +16,15 @@ import {
 } from './auth.repository.js';
 
 export async function loginService(payload: LoginPayload): Promise<LoginResult> {
-  const username = String(payload.username ?? '').trim();
+  const email = String(payload.email ?? '').trim().toLowerCase();
   const password = String(payload.password ?? '');
 
-  if (!username || !password) {
-    throw new AppError('Username and password are required', 400);
+  if (!email || !password) {
+    throw new AppError('Email and password are required', 400);
   }
 
-  // 1) Check application-level super user (product owner).
-  const superUser = await findSuperUserByUsername(username);
+  // Super admins continue to use their existing username credentials.
+  const superUser = await findSuperUserByUsername(email);
 
   if (superUser) {
     const valid = await bcrypt.compare(password, superUser.password_hash);
@@ -49,7 +49,7 @@ export async function loginService(payload: LoginPayload): Promise<LoginResult> 
   }
 
   // 2) Check organization user.
-  const orgUser = await findOrgUserByUsername(username);
+  const orgUser = await findOrgUserByEmail(email);
 
   if (orgUser) {
     const valid = await bcrypt.compare(password, orgUser.password_hash);

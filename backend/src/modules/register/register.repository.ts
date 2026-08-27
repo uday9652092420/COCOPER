@@ -10,6 +10,7 @@ import { pool } from "../../config/db.js";
 import type {
   RegisterOrganizationPayload,
 } from "./register.types.js";
+import { getAllPermissionCodes } from "../users/permissions.js";
 
 /**
  * Generate next organization code.
@@ -143,6 +144,8 @@ export async function createOrganizationRepository(
 
     const organizationUserId = randomUUID();
 
+    const ownerRoleId = randomUUID();
+
     /**
      * Generate organization code.
      */
@@ -186,6 +189,7 @@ export async function createOrganizationRepository(
             contact_person_name,
             address_line1,
             address_line2,
+            street,
             city,
             pincode,
             state,
@@ -208,7 +212,8 @@ export async function createOrganizationRepository(
             $10,
             $11,
             $12,
-            $13
+            $13,
+            $14
           )
           RETURNING
             id,
@@ -226,6 +231,7 @@ export async function createOrganizationRepository(
             contact_person_name,
             address_line1,
             address_line2,
+            street,
             city,
             pincode,
             state,
@@ -250,6 +256,8 @@ export async function createOrganizationRepository(
 
           payload.address_line2 ?? null,
 
+          payload.street,
+
           payload.city,
 
           payload.pincode,
@@ -259,6 +267,43 @@ export async function createOrganizationRepository(
           payload.country,
         ]
       );
+
+    await client.query(
+      `
+        INSERT INTO roles (
+          id,
+          organization_id,
+          role_name,
+          description,
+          status,
+          is_system_role,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          $1,
+          $2,
+          'OWNER',
+          'Organization owner with full access',
+          'ACTIVE',
+          true,
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        )
+      `,
+      [ownerRoleId, organizationId]
+    );
+
+    const permissionCodes = getAllPermissionCodes();
+
+    await client.query(
+      `
+        INSERT INTO role_permissions (role_id, permission_code)
+        SELECT $1, unnest($2::text[])
+        ON CONFLICT (role_id, permission_code) DO NOTHING
+      `,
+      [ownerRoleId, permissionCodes]
+    );
 
     /**
      * Create initial organization owner.
@@ -285,6 +330,7 @@ export async function createOrganizationRepository(
             username,
             password_hash,
             full_name,
+            email,
             role,
             status,
             is_primary_user,
@@ -298,6 +344,7 @@ export async function createOrganizationRepository(
             $4,
             $5,
             $6,
+            $7,
             'OWNER',
             'Active',
             true,
@@ -325,8 +372,19 @@ export async function createOrganizationRepository(
           passwordHash,
 
           payload.contact_person_name,
+
+          payload.email,
         ]
       );
+
+    await client.query(
+      `
+        INSERT INTO user_permissions (user_id, permission_code)
+        SELECT $1, unnest($2::text[])
+        ON CONFLICT (user_id, permission_code) DO NOTHING
+      `,
+      [organizationUserId, permissionCodes]
+    );
 
     /**
      * Commit transaction.

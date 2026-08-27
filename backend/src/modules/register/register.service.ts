@@ -60,6 +60,9 @@ export async function registerOrganizationService(
       ? String(payload.address_line2).trim()
       : null;
 
+  const street =
+    String(payload.street).trim();
+
   const city =
     String(payload.city).trim();
 
@@ -154,6 +157,8 @@ export async function registerOrganizationService(
 
       address_line2:
         addressLine2,
+
+      street,
 
       city,
 

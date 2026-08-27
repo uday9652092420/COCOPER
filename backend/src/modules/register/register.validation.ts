@@ -166,6 +166,17 @@ export function validateRegisterPayload(
   }
 
   /**
+   * Street
+   */
+  if (
+    !payload.street ||
+    !String(payload.street).trim()
+  ) {
+    errors.street =
+      "Street is required.";
+  }
+
+  /**
    * Pincode
    */
   const pincode = String(

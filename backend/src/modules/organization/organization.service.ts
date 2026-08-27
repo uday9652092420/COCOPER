@@ -25,6 +25,7 @@ function normalize(payload: OrganizationUpdatePayload): OrganizationUpdatePayloa
     contact_person_name: payload.contact_person_name ? String(payload.contact_person_name).trim() : null,
     address_line1: payload.address_line1 ? String(payload.address_line1).trim() : null,
     address_line2: payload.address_line2 ? String(payload.address_line2).trim() : null,
+    street: payload.street ? String(payload.street).trim() : null,
     city: payload.city ? String(payload.city).trim() : null,
     pincode: payload.pincode ? String(payload.pincode).trim() : null,
     state: payload.state ? String(payload.state).trim() : null,

@@ -38,7 +38,7 @@ interface OrgUserRow {
   organization_id: string;
 }
 
-export async function findOrgUserByUsername(username: string): Promise<OrgUserRow | null> {
+export async function findOrgUserByEmail(email: string): Promise<OrgUserRow | null> {
   const { rows } = await pool.query(
     `
     SELECT
@@ -50,10 +50,10 @@ export async function findOrgUserByUsername(username: string): Promise<OrgUserRo
       ou.status,
       ou.organization_id
     FROM organization_users ou
-    WHERE LOWER(ou.username) = LOWER($1) AND LOWER(ou.status) = 'active'
+    WHERE LOWER(ou.email) = LOWER($1) AND LOWER(ou.status) = 'active'
     LIMIT 1
     `,
-    [username]
+    [email]
   );
   return rows[0] ?? null;
 }

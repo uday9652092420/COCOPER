@@ -31,10 +31,12 @@ const ORGANIZATION_SELECT = `
     o.contact_person_name,
     o.address_line1,
     o.address_line2,
+    o.street,
     o.city,
     o.pincode,
     o.state,
     o.country,
+    ou.username AS user_id,
     o.created_at,
     o.updated_at,
     od.gst_no,
@@ -51,6 +53,8 @@ const ORGANIZATION_SELECT = `
   FROM organizations o
   LEFT JOIN organization_details od
     ON od.organization_id = o.id
+  LEFT JOIN organization_users ou
+    ON ou.organization_id = o.id AND ou.is_primary_user = true
 `;
 
 export async function getOrganizationByIdRepo(id: string): Promise<Organization | null> {
@@ -100,10 +104,11 @@ export async function updateOrganizationRepo(
         contact_person_name = $7,
         address_line1 = $8,
         address_line2 = $9,
-        city = $10,
-        pincode = $11,
-        state = $12,
-        country = $13,
+        street = $10,
+        city = $11,
+        pincode = $12,
+        state = $13,
+        country = $14,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $1
       RETURNING id
@@ -118,6 +123,7 @@ export async function updateOrganizationRepo(
         payload.contact_person_name ?? null,
         payload.address_line1 ?? null,
         payload.address_line2 ?? null,
+        payload.street ?? null,
         payload.city ?? null,
         payload.pincode ?? null,
         payload.state ?? null,

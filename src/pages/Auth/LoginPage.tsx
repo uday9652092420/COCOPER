@@ -7,14 +7,14 @@ import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useForm } from "react-hook-form";
-import { Lock, User2 } from "lucide-react";
+import { Lock, Mail } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 
 /**
  * @description Login form values.
  */
 interface LoginFormValues {
-  username: string;
+  email: string;
   password: string;
   rememberMe: boolean;
 }
@@ -34,7 +34,7 @@ const LoginPage: React.FC = () => {
     formState: { isSubmitting },
   } = useForm<LoginFormValues>({
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
       rememberMe: true,
     },
@@ -44,7 +44,7 @@ const LoginPage: React.FC = () => {
     setError(null);
 
     const result = await login(
-      values.username,
+      values.email,
       values.password
     );
 
@@ -153,21 +153,21 @@ const LoginPage: React.FC = () => {
             onSubmit={handleSubmit(onSubmit)}
             className="space-y-4"
           >
-            {/* Username */}
+            {/* Email */}
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-700">
-                Username
+                Email
               </label>
 
               <div className="relative">
-                <User2 className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <Mail className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
 
                 <input
-                  {...register("username", {
+                  {...register("email", {
                     required: true,
                   })}
                   className="w-full rounded-full border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
-                  placeholder="Enter username"
+                  placeholder="Enter email"
                 />
               </div>
             </div>

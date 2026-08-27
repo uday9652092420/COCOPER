@@ -23,6 +23,22 @@ export function validateOrganizationPayload(
     errors.contact_no = 'Enter a valid 10 digit contact number';
   }
 
+  const requiredTextFields: Array<[keyof OrganizationUpdatePayload, string]> = [
+    ['contact_person_name', 'Contact person name is required'],
+    ['address_line1', 'Address line 1 is required'],
+    ['street', 'Street is required'],
+    ['city', 'City is required'],
+    ['pincode', 'Pincode is required'],
+    ['state', 'State is required'],
+    ['country', 'Country is required'],
+  ];
+
+  for (const [field, message] of requiredTextFields) {
+    if (!payload[field] || String(payload[field]).trim() === '') {
+      errors[field] = message;
+    }
+  }
+
   const email = String(payload.email ?? '').trim().toLowerCase();
   if (!email) {
     errors.email = 'Email address is required';

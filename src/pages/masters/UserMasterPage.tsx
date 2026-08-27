@@ -34,6 +34,8 @@ interface UserFormValues {
   status: 'ACTIVE' | 'INACTIVE'
 }
 
+const EXISTING_PASSWORD_MASK = '********'
+
 const UserMasterPage: React.FC = () => {
   const { can } = usePermissions()
   const [records, setRecords] = useState<OrgUser[]>([])
@@ -82,9 +84,9 @@ const UserMasterPage: React.FC = () => {
 
   const fields: FormFieldConfig[] = [
     { name: 'username', label: 'Username', type: 'text', required: true, readOnly: Boolean(editing) },
-    { name: 'password', label: editing ? 'Password (leave blank to keep)' : 'Password', type: 'text' },
+    { name: 'password', label: editing ? 'Password (leave blank to keep)' : 'Password', type: 'password' },
     { name: 'fullName', label: 'Full Name', type: 'text' },
-    { name: 'email', label: 'Email', type: 'text' },
+    { name: 'email', label: 'Email', type: 'text', required: true },
     { name: 'mobileNo', label: 'Mobile No', type: 'text' },
     {
       name: 'role',
@@ -116,7 +118,9 @@ const UserMasterPage: React.FC = () => {
           mobile_no: values.mobileNo,
           role: values.role,
           status: values.status,
-          password: values.password || undefined,
+          password: values.password && values.password !== EXISTING_PASSWORD_MASK
+            ? values.password
+            : undefined,
         })
         toast.success('User updated successfully')
       } else {
@@ -199,7 +203,7 @@ const UserMasterPage: React.FC = () => {
               Edit
             </button>
           ) : null}
-          {can('users', 'delete') ? (
+          {can('users', 'delete') && String(row.role).toUpperCase() !== 'OWNER' ? (
             <button
               type="button"
               onClick={() => setConfirmDelete(row)}
@@ -228,7 +232,7 @@ const UserMasterPage: React.FC = () => {
           editing
             ? {
                 username: editing.username,
-                password: '',
+                password: EXISTING_PASSWORD_MASK,
                 fullName: editing.full_name ?? '',
                 email: editing.email ?? '',
                 mobileNo: editing.mobile_no ?? '',

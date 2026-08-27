@@ -61,6 +61,19 @@ export async function isUsernameExistsRepo(username: string, excludeId?: string)
   return rows.length > 0;
 }
 
+export async function isEmailExistsRepo(email: string, excludeId?: string): Promise<boolean> {
+  const params: string[] = [email.toLowerCase()];
+  let sql = `SELECT id FROM organization_users WHERE LOWER(email) = $1`;
+  if (excludeId) {
+    params.push(excludeId);
+    sql += ` AND id <> $2`;
+  }
+  sql += ` LIMIT 1`;
+
+  const { rows } = await pool.query(sql, params);
+  return rows.length > 0;
+}
+
 export async function createUserRepo(payload: UserCreateDTO, passwordHash: string): Promise<OrgUser> {
   const { rows } = await pool.query(
     `
@@ -128,7 +141,10 @@ export async function updateUserRepo(
 }
 
 export async function deleteUserRepo(id: string): Promise<boolean> {
-  const result = await pool.query(`DELETE FROM organization_users WHERE id = $1`, [id]);
+  const result = await pool.query(
+    `DELETE FROM organization_users WHERE id = $1 AND UPPER(role) <> 'OWNER'`,
+    [id]
+  );
   return (result.rowCount ?? 0) > 0;
 }
 

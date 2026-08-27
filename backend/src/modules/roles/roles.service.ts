@@ -18,29 +18,29 @@ export async function listRoles(organizationId?: string | null): Promise<Role[]>
   return listRolesRepo(organizationId ?? null);
 }
 
-export async function getRoleById(id: string): Promise<Role | null> {
-  return getRoleByIdRepo(id);
+export async function getRoleById(id: string, organizationId?: string | null): Promise<Role | null> {
+  return getRoleByIdRepo(id, organizationId);
 }
 
-export async function createRole(payload: RoleCreateDTO): Promise<Role> {
+export async function createRole(payload: RoleCreateDTO, organizationId: string): Promise<Role> {
   return createRoleRepo({
-    organization_id: payload.organization_id ?? null,
+    organization_id: organizationId,
     role_name: String(payload.role_name).trim(),
     description: payload.description ?? null,
     status: payload.status ?? 'ACTIVE',
   });
 }
 
-export async function updateRole(id: string, payload: RoleUpdateDTO): Promise<Role | null> {
+export async function updateRole(id: string, payload: RoleUpdateDTO, organizationId?: string | null): Promise<Role | null> {
   return updateRoleRepo(id, {
     role_name: String(payload.role_name).trim(),
     description: payload.description ?? null,
     status: payload.status ?? 'ACTIVE',
-  });
+  }, organizationId);
 }
 
-export async function deleteRole(id: string): Promise<boolean> {
-  return deleteRoleRepo(id);
+export async function deleteRole(id: string, organizationId?: string | null): Promise<boolean> {
+  return deleteRoleRepo(id, organizationId);
 }
 
 export async function getRolePermissions(id: string): Promise<string[]> {

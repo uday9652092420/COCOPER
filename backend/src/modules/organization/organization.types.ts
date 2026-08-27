@@ -17,10 +17,12 @@ export interface Organization {
   contact_person_name: string | null;
   address_line1: string | null;
   address_line2: string | null;
+  street: string | null;
   city: string | null;
   pincode: string | null;
   state: string | null;
   country: string | null;
+  user_id: string | null;
   created_at: string;
   updated_at: string;
 
@@ -71,6 +73,7 @@ export interface OrganizationUpdatePayload {
   contact_person_name?: string | null;
   address_line1?: string | null;
   address_line2?: string | null;
+  street?: string | null;
   city?: string | null;
   pincode?: string | null;
   state?: string | null;

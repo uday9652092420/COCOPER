@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS organizations (
     contact_person_name VARCHAR(150),
     address_line1 VARCHAR(255),
     address_line2 VARCHAR(255),
+    street VARCHAR(255),
     city VARCHAR(100),
     pincode VARCHAR(10),
     state VARCHAR(100),
@@ -59,4 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_organizations_status
     ON organizations (status);
 
 CREATE INDEX IF NOT EXISTS idx_organizations_email
+    ON organizations (LOWER(email));
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_organizations_email
     ON organizations (LOWER(email));

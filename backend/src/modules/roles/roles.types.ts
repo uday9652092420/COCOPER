@@ -9,6 +9,7 @@ export interface Role {
   role_name: string;
   description: string | null;
   status: string;
+  is_system_role: boolean;
   created_at: string;
   updated_at: string;
   permissions: string[];

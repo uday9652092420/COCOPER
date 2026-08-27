@@ -48,6 +48,7 @@ interface OrganizationFormValues {
   organizationCode: string
   organizationName: string
   registrationNo: string
+  userId: string
   ownerName: string
   contactNo: string
   email: string
@@ -55,6 +56,7 @@ interface OrganizationFormValues {
 
   addressLine1: string
   addressLine2: string
+  street: string
   city: string
   state: string
   pincode: string
@@ -182,6 +184,7 @@ const OrganizationMasterPage: React.FC = () => {
       organizationCode: '',
       organizationName: '',
       registrationNo: '',
+      userId: '',
       ownerName: '',
       contactNo: '',
       email: '',
@@ -189,6 +192,7 @@ const OrganizationMasterPage: React.FC = () => {
 
       addressLine1: '',
       addressLine2: '',
+      street: '',
       city: '',
       state: '',
       pincode: '',
@@ -239,6 +243,9 @@ const OrganizationMasterPage: React.FC = () => {
         registrationNo:
           org.registration_no ?? '',
 
+        userId:
+          org.user_id ?? '',
+
         ownerName:
           org.owner_name ?? '',
 
@@ -256,6 +263,9 @@ const OrganizationMasterPage: React.FC = () => {
 
         addressLine2:
           org.address_line2 ?? '',
+
+        street:
+          org.street ?? '',
 
         city:
           org.city ?? '',
@@ -500,6 +510,10 @@ const OrganizationMasterPage: React.FC = () => {
           values.addressLine2.trim() ||
           null,
 
+        street:
+          values.street.trim() ||
+          null,
+
         city:
           values.city.trim() ||
           null,
@@ -734,6 +748,13 @@ const OrganizationMasterPage: React.FC = () => {
             />
 
             <Field
+              label="User ID"
+              readOnly
+              hint="Primary login user"
+              registration={register('userId')}
+            />
+
+            <Field
               label="Owner Name"
               registration={register(
                 'ownerName'
@@ -783,8 +804,11 @@ const OrganizationMasterPage: React.FC = () => {
 
             <Field
               label="Contact Person Name"
+              required
+              error={errors.contactPersonName?.message}
               registration={register(
-                'contactPersonName'
+                'contactPersonName',
+                { required: 'Contact person name is required' }
               )}
             />
           </div>
@@ -803,8 +827,11 @@ const OrganizationMasterPage: React.FC = () => {
           <div className="grid gap-4 md:grid-cols-2">
             <Field
               label="Address Line 1"
+              required
+              error={errors.addressLine1?.message}
               registration={register(
-                'addressLine1'
+                'addressLine1',
+                { required: 'Address line 1 is required' }
               )}
             />
 
@@ -816,18 +843,34 @@ const OrganizationMasterPage: React.FC = () => {
             />
 
             <Field
+              label="Street"
+              required
+              error={errors.street?.message}
+              registration={register('street', {
+                required: 'Street is required',
+              })}
+            />
+
+            <Field
               label="City"
-              registration={register('city')}
+              required
+              error={errors.city?.message}
+              registration={register('city', {
+                required: 'City is required',
+              })}
             />
 
             <div>
               <label className={labelClasses}>
                 State
+                <span className="text-rose-500"> *</span>
               </label>
 
               <select
                 className="w-full rounded-full border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
-                {...register('state')}
+                {...register('state', {
+                  required: 'State is required',
+                })}
               >
                 <option value="">
                   Select State
@@ -848,12 +891,14 @@ const OrganizationMasterPage: React.FC = () => {
 
             <Field
               label="Pincode"
+              required
               error={
                 errors.pincode?.message
               }
               registration={register(
                 'pincode',
                 {
+                  required: 'Pincode is required',
                   pattern: {
                     value: /^[0-9]{6}$/,
                     message:
@@ -865,8 +910,11 @@ const OrganizationMasterPage: React.FC = () => {
 
             <Field
               label="Country"
+              required
+              error={errors.country?.message}
               registration={register(
-                'country'
+                'country',
+                { required: 'Country is required' }
               )}
             />
           </div>

@@ -18,6 +18,8 @@ export interface RegisterOrganizationPayload {
 
   address_line2?: string | null;
 
+  street: string;
+
   city: string;
 
   pincode: string;
@@ -67,6 +69,7 @@ export interface OrganizationRegistrationResponse {
 
     address_line2: string | null;
 
+    street: string | null;
     city: string | null;
 
     pincode: string | null;

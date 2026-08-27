@@ -47,7 +47,7 @@ interface LoginRawResponse {
  * Authenticates an application super user or an organization user.
  */
 export async function login(
-  username: string,
+  email: string,
   password: string
 ): Promise<LoginResponse> {
   const response = await fetch(`${API}/auth/login`, {
@@ -55,7 +55,7 @@ export async function login(
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ email, password }),
   });
 
   const data = (await response.json()) as LoginRawResponse;

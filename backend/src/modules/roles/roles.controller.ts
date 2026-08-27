@@ -21,8 +21,14 @@ interface RoleParams {
   id: string;
 }
 
-function resolveOrganizationId(req: Request): string | undefined {
+function resolveOrganizationId(req: Request<any>): string | undefined {
   return (req.query.organizationId as string | undefined) || req.header('x-organization-id');
+}
+
+function requireOrganizationId(req: Request<any>): string {
+  const organizationId = resolveOrganizationId(req);
+  if (!organizationId) throw new AppError('Organization ID is required', 400);
+  return organizationId;
 }
 
 export async function listPermissionsHandler(
@@ -56,7 +62,7 @@ export async function getRoleHandler(
   next: NextFunction
 ) {
   try {
-    const row = await getRoleByIdService(req.params.id);
+    const row = await getRoleByIdService(req.params.id, resolveOrganizationId(req));
     if (!row) return next(new AppError('Role not found', 404));
     return res.status(200).json(row);
   } catch (error) {
@@ -73,7 +79,7 @@ export async function createRoleHandler(
   if (errors) return next(new AppError('Validation failed', 400, { errors }));
 
   try {
-    const created = await createRoleService(req.body);
+    const created = await createRoleService(req.body, requireOrganizationId(req));
     return res.status(201).json(created);
   } catch (error) {
     return next(new AppError('Failed to create role', 500, { cause: error }));
@@ -89,7 +95,7 @@ export async function updateRoleHandler(
   if (errors) return next(new AppError('Validation failed', 400, { errors }));
 
   try {
-    const updated = await updateRoleService(req.params.id, req.body);
+    const updated = await updateRoleService(req.params.id, req.body, requireOrganizationId(req));
     if (!updated) return next(new AppError('Role not found', 404));
     return res.status(200).json(updated);
   } catch (error) {
@@ -103,7 +109,7 @@ export async function deleteRoleHandler(
   next: NextFunction
 ) {
   try {
-    const deleted = await deleteRoleService(req.params.id);
+    const deleted = await deleteRoleService(req.params.id, requireOrganizationId(req));
     if (!deleted) return next(new AppError('Role not found', 404));
     return res.status(200).json({ message: 'Role deleted successfully' });
   } catch (error) {

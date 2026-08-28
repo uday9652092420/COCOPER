@@ -43,6 +43,14 @@ export function validateBagPurchasePayload(
     );
   }
 
+  if (!payload.organization_id) {
+    throw new Error("Organization is required");
+  }
+
+  if (!payload.branch_id) {
+    throw new Error("Branch is required");
+  }
+
   /**
    * Lines
    */

@@ -157,7 +157,7 @@ export async function listSuppliersRepo(organizationId?: string | null)
 
   if (organizationId) {
     params.push(organizationId);
-    where = "WHERE organization_id = $1 OR organization_id IS NULL";
+    where = "WHERE organization_id = $1";
   }
 
   const { rows } = await pool.query(`
@@ -183,7 +183,8 @@ export async function listSuppliersRepo(organizationId?: string | null)
  * Get Supplier By Id
  */
 export async function getSupplierByIdRepo(
-  id:string
+  id:string,
+  organizationId: string
 )
 : Promise<Supplier | null>{
 
@@ -192,10 +193,11 @@ export async function getSupplierByIdRepo(
     `
     SELECT *
     FROM suppliers
-    WHERE id=$1
+    WHERE id=$1 AND organization_id=$2
     `,
     [
-      id
+      id,
+      organizationId
     ]
   );
 
@@ -218,7 +220,8 @@ export async function getSupplierByIdRepo(
 export async function updateSupplierRepo(
   id:string,
 
-  payload:SupplierCreateDTO
+  payload:SupplierCreateDTO,
+  organizationId: string
 
 )
 : Promise<Supplier | null>{
@@ -260,7 +263,7 @@ export async function updateSupplierRepo(
       status=$15
 
 
-    WHERE id=$1
+    WHERE id=$1 AND organization_id=$16
 
 
     RETURNING *
@@ -296,7 +299,8 @@ export async function updateSupplierRepo(
 
       payload.opening_balance,
 
-      payload.status
+      payload.status,
+      organizationId
 
     ]
 
@@ -320,19 +324,21 @@ export async function updateSupplierRepo(
  * Delete Supplier
  */
 export async function deleteSupplierRepo(
-  id:string
+  id:string,
+  organizationId: string
 ){
 
   const result = await pool.query(
     `
     DELETE FROM suppliers
 
-    WHERE id=$1
+    WHERE id=$1 AND organization_id=$2
 
     RETURNING *
     `,
     [
-      id
+      id,
+      organizationId
     ]
   );
 

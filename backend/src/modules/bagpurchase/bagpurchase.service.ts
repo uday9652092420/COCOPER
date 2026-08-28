@@ -29,8 +29,8 @@ import type {
  * Get Next Purchase Number
  * ============================================================
  */
-export async function getNextBagPurchaseNoService() {
-  return getNextBagPurchaseNoRepo();
+export async function getNextBagPurchaseNoService(organizationId?: string | null) {
+  return getNextBagPurchaseNoRepo(organizationId ?? null);
 }
 
 /**
@@ -75,7 +75,7 @@ export async function createBagPurchaseService(
   );
 
   const purchaseNo =
-    await getNextBagPurchaseNoRepo();
+    await getNextBagPurchaseNoRepo(payload.organization_id ?? null);
 
   return createBagPurchaseRepo(
     purchaseNo,

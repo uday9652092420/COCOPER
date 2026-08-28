@@ -1736,11 +1736,8 @@ const PurchaseOrderPage: React.FC = () => {
       })
       .join('')
     const total = row.lines.reduce((s, l) => s + Number(l.purchaseAmount ?? l.amount ?? 0), 0)
-    const supplierRecord = suppliers.find((s) => s.id === row.supplierId)
     const supplier = resolveSupplierName(row.supplierId)
-    const supplierAddress = [supplierRecord?.address, supplierRecord?.state]
-      .filter(Boolean)
-      .join(', ')
+    const wh = warehouses.find((w) => w.id === row.warehouseId)?.name ?? ''
 
     win.document.write(`<!DOCTYPE html>
 <html>
@@ -1768,7 +1765,8 @@ const PurchaseOrderPage: React.FC = () => {
     </div>
     <div class="muted" style="text-align:right">
       <div>Supplier: <b>${supplier}</b></div>
-      ${supplierAddress ? `<div>${supplierAddress}</div>` : ''}
+      <div>Warehouse: ${wh}</div>
+      <div>Status: ${row.status}</div>
     </div>
   </div>
   ${row.remarks ? `<p class="muted">Remarks: ${row.remarks}</p>` : ''}

@@ -173,6 +173,12 @@ export async function updateGunnyBagService(
       payload.status ??
       existing.status,
 
+    organization_id:
+      payload.organization_id ?? existing.organization_id ?? null,
+
+    branch_id:
+      payload.branch_id ?? existing.branch_id ?? null,
+
     /**
      * IMPORTANT:
      *

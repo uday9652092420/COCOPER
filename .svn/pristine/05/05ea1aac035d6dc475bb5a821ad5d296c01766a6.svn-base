@@ -1001,6 +1001,7 @@ const PurchaseInvoicePage: React.FC = () => {
     <div class="muted" style="text-align:right">
       <div>Supplier: <b>${supplier}</b></div>
       <div>Branch: ${branch}</div>
+      <div>Mode: ${row.mode === 'lessing' ? 'Lessing' : 'Tonnage'}</div>
     </div>
   </div>
   <table>

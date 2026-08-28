@@ -31,14 +31,14 @@ interface IdParams {
   id: string;
 }
 
-function resolveOrganizationId(req: Request): string | undefined {
+function resolveOrganizationId(req: Pick<Request, "query" | "header">): string | undefined {
   return (
     (req.query.organizationId as string | undefined) ||
     req.header("x-organization-id")
   );
 }
 
-function resolveBranchId(req: Request): string | undefined {
+function resolveBranchId(req: Pick<Request, "query" | "header">): string | undefined {
   return (
     (req.query.branchId as string | undefined) ||
     req.header("x-branch-id")
@@ -267,7 +267,11 @@ export async function updateGunnyBagHandler(
     const gunnyBag =
       await updateGunnyBagService(
         req.params.id,
-        req.body
+        {
+          ...req.body,
+          organization_id: resolveOrganizationId(req) ?? req.body.organization_id ?? null,
+          branch_id: resolveBranchId(req) ?? req.body.branch_id ?? null,
+        }
       );
 
     return res.status(200).json({

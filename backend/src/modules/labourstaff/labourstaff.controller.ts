@@ -20,11 +20,19 @@ interface IdParams {
   id: string;
 }
 
-function resolveOrganizationId(req: Request): string | undefined {
+function resolveOrganizationId(req: Pick<Request, "query" | "header">): string | undefined {
   return (
     (req.query.organizationId as string | undefined) ||
     req.header("x-organization-id")
   );
+}
+
+function requireOrganizationId(req: Pick<Request, "query" | "header">): string {
+  const organizationId = resolveOrganizationId(req);
+  if (!organizationId) {
+    throw { status: 400, message: "Organization ID is required" };
+  }
+  return organizationId;
 }
 
 /**
@@ -37,16 +45,12 @@ export async function createLabourStaffHandler(
   res: Response
 ): Promise<void> {
   try {
-    const organizationId =
-      resolveOrganizationId(req);
+    const organizationId = requireOrganizationId(req);
 
-    const labour = await createLabourStaffService({
-      ...req.body,
-      organization_id:
-        req.body.organization_id ??
-        organizationId ??
-        null,
-    });
+    const labour = await createLabourStaffService(
+      { ...req.body, organization_id: organizationId },
+      organizationId
+    );
 
     res.status(201).json({
       success: true,
@@ -72,9 +76,7 @@ export async function listLabourStaffHandler(
   res: Response
 ): Promise<void> {
   try {
-    const labours = await listLabourStaffService(
-      resolveOrganizationId(req)
-    );
+    const labours = await listLabourStaffService(requireOrganizationId(req));
 
     res.status(200).json({
       success: true,
@@ -98,7 +100,7 @@ export async function getLabourStaffHandler(
   res: Response
 ): Promise<void> {
   try {
-    const labour = await getLabourStaffService(req.params.id);
+    const labour = await getLabourStaffService(req.params.id, requireOrganizationId(req));
 
     res.status(200).json({
       success: true,
@@ -124,7 +126,8 @@ export async function updateLabourStaffHandler(
   try {
     const labour = await updateLabourStaffService(
       req.params.id,
-      req.body
+      req.body,
+      requireOrganizationId(req)
     );
 
     res.status(200).json({
@@ -151,7 +154,7 @@ export async function deleteLabourStaffHandler(
   res: Response
 ): Promise<void> {
   try {
-    const result = await deleteLabourStaffService(req.params.id);
+    const result = await deleteLabourStaffService(req.params.id, requireOrganizationId(req));
 
     res.status(200).json({
       success: true,

@@ -36,7 +36,7 @@ export interface CustomerResponse {
 
   contact_no2?: string;
 
-  credit_limit: number;
+  credit_limit?: number;
 
   status:
     | "Active"
@@ -77,7 +77,7 @@ export async function createCustomer(
 
     contact_no2?: string;
 
-    credit_limit: number;
+    credit_limit?: number;
 
     status:
       | "Active"
@@ -150,7 +150,8 @@ export async function getCustomer(
   id: string
 ): Promise<CustomerResponse> {
   const response = await fetch(
-    `${API}/customers/${id}`
+    `${API}/customers/${id}`,
+    { headers: getOrgHeader() }
   );
 
   const data = await response.json();
@@ -196,7 +197,7 @@ export async function updateCustomer(
 
     contact_no2?: string;
 
-    credit_limit: number;
+    credit_limit?: number;
 
     status:
       | "Active"
@@ -210,6 +211,7 @@ export async function updateCustomer(
 
       headers: {
         "Content-Type": "application/json",
+        ...getOrgHeader(),
       },
 
       body: JSON.stringify(payload),
@@ -235,6 +237,7 @@ export async function deleteCustomer(
     `${API}/customers/${id}`,
     {
       method: "DELETE",
+      headers: getOrgHeader(),
     }
   );
 

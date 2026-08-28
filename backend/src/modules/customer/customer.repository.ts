@@ -21,7 +21,7 @@ export async function listCustomersRepository(organizationId?: string | null): P
 
   if (organizationId) {
     params.push(organizationId);
-    where = "WHERE organization_id = $1 OR organization_id IS NULL";
+    where = "WHERE organization_id = $1";
   }
 
   const { rows } = await pool.query(
@@ -58,7 +58,8 @@ export async function listCustomersRepository(organizationId?: string | null): P
  * Get customer by id
  */
 export async function getCustomerRepository(
-  id: string
+  id: string,
+  organizationId: string
 ): Promise<Customer | null> {
   const { rows } = await pool.query(
     `
@@ -81,9 +82,9 @@ export async function getCustomerRepository(
       organization_id,
       created_at
     FROM customers
-    WHERE id = $1
+    WHERE id = $1 AND organization_id = $2
     `,
-    [id]
+    [id, organizationId]
   );
 
   return rows[0] ?? null;
@@ -93,15 +94,16 @@ export async function getCustomerRepository(
  * Get customer by code
  */
 export async function getCustomerByCodeRepository(
-  code: string
+  code: string,
+  organizationId: string
 ): Promise<Customer | null> {
   const { rows } = await pool.query(
     `
     SELECT *
     FROM customers
-    WHERE code = $1
+    WHERE code = $1 AND organization_id = $2
     `,
-    [code]
+    [code, organizationId]
   );
 
   return rows[0] ?? null;
@@ -170,7 +172,8 @@ export async function createCustomerRepository(
  */
 export async function updateCustomerRepository(
   id: string,
-  payload: UpdateCustomerInput
+  payload: UpdateCustomerInput,
+  organizationId: string
 ): Promise<Customer> {
   const { rows } = await pool.query(
     `
@@ -190,7 +193,7 @@ export async function updateCustomerRepository(
       contact_no2=$12,
       credit_limit=$13,
       status=$14
-    WHERE id=$15
+    WHERE id=$15 AND organization_id=$16
     RETURNING *
     `,
     [
@@ -209,6 +212,7 @@ export async function updateCustomerRepository(
       payload.credit_limit,
       payload.status,
       id,
+      organizationId,
     ]
   );
 
@@ -219,15 +223,16 @@ export async function updateCustomerRepository(
  * Delete customer
  */
 export async function deleteCustomerRepository(
-  id: string
+  id: string,
+  organizationId: string
 ): Promise<void> {
   await pool.query(
     `
     DELETE
     FROM customers
-    WHERE id=$1
+    WHERE id=$1 AND organization_id=$2
     `,
-    [id]
+    [id, organizationId]
   );
 }
 

@@ -85,7 +85,8 @@ export const customerSchema = z
     credit_limit: z
       .coerce
       .number()
-      .min(0, "Credit Limit cannot be negative"),
+      .min(0, "Credit Limit cannot be negative")
+      .default(0),
 
     status: z.enum([
       "Active",

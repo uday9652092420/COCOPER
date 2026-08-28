@@ -43,7 +43,7 @@ export async function getNextBagPurchaseNo(
 ) {
   try {
     const data =
-      await getNextBagPurchaseNoService();
+      await getNextBagPurchaseNoService(resolveOrganizationId(req));
 
     return res.json({
       success: true,
@@ -217,7 +217,11 @@ export async function updateBagPurchase(
     const data =
       await updateBagPurchaseService(
         id,
-        req.body
+        {
+          ...req.body,
+          organization_id: req.body.organization_id ?? resolveOrganizationId(req) ?? null,
+          branch_id: req.body.branch_id ?? resolveBranchId(req) ?? null,
+        }
       );
 
     return res.json({

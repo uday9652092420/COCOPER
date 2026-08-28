@@ -21,6 +21,7 @@
 \ir gunny_bag_master.sql
 \ir gunny_bag_bharthi_types.sql
 \ir supplier_master.sql
+\ir 10_customer_supplier_organization_scoping.sql
 \ir customer_master.sql
 \ir labour_master.sql
 \ir labour_attendance.sql

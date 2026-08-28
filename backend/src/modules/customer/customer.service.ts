@@ -41,10 +41,11 @@ export async function listCustomersService(organizationId?: string | null): Prom
  * Get Customer By Id
  */
 export async function getCustomerService(
-  id: string
+  id: string,
+  organizationId: string
 ): Promise<Customer> {
 
-  const customer = await getCustomerRepository(id);
+  const customer = await getCustomerRepository(id, organizationId);
 
   if (!customer) {
     throw {
@@ -79,7 +80,8 @@ export async function createCustomerService(
    */
   const existing =
     await getCustomerByCodeRepository(
-      validated.code
+      validated.code,
+      validated.organization_id as string
     );
 
   if (existing) {
@@ -97,11 +99,12 @@ export async function createCustomerService(
  */
 export async function updateCustomerService(
   id: string,
-  payload: UpdateCustomerInput
+  payload: UpdateCustomerInput,
+  organizationId: string
 ): Promise<Customer> {
 
   const existing =
-    await getCustomerRepository(id);
+    await getCustomerRepository(id, organizationId);
 
   if (!existing) {
     throw {
@@ -125,7 +128,8 @@ export async function updateCustomerService(
    */
   const duplicate =
     await getCustomerByCodeRepository(
-      validated.code
+      validated.code,
+      organizationId
     );
 
   if (
@@ -140,7 +144,8 @@ export async function updateCustomerService(
 
   return updateCustomerRepository(
     id,
-    validated
+    validated,
+    organizationId
   );
 }
 
@@ -148,11 +153,12 @@ export async function updateCustomerService(
  * Delete Customer
  */
 export async function deleteCustomerService(
-  id: string
+  id: string,
+  organizationId: string
 ): Promise<{ message: string }> {
 
   const existing =
-    await getCustomerRepository(id);
+    await getCustomerRepository(id, organizationId);
 
   if (!existing) {
     throw {
@@ -161,7 +167,7 @@ export async function deleteCustomerService(
     };
   }
 
-  await deleteCustomerRepository(id);
+  await deleteCustomerRepository(id, organizationId);
 
   return {
     message: "Customer deleted successfully",

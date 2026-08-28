@@ -114,13 +114,15 @@ export async function updateSupplierService(
 
   id:string,
 
+  organizationId: string,
+
   payload:SupplierCreateDTO
 
 ){
 
 
   const existing =
-    await getSupplierByIdRepo(id);
+    await getSupplierByIdRepo(id, organizationId);
 
 
 
@@ -240,7 +242,8 @@ export async function updateSupplierService(
 
   return await updateSupplierRepo(
     id,
-    updatedPayload
+    updatedPayload,
+    organizationId
   );
 
 }
@@ -274,12 +277,13 @@ export async function listSuppliersService(organizationId?: string | null){
  * Get Supplier By Id
  */
 export async function getSupplierService(
-  id:string
+  id:string,
+  organizationId: string
 ){
 
 
   const supplier =
-    await getSupplierByIdRepo(id);
+    await getSupplierByIdRepo(id, organizationId);
 
 
 
@@ -309,7 +313,8 @@ export async function getSupplierService(
  * Delete Supplier
  */
 export async function deleteSupplierService(
-  id:string
+  id:string,
+  organizationId: string
 ){
 
 
@@ -335,6 +340,6 @@ export async function deleteSupplierService(
 
 
 
-  return await deleteSupplierRepo(id);
+  return await deleteSupplierRepo(id, organizationId);
 
 }

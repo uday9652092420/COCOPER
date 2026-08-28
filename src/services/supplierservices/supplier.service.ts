@@ -175,7 +175,8 @@ export async function getSupplier(
 
 
  const response = await fetch(
-   `${API}/suppliers/${id}`
+  `${API}/suppliers/${id}`,
+  { headers: getOrgHeader() }
  );
 
 
@@ -244,6 +245,7 @@ export async function updateSupplier(
 
       headers:{
         "Content-Type":"application/json",
+        ...getOrgHeader(),
       },
 
       body:JSON.stringify(payload),
@@ -277,6 +279,7 @@ export async function deleteSupplier(
     `${API}/suppliers/${id}`,
     {
       method:"DELETE",
+      headers: getOrgHeader(),
     }
  );
 

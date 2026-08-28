@@ -20,7 +20,7 @@ export async function listLabourStaffRepository(organizationId?: string | null):
 
   if (organizationId) {
     params.push(organizationId);
-    where = "WHERE organization_id = $1 OR organization_id IS NULL";
+    where = "WHERE organization_id = $1";
   }
 
   const { rows } = await pool.query(
@@ -56,7 +56,8 @@ export async function listLabourStaffRepository(organizationId?: string | null):
  * Get labour by id
  */
 export async function getLabourStaffRepository(
-  id: string
+  id: string,
+  organizationId: string
 ): Promise<LabourStaff | null> {
   const { rows } = await pool.query(
     `
@@ -78,9 +79,9 @@ export async function getLabourStaffRepository(
       organization_id,
       created_at
     FROM labours
-    WHERE id = $1
+    WHERE id = $1 AND organization_id = $2
     `,
-    [id]
+    [id, organizationId]
   );
 
   return rows[0] ?? null;
@@ -90,15 +91,16 @@ export async function getLabourStaffRepository(
  * Get labour by name
  */
 export async function getLabourStaffByNameRepository(
-  labourName: string
+  labourName: string,
+  organizationId: string
 ): Promise<LabourStaff | null> {
   const { rows } = await pool.query(
     `
     SELECT *
     FROM labours
-    WHERE LOWER(labour_name) = LOWER($1)
+    WHERE LOWER(labour_name) = LOWER($1) AND organization_id = $2
     `,
-    [labourName]
+    [labourName, organizationId]
   );
 
   return rows[0] ?? null;
@@ -165,7 +167,8 @@ export async function createLabourStaffRepository(
  */
 export async function updateLabourStaffRepository(
   id: string,
-  payload: UpdateLabourRequest
+  payload: UpdateLabourRequest,
+  organizationId: string
 ): Promise<LabourStaff> {
   const { rows } = await pool.query(
     `
@@ -184,7 +187,7 @@ export async function updateLabourStaffRepository(
       overtime_7p_10p = $11,
       loading_amount = $12,
       status = $13
-    WHERE id = $14
+    WHERE id = $14 AND organization_id = $15
     RETURNING *
     `,
     [
@@ -202,6 +205,7 @@ export async function updateLabourStaffRepository(
       payload.loading_amount,
       payload.status,
       id,
+      organizationId,
     ]
   );
 
@@ -212,13 +216,14 @@ export async function updateLabourStaffRepository(
  * Delete labour
  */
 export async function deleteLabourStaffRepository(
-  id: string
+  id: string,
+  organizationId: string
 ): Promise<void> {
   await pool.query(
     `
     DELETE FROM labours
-    WHERE id = $1
+    WHERE id = $1 AND organization_id = $2
     `,
-    [id]
+    [id, organizationId]
   );
 }

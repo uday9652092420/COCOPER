@@ -23,6 +23,12 @@ export async function initializeDatabase(): Promise<void> {
   await pool.query(
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_organizations_email ON organizations (LOWER(email))"
   );
+  await pool.query(
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_customers_organization_code ON customers (organization_id, code) WHERE organization_id IS NOT NULL"
+  );
+  await pool.query(
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_suppliers_organization_code ON suppliers (organization_id, code) WHERE organization_id IS NOT NULL"
+  );
   // Keep existing installations compatible with protected owner roles.
   await pool.query(
     "ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_system_role BOOLEAN NOT NULL DEFAULT FALSE"

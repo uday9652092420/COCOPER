@@ -34,9 +34,10 @@ export async function listLabourStaffService(organizationId?: string | null): Pr
  * Get Labour By Id
  */
 export async function getLabourStaffService(
-  id: string
+  id: string,
+  organizationId: string
 ): Promise<LabourStaff> {
-  const labour = await getLabourStaffRepository(id);
+  const labour = await getLabourStaffRepository(id, organizationId);
 
   if (!labour) {
     throw {
@@ -52,12 +53,14 @@ export async function getLabourStaffService(
  * Create Labour
  */
 export async function createLabourStaffService(
-   payload: CreateLabourRequest
+  payload: CreateLabourRequest,
+  organizationId: string
 ): Promise<LabourStaff> {
   const validated = createLabourSchema.parse(payload);
 
   const duplicate = await getLabourStaffByNameRepository(
-    validated.labour_name
+    validated.labour_name,
+    organizationId
   );
 
   if (duplicate) {
@@ -75,9 +78,10 @@ export async function createLabourStaffService(
  */
 export async function updateLabourStaffService(
   id: string,
-  payload: UpdateLabourRequest
+  payload: UpdateLabourRequest,
+  organizationId: string
 ): Promise<LabourStaff> {
-  const existing = await getLabourStaffRepository(id);
+  const existing = await getLabourStaffRepository(id, organizationId);
 
   if (!existing) {
     throw {
@@ -90,7 +94,8 @@ export async function updateLabourStaffService(
 
   if (validated.labour_name) {
     const duplicate = await getLabourStaffByNameRepository(
-      validated.labour_name
+      validated.labour_name,
+      organizationId
     );
 
     if (duplicate && duplicate.id !== id) {
@@ -101,16 +106,17 @@ export async function updateLabourStaffService(
     }
   }
 
-  return await updateLabourStaffRepository(id, validated);
+  return await updateLabourStaffRepository(id, validated, organizationId);
 }
 
 /**
  * Delete Labour
  */
 export async function deleteLabourStaffService(
-  id: string
+  id: string,
+  organizationId: string
 ): Promise<{ message: string }> {
-  const existing = await getLabourStaffRepository(id);
+  const existing = await getLabourStaffRepository(id, organizationId);
 
   if (!existing) {
     throw {
@@ -119,7 +125,7 @@ export async function deleteLabourStaffService(
     };
   }
 
-  await deleteLabourStaffRepository(id);
+  await deleteLabourStaffRepository(id, organizationId);
 
   return {
     message: "Labour deleted successfully",

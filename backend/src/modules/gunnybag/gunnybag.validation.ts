@@ -33,6 +33,10 @@ export function validateGunnyBagPayload(
     errors.name = "Gunny Bag name is required";
   }
 
+  if (!payload.branch_id) {
+    errors.branch_id = "Branch is required";
+  }
+
   /**
    * Rate
    */

@@ -28,6 +28,8 @@ export interface BagPurchaseSavePayload {
   supplier_id: string;
 
   remarks?: string;
+  organization_id?: string | null;
+  branch_id: string;
 
   lines: BagPurchaseLinePayload[];
 }
@@ -96,6 +98,8 @@ export interface BagPurchaseResponse {
   total_amount: number;
 
   created_at: string;
+  organization_id?: string | null;
+  branch_id?: string | null;
 
   /**
    * Optional because the current backend
@@ -143,7 +147,8 @@ async function parseResponse<T = unknown>(
  */
 export async function getNextBagPurchaseNo(): Promise<string> {
   const response = await fetch(
-    `${API}/bag-purchases/next-no`
+    `${API}/bag-purchases/next-no`,
+    { headers: { ...getOrgHeader(), ...getBranchHeader() } }
   );
 
   const data = await parseResponse<string>(
@@ -195,7 +200,8 @@ export async function getBagPurchase(
   id: string
 ): Promise<BagPurchaseResponse> {
   const response = await fetch(
-    `${API}/bag-purchases/${id}`
+    `${API}/bag-purchases/${id}`,
+    { headers: { ...getOrgHeader(), ...getBranchHeader() } }
   );
 
   const data =

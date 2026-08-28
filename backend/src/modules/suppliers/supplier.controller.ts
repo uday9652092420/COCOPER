@@ -89,7 +89,7 @@ export async function getNextSupplierCodeHandler(
   }catch(error:any){
 
 
-    return res.status(500).json({
+    return res.status(error.status || 500).json({
 
       success:false,
 
@@ -129,17 +129,13 @@ export async function createSupplierHandler(
   try{
 
 
-    const organizationId =
-      resolveOrganizationId(req);
+    const organizationId = requireOrganizationId(req);
 
     const supplier =
       await createSupplierService(
         {
           ...req.body,
-          organization_id:
-            req.body.organization_id ??
-            organizationId ??
-            null,
+          organization_id: organizationId,
         }
       );
 
@@ -209,7 +205,7 @@ export async function listSuppliersHandler(
 
     const suppliers =
       await listSuppliersService(
-        resolveOrganizationId(req)
+        requireOrganizationId(req)
       );
 
 
@@ -227,7 +223,7 @@ export async function listSuppliersHandler(
   }catch(error:any){
 
 
-    return res.status(500).json({
+    return res.status(error.status || 500).json({
 
       success:false,
 
@@ -269,7 +265,8 @@ export async function getSupplierHandler(
 
     const supplier =
       await getSupplierService(
-        req.params.id
+        req.params.id,
+        requireOrganizationId(req)
       );
 
 
@@ -334,6 +331,8 @@ export async function updateSupplierHandler(
       await updateSupplierService(
 
         req.params.id,
+
+        requireOrganizationId(req),
 
         req.body
 
@@ -404,7 +403,8 @@ export async function deleteSupplierHandler(
 
     const result =
       await deleteSupplierService(
-        req.params.id
+        req.params.id,
+        requireOrganizationId(req)
       );
 
 
@@ -438,4 +438,10 @@ export async function deleteSupplierHandler(
 
   }
 
+}
+
+function requireOrganizationId(req: Request<any>): string {
+  const organizationId = resolveOrganizationId(req);
+  if (!organizationId) throw { status: 400, message: "Organization ID is required" };
+  return organizationId;
 }

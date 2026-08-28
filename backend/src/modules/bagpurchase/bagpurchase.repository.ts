@@ -29,6 +29,8 @@ interface BagPurchaseDbRow {
   remarks?: string | null;
   total_amount: number | string | null;
   created_at: string;
+  organization_id?: string | null;
+  branch_id?: string | null;
 }
 interface BagPurchaseLineDbRow {
   id: string;
@@ -167,45 +169,24 @@ function toNumber(
  *
  * ============================================================
  */
-export async function getNextBagPurchaseNoRepo(): Promise<string> {
+export async function getNextBagPurchaseNoRepo(organizationId?: string | null): Promise<string> {
   const result =
     await pool.query<{
-      purchase_no: string | null;
+      next_number: number | string | null;
     }>(
       `
-        SELECT purchase_no
+        SELECT COALESCE(MAX(
+          CASE
+            WHEN purchase_no ~ '^BP-[0-9]+$'
+            THEN CAST(SUBSTRING(purchase_no FROM '[0-9]+$') AS INTEGER)
+            ELSE 0
+          END
+        ), 0) + 1 AS next_number
         FROM bag_purchases
-        ORDER BY
-          created_at DESC,
-          purchase_no DESC
-        LIMIT 1
       `
     );
 
-  if (
-    !result.rows.length ||
-    !result.rows[0]?.purchase_no
-  ) {
-    return "BP-001";
-  }
-
-  const lastPurchaseNo =
-    String(
-      result.rows[0].purchase_no
-    );
-
-  const match =
-    lastPurchaseNo.match(
-      /(\d+)$/
-    );
-
-  const lastNumber =
-    match
-      ? Number(match[1])
-      : 0;
-
-  const nextNumber =
-    lastNumber + 1;
+  const nextNumber = Number(result.rows[0]?.next_number ?? 1);
 
   return `BP-${String(
     nextNumber
@@ -362,6 +343,9 @@ function mapPurchase(
     created_at:
       purchase.created_at,
 
+    organization_id: purchase.organization_id ?? null,
+    branch_id: purchase.branch_id ?? null,
+
     lines,
   };
 }
@@ -433,7 +417,9 @@ export async function getBagPurchasesRepo(organizationId?: string | null, branch
 
           bp.remarks,
           bp.total_amount,
-          bp.created_at
+          bp.created_at,
+          bp.organization_id,
+          bp.branch_id
 
         FROM bag_purchases bp
 
@@ -493,7 +479,9 @@ export async function getBagPurchaseRepo(
 
           bp.remarks,
           bp.total_amount,
-          bp.created_at
+          bp.created_at,
+          bp.organization_id,
+          bp.branch_id
 
         FROM bag_purchases bp
 
@@ -938,6 +926,21 @@ export async function createBagPurchaseRepo(
       "BEGIN"
     );
 
+    // Serialize number allocation because purchase_no is globally unique.
+    await client.query("SELECT pg_advisory_xact_lock(hashtext('bag-purchases-purchase-no'))");
+
+    const lockedNumberResult = await client.query<{ next_number: number | string }>(`
+      SELECT COALESCE(MAX(
+        CASE
+          WHEN purchase_no ~ '^BP-[0-9]+$'
+          THEN CAST(SUBSTRING(purchase_no FROM '[0-9]+$') AS INTEGER)
+          ELSE 0
+        END
+      ), 0) + 1 AS next_number
+      FROM bag_purchases
+    `);
+    const lockedPurchaseNo = `BP-${String(Number(lockedNumberResult.rows[0]?.next_number ?? 1)).padStart(3, "0")}`;
+
     const purchaseId =
       randomUUID();
 
@@ -992,7 +995,7 @@ export async function createBagPurchaseRepo(
       [
         purchaseId,
 
-        purchaseNo,
+        lockedPurchaseNo,
 
         payload.purchase_date,
 
@@ -1222,14 +1225,18 @@ export async function updateBagPurchaseRepo(
           purchase_date = $1,
           supplier_id = $2,
           remarks = $3,
-          total_amount = $4
-        WHERE id = $5
+          total_amount = $4,
+          organization_id = $5,
+          branch_id = $6
+        WHERE id = $7
       `,
       [
         payload.purchase_date,
         payload.supplier_id,
         payload.remarks ?? null,
         totalAmount,
+        payload.organization_id ?? null,
+        payload.branch_id ?? null,
         id,
       ]
     );

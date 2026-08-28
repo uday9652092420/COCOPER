@@ -418,7 +418,9 @@ export async function updateGunnyBagRepo(
           size = $4,
           rate_per_bag = $5,
           opening_stock = $6,
-          status = $7
+          status = $7,
+          organization_id = $8,
+          branch_id = $9
         WHERE id = $1
         RETURNING *
       `,
@@ -430,6 +432,8 @@ export async function updateGunnyBagRepo(
         payload.rate_per_bag ?? 0,
         payload.opening_stock ?? 0,
         payload.status ?? "Active",
+        payload.organization_id ?? null,
+        payload.branch_id ?? null,
       ]
     );
 

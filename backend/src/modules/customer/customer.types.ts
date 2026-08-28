@@ -43,7 +43,7 @@ export interface Customer {
 
   contact_no2?: string;
 
-  credit_limit: number;
+  credit_limit?: number;
 
   status: CustomerStatus;
 
@@ -82,7 +82,7 @@ export interface CreateCustomerInput {
 
   contact_no2?: string;
 
-  credit_limit: number;
+  credit_limit?: number;
 
   status: CustomerStatus;
 
@@ -119,7 +119,7 @@ export interface UpdateCustomerInput {
 
   contact_no2?: string;
 
-  credit_limit: number;
+  credit_limit?: number;
 
   status: CustomerStatus;
 

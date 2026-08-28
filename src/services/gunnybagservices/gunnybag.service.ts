@@ -16,6 +16,8 @@ export interface GunnyBagResponse {
   opening_stock: number;
   status: "Active" | "Inactive";
   created_at: string;
+  organization_id?: string | null;
+  branch_id?: string | null;
   bharthi_types?: GunnyBagBharthiType[];
 }
 
@@ -102,6 +104,7 @@ export interface GunnyBagSavePayload {
   rate_per_bag: number;
   opening_stock: number;
   status: "Active" | "Inactive";
+  branch_id?: string | null;
 
   /**
    * Bharthi details.
@@ -182,9 +185,10 @@ export async function createGunnyBag(
  *
  * GET /api/gunny-bags/next-code
  */
-export async function getNextGunnyBagCode(): Promise<string> {
+export async function getNextGunnyBagCode(branchId?: string): Promise<string> {
+  const query = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
   const response = await fetch(
-    `${API}/gunny-bags/next-code`,
+    `${API}/gunny-bags/next-code${query}`,
     { headers: { ...getOrgHeader(), ...getBranchHeader() } }
   );
 
@@ -205,11 +209,12 @@ export async function getNextGunnyBagCode(): Promise<string> {
  *
  * GET /api/gunny-bags
  */
-export async function getGunnyBags(): Promise<
+export async function getGunnyBags(branchId?: string): Promise<
   GunnyBagResponse[]
 > {
+  const query = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
   const response = await fetch(
-    `${API}/gunny-bags`,
+    `${API}/gunny-bags${query}`,
     { headers: { ...getOrgHeader(), ...getBranchHeader() } }
   );
 
@@ -244,7 +249,8 @@ export async function getGunnyBag(
   id: string
 ): Promise<GunnyBagDetailsResponse> {
   const response = await fetch(
-    `${API}/gunny-bags/${id}`
+    `${API}/gunny-bags/${id}`,
+    { headers: { ...getOrgHeader(), ...getBranchHeader() } }
   );
 
   const data =
@@ -275,6 +281,8 @@ export async function updateGunnyBag(
       headers: {
         "Content-Type":
           "application/json",
+        ...getOrgHeader(),
+        ...getBranchHeader(),
       },
       body: JSON.stringify(payload),
     }

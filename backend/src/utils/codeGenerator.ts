@@ -64,8 +64,8 @@ export async function getNextScopedCode(options: ScopedCodeOptions): Promise<str
     const { rows } = await pool.query(
       `SELECT COALESCE(MAX(CASE WHEN code ~ '-[0-9]+$' THEN substring(code FROM '([0-9]+)$')::int ELSE 0 END), 0)::int AS total
        FROM ${table}
-       WHERE code LIKE $1`,
-      [`${prefix}-%`]
+      WHERE code LIKE $1 AND ${scopeColumn} = $2`,
+          [`${prefix}-%`, scopeId]
     );
 
     total = rows[0]?.total ?? 0;

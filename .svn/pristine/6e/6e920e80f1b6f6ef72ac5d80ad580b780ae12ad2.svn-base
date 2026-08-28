@@ -38,6 +38,7 @@ import {
 import { useAuthStore } from '../../store/authStore'
 import { onScopeChange } from '../../utils/scopeEvents'
 import { useIsMobile } from '../../hooks/use-mobile'
+import { usePermissions } from '../../hooks/usePermissions'
 import { formatAmount } from '../../utils/format'
 
 /**
@@ -161,6 +162,11 @@ const PurchaseOrderModal: React.FC<{
   onApprove?: (order: PurchaseOrder) => void
   onApproveSalesOrder?: (order: SalesOrder) => void
   onSalesOrderSaved?: (order: SalesOrder) => void
+  canSave?: boolean
+  canApprove?: boolean
+  canConvert?: boolean
+  canSaveSalesOrder?: boolean
+  canApproveSalesOrder?: boolean
   salesOrder?: SalesOrder | null
   existing?: PurchaseOrder | null
   suppliers: SupplierResponse[]
@@ -169,7 +175,7 @@ const PurchaseOrderModal: React.FC<{
   branches: Branch[]
   generatePONumber: () => string
   generateSONumber: () => string
-}> = ({ open, onClose, onSave, onPrintPurchaseOrder, onApprove, onApproveSalesOrder, onSalesOrderSaved, salesOrder, existing, suppliers, items, customers, branches, generatePONumber, generateSONumber }) => {
+}> = ({ open, onClose, onSave, onPrintPurchaseOrder, onApprove, onApproveSalesOrder, onSalesOrderSaved, salesOrder, existing, suppliers, items, customers, branches, generatePONumber, generateSONumber, canSave = true, canApprove = true, canConvert = true, canSaveSalesOrder = true, canApproveSalesOrder = true }) => {
   const { selectedOrganizationId } = useAuthStore()
 
   /**
@@ -577,6 +583,7 @@ const PurchaseOrderModal: React.FC<{
       return
     }
     const customerName = customers.find((customer) => customer.id === order.customerId)?.name ?? '-'
+    const customerAddress = customers.find((customer) => customer.id === order.customerId)?.address ?? ''
     const lineRows = order.lines.map((line, index) => {
       const itemName = items.find((item) => item.id === line.itemId)?.name ?? line.itemId
       return `<tr>
@@ -592,8 +599,8 @@ const PurchaseOrderModal: React.FC<{
 
     win.document.write(`<!DOCTYPE html><html><head><title>Sales Order ${order.soNumber}</title>
       <style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}.muted{color:#555}.head{display:flex;justify-content:space-between;align-items:flex-start}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ccc;padding:6px 8px;font-size:12px;text-align:left}th{background:#f3f4f6}.right{text-align:right}.total{font-weight:bold;font-size:14px}.sign{margin-top:40px;display:flex;justify-content:space-between}</style>
-      </head><body><div class="head"><div><h1>Sales Order</h1><div class="muted">SO No: ${order.soNumber}</div><div class="muted">Date: ${toDDMMYYYY(order.date)}</div></div><div class="muted" style="text-align:right"><div>Customer: <b>${customerName}</b></div><div>PO No: ${order.poNumber ?? '-'}</div><div>Status: ${order.status}</div></div></div>
-      ${order.remarks ? `<p class="muted">Remarks: ${order.remarks}</p>` : ''}<table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="right">Discount</th><th class="right">Actual Qty</th><th class="right">Sale Cost</th><th class="right">Sale Amount</th></tr></thead><tbody>${lineRows}</tbody><tfoot><tr><td colspan="6" class="right">Total Lines Amount</td><td class="right total">${formatAmount(order.totalAmount)}</td></tr></tfoot></table><div class="sign"><div>Prepared By: ______________________</div><div>Authorized Signature: ______________________</div></div></body></html>`)
+      </head><body><div class="head"><div><h1>Sales Order</h1><div class="muted">SO No: ${order.soNumber}</div><div class="muted">Date: ${toDDMMYYYY(order.date)}</div></div><div class="muted" style="text-align:right"><div>Customer: <b>${customerName}</b></div>${customerAddress ? `<div>${customerAddress}</div>` : ''}</div></div>
+      <table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="right">Discount</th><th class="right">Actual Qty</th><th class="right">Sale Cost</th><th class="right">Sale Amount</th></tr></thead><tbody>${lineRows}</tbody><tfoot><tr><td colspan="6" class="right">Total Lines Amount</td><td class="right total">${formatAmount(order.totalAmount)}</td></tr></tfoot></table><div class="sign"><div>Prepared By: ______________________</div><div>Authorized Signature: ______________________</div></div></body></html>`)
     win.document.close()
     win.focus()
     setTimeout(() => win.print(), 300)
@@ -1205,7 +1212,7 @@ const PurchaseOrderModal: React.FC<{
                     Print
                   </button>
                 ) : salesOrder ? (
-                  onApproveSalesOrder ? (
+                  onApproveSalesOrder && canApproveSalesOrder ? (
                     <button type="button" onClick={() => onApproveSalesOrder(salesOrder)} className="rounded-full bg-[#00534f] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#003f3b]">
                       Approve
                     </button>
@@ -1215,9 +1222,9 @@ const PurchaseOrderModal: React.FC<{
                     <button type="button" onClick={() => setConvertOpen(false)} className="rounded-full bg-[#E0E7D9] px-4 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
                       Cancel
                     </button>
-                    <button type="button" onClick={handleSubmitS(onSaveSales)} className="rounded-full bg-[#00534f] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#003f3b]">
+                    {canSaveSalesOrder && <button type="button" onClick={handleSubmitS(onSaveSales)} className="rounded-full bg-[#00534f] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#003f3b]">
                       Save
-                    </button>
+                    </button>}
                   </>
                 )}
               </div>
@@ -1229,7 +1236,7 @@ const PurchaseOrderModal: React.FC<{
         <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-xs">
           <div className="text-[11px] text-slate-500">Save to keep PO as draft or approve when final, then convert to Sales Order.</div>
           <div className="flex gap-2">
-            {existing && existing.status !== 'Approved' && (
+            {existing && existing.status !== 'Approved' && canApprove && (
               <button
                 type="button"
                 onClick={() => {
@@ -1241,7 +1248,7 @@ const PurchaseOrderModal: React.FC<{
               </button>
             )}
 
-            {existing && existing.status === 'Approved' && !convertOpen && !salesOrder && (
+            {existing && existing.status === 'Approved' && !convertOpen && !salesOrder && canConvert && (
               <button
                 type="button"
                 onClick={openConversionFromPO}
@@ -1251,7 +1258,7 @@ const PurchaseOrderModal: React.FC<{
               </button>
             )}
 
-            {!isPurchaseLocked && (
+            {!isPurchaseLocked && canSave && (
               <button type="button" onClick={handleSubmit(submit)} className="rounded-full bg-[#8bc53f] px-4 py-1.5 text-xs font-semibold text-[#00534f] shadow-sm hover:bg-[#79ad30]">
                 Save
               </button>
@@ -1410,6 +1417,7 @@ const ViewPurchaseOrderModal: React.FC<{
  */
 const PurchaseOrderPage: React.FC = () => {
   const { selectedOrganizationId } = useAuthStore()
+  const { can } = usePermissions()
   const [records, setRecords] = useState<PurchaseOrder[]>([])
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -1492,7 +1500,12 @@ const PurchaseOrderPage: React.FC = () => {
 
   const loadSalesOrders = async () => {
     try {
-      setSalesOrders((await getSalesOrders()) as unknown as SalesOrder[])
+      const loaded = (await getSalesOrders()) as unknown as SalesOrder[]
+      setSalesOrders(
+        selectedOrganizationId
+          ? loaded.filter((order) => order.organizationId === selectedOrganizationId)
+          : loaded
+      )
     } catch {
       setSalesOrders([])
     }
@@ -1519,8 +1532,7 @@ const PurchaseOrderPage: React.FC = () => {
     })
 
     return () => unsubscribe()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [selectedOrganizationId])
 
   const currentOrg = organizations.find((o) => o.id === selectedOrganizationId) ?? null
 
@@ -1736,11 +1748,9 @@ const PurchaseOrderPage: React.FC = () => {
       })
       .join('')
     const total = row.lines.reduce((s, l) => s + Number(l.purchaseAmount ?? l.amount ?? 0), 0)
-    const supplierRecord = suppliers.find((s) => s.id === row.supplierId)
-    const supplier = resolveSupplierName(row.supplierId)
-    const supplierAddress = [supplierRecord?.address, supplierRecord?.state]
-      .filter(Boolean)
-      .join(', ')
+    const supplierDetails = suppliers.find((supplierRecord) => supplierRecord.id === row.supplierId)
+    const supplier = supplierDetails?.name ?? resolveSupplierName(row.supplierId)
+    const supplierAddress = supplierDetails?.address ?? ''
 
     win.document.write(`<!DOCTYPE html>
 <html>
@@ -1771,7 +1781,6 @@ const PurchaseOrderPage: React.FC = () => {
       ${supplierAddress ? `<div>${supplierAddress}</div>` : ''}
     </div>
   </div>
-  ${row.remarks ? `<p class="muted">Remarks: ${row.remarks}</p>` : ''}
   <table>
     <thead>
       <tr>
@@ -1810,6 +1819,7 @@ const PurchaseOrderPage: React.FC = () => {
       return
     }
     const customerName = customers.find((customer) => customer.id === order.customerId)?.name ?? '-'
+    const customerAddress = customers.find((customer) => customer.id === order.customerId)?.address ?? ''
     const lineRows = order.lines.map((line, index) => {
       const itemName = items.find((item) => item.id === line.itemId)?.name ?? line.itemId
       return `<tr>
@@ -1825,8 +1835,8 @@ const PurchaseOrderPage: React.FC = () => {
 
     win.document.write(`<!DOCTYPE html><html><head><title>Sales Order ${order.soNumber}</title>
       <style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}.muted{color:#555}.head{display:flex;justify-content:space-between;align-items:flex-start}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ccc;padding:6px 8px;font-size:12px;text-align:left}th{background:#f3f4f6}.right{text-align:right}.total{font-weight:bold;font-size:14px}.sign{margin-top:40px;display:flex;justify-content:space-between}</style>
-      </head><body><div class="head"><div><h1>Sales Order</h1><div class="muted">SO No: ${order.soNumber}</div><div class="muted">Date: ${toDDMMYYYY(order.date)}</div></div><div class="muted" style="text-align:right"><div>Customer: <b>${customerName}</b></div><div>PO No: ${order.poNumber ?? '-'}</div><div>Status: ${order.status}</div></div></div>
-      ${order.remarks ? `<p class="muted">Remarks: ${order.remarks}</p>` : ''}<table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="right">Discount</th><th class="right">Actual Qty</th><th class="right">Sale Cost</th><th class="right">Sale Amount</th></tr></thead><tbody>${lineRows}</tbody><tfoot><tr><td colspan="6" class="right">Total Lines Amount</td><td class="right total">${formatAmount(order.totalAmount)}</td></tr></tfoot></table><div class="sign"><div>Prepared By: ______________________</div><div>Authorized Signature: ______________________</div></div></body></html>`)
+      </head><body><div class="head"><div><h1>Sales Order</h1><div class="muted">SO No: ${order.soNumber}</div><div class="muted">Date: ${toDDMMYYYY(order.date)}</div></div><div class="muted" style="text-align:right"><div>Customer: <b>${customerName}</b></div>${customerAddress ? `<div>${customerAddress}</div>` : ''}</div></div>
+      <table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="right">Discount</th><th class="right">Actual Qty</th><th class="right">Sale Cost</th><th class="right">Sale Amount</th></tr></thead><tbody>${lineRows}</tbody><tfoot><tr><td colspan="6" class="right">Total Lines Amount</td><td class="right total">${formatAmount(order.totalAmount)}</td></tr></tfoot></table><div class="sign"><div>Prepared By: ______________________</div><div>Authorized Signature: ______________________</div></div></body></html>`)
     win.document.close()
     win.focus()
     setTimeout(() => win.print(), 300)
@@ -1845,9 +1855,14 @@ const PurchaseOrderPage: React.FC = () => {
     if (!salesOrder) {
       try {
         const refreshedSalesOrders = (await getSalesOrders()) as unknown as SalesOrder[]
-        setSalesOrders(refreshedSalesOrders)
+        const scopedSalesOrders = selectedOrganizationId
+          ? refreshedSalesOrders.filter((order) => order.organizationId === selectedOrganizationId)
+          : refreshedSalesOrders
+        setSalesOrders(scopedSalesOrders)
         salesOrder = refreshedSalesOrders.find(
-          (order) => order.sourcePOId === row.id || order.poNumber === row.poNumber
+          (order) =>
+            (order.sourcePOId === row.id || order.poNumber === row.poNumber) &&
+            (!selectedOrganizationId || order.organizationId === selectedOrganizationId)
         )
       } catch {
         salesOrder = undefined
@@ -1894,13 +1909,15 @@ const PurchaseOrderPage: React.FC = () => {
         <RowActions
           row={row}
           onView={(r) => setViewing(r)}
-          onEdit={openEdit}
+          onEdit={can('purchase-order', 'edit') ? openEdit : undefined}
           onPrint={(row) => setPrintSelection(row)}
           onDelete={((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).status !== 'Approved' &&
           ((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).status !== 'Invoiced' &&
           !((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).purchaseOrderInvoiceStatus
-            ? (r) => setConfirmDelete(r)
+            ? (can('purchase-order', 'delete') ? (r) => setConfirmDelete(r) : undefined)
             : undefined}
+          onApprove={can('purchase-order', 'approve') ? approveOrder : undefined}
+          onConvert={can('sales', 'create') ? convertToSalesOrder : undefined}
         />
       ),
     },
@@ -1910,7 +1927,7 @@ const PurchaseOrderPage: React.FC = () => {
     <div>
       <PageHeader title="Purchase Order" breadcrumb={['Transactions', 'Purchase Order']} />
       <Toolbar
-        onAddNew={openAdd}
+        onAddNew={can('purchase-order', 'create') ? openAdd : undefined}
         onExportExcel={() => toast.info('Exported purchase orders to Excel (mock).')}
         onExportPdf={() => toast.info('Exported purchase orders to PDF (mock).')}
         onPrint={() => toast.info('Sending PO list to printer (mock).')}
@@ -1942,13 +1959,20 @@ const PurchaseOrderPage: React.FC = () => {
           setEditingSalesOrder(null)
         }}
         onPrintPurchaseOrder={printPurchaseOrder}
-        onApprove={approveOrder}
-        onApproveSalesOrder={approveSalesOrder}
+        onApprove={can('purchase-order', 'approve') ? approveOrder : undefined}
+        onApproveSalesOrder={can('sales', 'approve') ? approveSalesOrder : undefined}
         onSalesOrderSaved={(order) => {
-          setSalesOrders((prev) => [order, ...prev])
+          if (!selectedOrganizationId || order.organizationId === selectedOrganizationId) {
+            setSalesOrders((prev) => [order, ...prev])
+          }
           setEditingSalesOrder(order)
         }}
         onSave={handleSave}
+        canSave={editing ? can('purchase-order', 'edit') : can('purchase-order', 'create')}
+        canApprove={can('purchase-order', 'approve')}
+        canConvert={can('sales', 'create')}
+        canSaveSalesOrder={can('sales', 'create')}
+        canApproveSalesOrder={can('sales', 'approve')}
       />
 
       <ViewPurchaseOrderModal

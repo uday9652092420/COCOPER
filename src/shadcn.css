@@ -113,3 +113,7 @@ select,
 textarea {
   border-radius: 0 !important;
 }
+
+button[class~="rounded-full"] {
+  border-radius: 0 !important;
+}

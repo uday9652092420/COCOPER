@@ -14,6 +14,8 @@ import {
   Phone,
   Mail,
   Lock,
+  Eye,
+  EyeOff,
   MapPin,
   Hash,
   ArrowLeft,
@@ -88,6 +90,8 @@ const RegisterPage: React.FC = () => {
 
   const [success, setSuccess] =
     useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const {
     register,
@@ -702,10 +706,13 @@ const RegisterPage: React.FC = () => {
                           },
                         }
                       )}
-                      type="password"
-                      className="w-full rounded-full border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
+                      type={showPassword ? "text" : "password"}
+                      className="w-full rounded-full border border-slate-200 bg-white py-2 pl-8 pr-9 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
                       placeholder="Create password"
                     />
+                    <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((visible) => !visible)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700">
+                      {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
                   </div>
 
                   {errors.password && (
@@ -739,14 +746,17 @@ const RegisterPage: React.FC = () => {
                             value
                           ) =>
                             value ===
-                              password ||
+                              watch("password") ||
                             "Passwords do not match",
                         }
                       )}
-                      type="password"
-                      className="w-full rounded-full border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
+                      type={showConfirmPassword ? "text" : "password"}
+                      className="w-full rounded-full border border-slate-200 bg-white py-2 pl-8 pr-9 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
                       placeholder="Confirm password"
                     />
+                    <button type="button" aria-label={showConfirmPassword ? "Hide password" : "Show password"} onClick={() => setShowConfirmPassword((visible) => !visible)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700">
+                      {showConfirmPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
                   </div>
 
                   {errors.confirmPassword && (

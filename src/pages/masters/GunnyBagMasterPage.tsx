@@ -316,6 +316,18 @@ const GunnyBagMasterPage: React.FC =
         GunnyBagResponse | null
       >(null);
 
+    /**
+     * ========================================================
+     * Branch Wise Stock Map
+     * ========================================================
+     */
+    const [
+      branchStockMap,
+      setBranchStockMap,
+    ] = useState<
+      Record<string, number>
+    >({});
+
     const [
       selectedToDelete,
       setSelectedToDelete,
@@ -327,42 +339,6 @@ const GunnyBagMasterPage: React.FC =
       confirmOpen,
       setConfirmOpen,
     ] = useState(false);
-
-    /**
-     * ========================================================
-     * Bharthi Child Rows
-     * ========================================================
-     */
-    const [
-      bharthiRows,
-      setBharthiRows,
-    ] = useState<
-      GunnyBagBharthi[]
-    >([]);
-
-    /**
-     * ========================================================
-     * New Bharthi Input
-     * ========================================================
-     */
-    const [
-      newBharthi,
-      setNewBharthi,
-    ] = useState("");
-
-    const [
-      newBharthiStock,
-      setNewBharthiStock,
-    ] = useState<
-      number | string
-    >("");
-
-    const [
-      editingBharthiIndex,
-      setEditingBharthiIndex,
-    ] = useState<
-      number | null
-    >(null);
 
     /**
      * ========================================================
@@ -580,363 +556,35 @@ const GunnyBagMasterPage: React.FC =
 
     /**
      * ========================================================
-     * Add / Update Bharthi Row
-     * ========================================================
-     */
-    const addBharthiRow =
-      () => {
-        clearValidationError();
-
-        const rawBharthi =
-          String(
-            newBharthi
-          ).trim();
-
-        /**
-         * Validate Bharthi.
-         */
-        if (!rawBharthi) {
-          showValidationError(
-            "Bharthi is required"
-          );
-          return;
-        }
-
-        if (
-          !/^\d+$/.test(
-            rawBharthi
-          )
-        ) {
-          showValidationError(
-            "Bharthi must contain only numbers"
-          );
-          return;
-        }
-
-        /**
-         * Validate Stock.
-         */
-        if (
-          newBharthiStock ===
-            "" ||
-          newBharthiStock ===
-            null ||
-          newBharthiStock ===
-            undefined
-        ) {
-          showValidationError(
-            "Stock is required"
-          );
-          return;
-        }
-
-        const stock =
-          Number(
-            newBharthiStock
-          );
-
-        if (
-          !Number.isFinite(
-            stock
-          ) ||
-          stock < 0
-        ) {
-          showValidationError(
-            "Stock must be a valid non-negative number"
-          );
-          return;
-        }
-
-        /**
-         * Convert:
-         *
-         * 120 -> 120-Bharthi
-         */
-        const bharthi =
-          normalizeBharthi(
-            rawBharthi
-          );
-
-        /**
-         * ====================================================
-         * UPDATE EXISTING ROW
-         * ====================================================
-         */
-        if (
-          editingBharthiIndex !==
-          null
-        ) {
-          const duplicate =
-            bharthiRows.some(
-              (
-                row,
-                index
-              ) =>
-                index !==
-                  editingBharthiIndex &&
-                normalizeBharthi(
-                  row.bharthi
-                ).toLowerCase() ===
-                  bharthi.toLowerCase()
-            );
-
-          if (duplicate) {
-            showValidationError(
-              `Bharthi ${bharthi} already exists`
-            );
-            return;
-          }
-
-          setBharthiRows(
-            (previous) =>
-              previous.map(
-                (
-                  row,
-                  index
-                ) =>
-                  index ===
-                  editingBharthiIndex
-                    ? {
-                        ...row,
-                        bharthi,
-                        stock,
-                      }
-                    : row
-              )
-          );
-
-          setEditingBharthiIndex(
-            null
-          );
-
-          setNewBharthi("");
-
-          setNewBharthiStock(
-            ""
-          );
-
-          clearValidationError();
-
-          return;
-        }
-
-        /**
-         * ====================================================
-         * ADD NEW ROW
-         * ====================================================
-         */
-        const duplicate =
-          bharthiRows.some(
-            (row) =>
-              normalizeBharthi(
-                row.bharthi
-              ).toLowerCase() ===
-              bharthi.toLowerCase()
-          );
-
-        if (duplicate) {
-          showValidationError(
-            `Bharthi ${bharthi} already exists`
-          );
-          return;
-        }
-
-        const row:
-          GunnyBagBharthi = {
-          bharthi,
-          stock,
-        };
-
-        setBharthiRows(
-          (previous) => [
-            ...previous,
-            row,
-          ]
-        );
-
-        setNewBharthi("");
-
-        setNewBharthiStock(
-          ""
-        );
-
-        clearValidationError();
-      };
-
-    /**
-     * ========================================================
-     * Edit Bharthi
-     * ========================================================
-     */
-    const editBharthiRow = (
-      index: number
-    ) => {
-      const row =
-        bharthiRows[index];
-
-      if (!row) {
-        return;
-      }
-
-      const numericBharthi =
-        String(
-          row.bharthi ?? ""
-        ).replace(
-          /-Bharthi$/i,
-          ""
-        );
-
-      setNewBharthi(
-        numericBharthi
-      );
-
-      setNewBharthiStock(
-        Number(
-          row.stock || 0
-        )
-      );
-
-      setEditingBharthiIndex(
-        index
-      );
-
-      clearValidationError();
-    };
-
-    /**
-     * ========================================================
-     * Remove Bharthi
-     * ========================================================
-     */
-    const removeBharthiRow = (
-      index: number
-    ) => {
-      setBharthiRows(
-        (previous) =>
-          previous.filter(
-            (
-              _,
-              rowIndex
-            ) =>
-              rowIndex !==
-              index
-          )
-      );
-
-      /**
-       * If the row being removed is edited,
-       * exit edit mode.
-       */
-      if (
-        editingBharthiIndex ===
-        index
-      ) {
-        setEditingBharthiIndex(
-          null
-        );
-
-        setNewBharthi("");
-
-        setNewBharthiStock(
-          ""
-        );
-      } else if (
-        editingBharthiIndex !==
-          null &&
-        editingBharthiIndex >
-          index
-      ) {
-        /**
-         * Keep edit index correct after removing
-         * a row before the currently edited row.
-         */
-        setEditingBharthiIndex(
-          editingBharthiIndex - 1
-        );
-      }
-
-      clearValidationError();
-    };
-
-    /**
-     * ========================================================
-     * Total Bharthi Stock
-     * ========================================================
-     */
-    const totalBharthiStock =
-      useMemo(
-        () =>
-          bharthiRows.reduce(
-            (
-              total,
-              row
-            ) => {
-              const stock =
-                Number(
-                  row.stock
-                );
-
-              return (
-                total +
-                (Number.isFinite(
-                  stock
-                )
-                  ? stock
-                  : 0)
-              );
-            },
-            0
-          ),
-        [bharthiRows]
-      );
-
-    /**
-     * ========================================================
      * Add Gunny Bag
      * ========================================================
      */
+    const prepareNewGunnyBag =
+      async (branchId: string) => {
+        const code = await getNextGunnyBagCode(branchId);
+
+        setEditing({
+          id: "",
+          code,
+          name: "",
+          size: "",
+          rate_per_bag: 0,
+          opening_stock: 0,
+          status: "Active",
+          created_at: "",
+          branch_id: branchId,
+        });
+        setGeneratedCode(code);
+        setSelectedBranchId(branchId);
+        setBranchStockMap({});
+        setModalOpen(true);
+      };
+
     const openAdd =
       async () => {
         try {
           clearValidationError();
-
-          const code =
-            await getNextGunnyBagCode(getCurrentBranchId());
-
-          const branchId = getCurrentBranchId();
-
-          setEditing({
-            id: "",
-            code,
-            name: "",
-            size: "",
-            rate_per_bag: 0,
-            opening_stock: 0,
-            status: "Active",
-            created_at: "",
-            branch_id: branchId,
-          });
-
-          setGeneratedCode(code);
-          setSelectedBranchId(branchId);
-
-          setBharthiRows(
-            []
-          );
-
-          setEditingBharthiIndex(
-            null
-          );
-
-          setNewBharthi("");
-
-          setNewBharthiStock(
-            ""
-          );
-
-          setModalOpen(
-            true
-          );
+          await prepareNewGunnyBag(getCurrentBranchId());
         } catch (error: any) {
           console.error(
             "Failed to generate Gunny Bag code:",
@@ -978,21 +626,21 @@ const GunnyBagMasterPage: React.FC =
           setSelectedBranchId(row.branch_id ?? "");
 
           /**
-           * Clear previous Bharthi rows.
+           * Initialize branch stock map
+           *
+           * Priority:
+           * 1. Use branch_stock if available (new format with branch-wise stock)
+           * 2. Fall back to opening_stock for single branch (legacy format)
            */
-          setBharthiRows(
-            []
-          );
-
-          setNewBharthi("");
-
-          setEditingBharthiIndex(
-            null
-          );
-
-          setNewBharthiStock(
-            ""
-          );
+          if (row.branch_stock && Object.keys(row.branch_stock).length > 0) {
+            setBranchStockMap(row.branch_stock);
+          } else if (row.opening_stock) {
+            setBranchStockMap({
+              [row.branch_id ?? ""]: row.opening_stock,
+            });
+          } else {
+            setBranchStockMap({});
+          }
 
           /**
            * Open modal immediately.
@@ -1000,67 +648,16 @@ const GunnyBagMasterPage: React.FC =
           setModalOpen(
             true
           );
-
-          /**
-           * Load detailed Gunny Bag.
-           */
-          const data:
-            GunnyBagDetailsResponse =
-            await getGunnyBag(
-              row.id
-            );
-
-          /**
-           * Safely read Bharthi types.
-           */
-          const childRows =
-            Array.isArray(
-              data?.bharthi_types
-            )
-              ? data.bharthi_types
-              : [];
-
-          /**
-           * Convert API rows to UI rows.
-           */
-          setBharthiRows(
-            childRows.map(
-              (
-                child: GunnyBagBharthiType
-              ) => ({
-                id: child.id,
-
-                gunny_bag_id:
-                  child.gunny_bag_id,
-
-                bharthi:
-                  normalizeBharthi(
-                    String(
-                      child.bharthi ??
-                        ""
-                    )
-                  ),
-
-                stock: Number(
-                  child.stock ||
-                    0
-                ),
-
-                created_at:
-                  child.created_at,
-              })
-            )
-          );
         } catch (error: any) {
           console.error(
-            "Failed to load Bharthi details:",
+            "Failed to load Gunny Bag details:",
             error
           );
 
           const message =
             getErrorMessage(
               error,
-              "Failed to load Bharthi details"
+              "Failed to load Gunny Bag details"
             );
 
           showValidationError(
@@ -1077,12 +674,6 @@ const GunnyBagMasterPage: React.FC =
     const buildPayload = (
       values: GunnyBagFormValues
     ): GunnyBagSavePayload => {
-      const openingStock =
-        Number(
-          values.opening_stock ||
-            0
-        );
-
       return {
         code: String(
           values.code ?? ""
@@ -1103,28 +694,14 @@ const GunnyBagMasterPage: React.FC =
           ),
 
         opening_stock:
-          openingStock,
+          totalBranchStock,
 
         status:
           values.status,
 
-        bharthi_types:
-          bharthiRows.map(
-            (row) => ({
-              bharthi:
-                normalizeBharthi(
-                  String(
-                    row.bharthi ??
-                      ""
-                  )
-                ),
-
-              stock: Number(
-                row.stock || 0
-              ),
-            })
-          ),
+        bharthi_types: [],
         branch_id: selectedBranchId || null,
+        branch_stock: branchStockMap,
       };
     };
 
@@ -1183,11 +760,6 @@ const GunnyBagMasterPage: React.FC =
             return;
           }
 
-          if (!selectedBranchId) {
-            showValidationError("Branch is required");
-            return;
-          }
-
           if (!name) {
             showValidationError(
               "Gunny Bag name is required"
@@ -1214,74 +786,15 @@ const GunnyBagMasterPage: React.FC =
             return;
           }
 
-          if (
-            !Number.isFinite(
-              openingStock
-            ) ||
-            openingStock < 0
-          ) {
-            showValidationError(
-              "Opening Stock must be a valid non-negative number"
-            );
-            return;
-          }
-
           /**
            * ==================================================
-           * Bharthi validation
+           * Branch Stock validation
            * ==================================================
            */
-          if (
-            bharthiRows.length ===
-            0
-          ) {
+          if (totalBranchStock <= 0) {
             showValidationError(
-              "Please add at least one Bharthi detail"
+              "Please add stock for at least one branch"
             );
-            return;
-          }
-
-          /**
-           * ==================================================
-           * Calculate total Bharthi stock
-           * ==================================================
-           */
-          const calculatedBharthiStock =
-            bharthiRows.reduce(
-              (
-                total,
-                row
-              ) => {
-                const stock =
-                  Number(
-                    row.stock
-                  );
-
-                return (
-                  total +
-                  (Number.isFinite(
-                    stock
-                  )
-                    ? stock
-                    : 0)
-                );
-              },
-              0
-            );
-
-          /**
-           * ==================================================
-           * Opening Stock vs Bharthi Stock
-           * ==================================================
-           */
-          if (
-            openingStock !==
-            calculatedBharthiStock
-          ) {
-            showValidationError(
-              `Opening Stock (${openingStock}) and total Bharthi stock (${calculatedBharthiStock}) must be equal`
-            );
-
             return;
           }
 
@@ -1298,7 +811,7 @@ const GunnyBagMasterPage: React.FC =
               rate_per_bag:
                 ratePerBag,
               opening_stock:
-                openingStock,
+                totalBranchStock,
               status:
                 values.status,
             });
@@ -1376,21 +889,7 @@ const GunnyBagMasterPage: React.FC =
               null
             );
 
-            setBharthiRows(
-              []
-            );
-
-            setEditingBharthiIndex(
-              null
-            );
-
-            setNewBharthi(
-              ""
-            );
-
-            setNewBharthiStock(
-              ""
-            );
+            setBranchStockMap({});
 
             clearValidationError();
 
@@ -1402,35 +901,7 @@ const GunnyBagMasterPage: React.FC =
            * SAVE & NEW
            * ==================================================
            */
-          const nextCode =
-            await getNextGunnyBagCode(selectedBranchId);
-
-          setEditing({
-            id: "",
-            code: nextCode,
-            name: "",
-            size: "",
-            rate_per_bag: 0,
-            opening_stock: 0,
-            status: "Active",
-            created_at: "",
-            branch_id: selectedBranchId,
-          });
-
-          setGeneratedCode(nextCode);
-          setBharthiRows(
-            []
-          );
-
-          setEditingBharthiIndex(
-            null
-          );
-
-          setNewBharthi("");
-
-          setNewBharthiStock(
-            ""
-          );
+          await prepareNewGunnyBag(selectedBranchId);
 
           clearValidationError();
         } catch (error: any) {
@@ -1637,321 +1108,100 @@ const GunnyBagMasterPage: React.FC =
 
     /**
      * ========================================================
-     * Bharthi Section
+     * Calculate Total Branch Stock
      * ========================================================
-     *
-     * IMPORTANT:
-     *
-     * Only the Bharthi ROW LIST is scrollable.
-     *
-     * The following remain fixed:
-     * - Bharthi input fields
-     * - Add / Update button
-     * - Table header
-     * - Total Bharthi Stock
-     *
-     * Scrollbar appears only when there are
-     * more than 5 Bharthi rows.
+     */
+    const totalBranchStock = useMemo(() => {
+      return Object.values(branchStockMap).reduce(
+        (sum, stock) => sum + (Number(stock) || 0),
+        0
+      );
+    }, [branchStockMap]);
+
+    /**
+     * ========================================================
+     * Branch Wise Stock Section
      * ========================================================
      */
     const bharthiSection =
       useMemo(
         () => (
           <div className="w-full min-w-0">
-            <div className="mb-3">
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">
-                Branch <span className="text-rose-500">*</span>
+            {/* ==================================================
+                Branch Wise Stock Display (Editable)
+                ================================================== */}
+            <div className="mb-4">
+              <label className="mb-2 block text-[11px] font-medium text-slate-700">
+                Branch Wise Stock <span className="text-rose-500">*</span>
               </label>
-              <select
-                value={selectedBranchId}
-                onChange={async (event) => {
-                  const branchId = event.target.value;
-                  setSelectedBranchId(branchId);
-
-                  if (branchId && !editing?.id) {
-                    try {
-                      const nextCode = await getNextGunnyBagCode(branchId);
-                      setGeneratedCode(nextCode);
-                    } catch (error: any) {
-                      toast.error(getErrorMessage(error, "Failed to generate Gunny Bag code"));
-                    }
-                  }
-                }}
-                className="w-full rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
-              >
-                <option value="">Select Branch</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.branch_name}{branch.branch_code ? ` (${branch.branch_code})` : ""}
-                  </option>
-                ))}
-              </select>
-              {branches.length === 0 ? (
-                <p className="mt-1 text-[10px] text-amber-600">
-                  No branches are available for the current organization.
-                </p>
-              ) : null}
-            </div>
-            {/* ==================================================
-                Bharthi Input Section
-                ================================================== */}
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {/* Bharthi */}
-              <div>
-                <label className="mb-1 block text-[11px] font-medium text-slate-700">
-                  Bharthi
-                </label>
-
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={
-                    newBharthi
-                  }
-                  onChange={(
-                    event
-                  ) => {
-                    const value =
-                      event
-                        .target
-                        .value;
-
-                    if (
-                      value ===
-                        "" ||
-                      /^\d+$/.test(
-                        value
-                      )
-                    ) {
-                      setNewBharthi(
-                        value
-                      );
-
-                      if (
-                        validationError
-                      ) {
-                        clearValidationError();
-                      }
-                    }
-                  }}
-                  placeholder="e.g. 200"
-                  className="w-full rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
-                />
-              </div>
-
-              {/* Stock */}
-              <div>
-                <label className="mb-1 block text-[11px] font-medium text-slate-700">
-                  Stock
-                </label>
-
-                <input
-                  type="number"
-                  min="0"
-                  value={
-                    newBharthiStock
-                  }
-                  onChange={(
-                    event
-                  ) => {
-                    setNewBharthiStock(
-                      event.target
-                        .value
-                    );
-
-                    if (
-                      validationError
-                    ) {
-                      clearValidationError();
-                    }
-                  }}
-                  placeholder="e.g. 30"
-                  className="w-full rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-800 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
-                />
-              </div>
-
-              {/* Add / Update */}
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={
-                    addBharthiRow
-                  }
-                  className="rounded-full bg-[#2E7D32] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#256427]"
-                >
-                  {editingBharthiIndex !==
-                  null
-                    ? "Update"
-                    : "Add"}
-                </button>
-              </div>
-            </div>
-
-            {/* ==================================================
-                Validation Message
-                ================================================== */}
-            {validationError && (
-              <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
-                {
-                  validationError
-                }
-              </div>
-            )}
-
-            {/* ==================================================
-                Bharthi Grid
-                ================================================== */}
-            {bharthiRows.length >
-              0 && (
-              <div className="mt-4 w-full min-w-0 overflow-hidden rounded-lg border border-slate-200">
-                {/* ==================================================
-                    Fixed Table Header
-                    ================================================== */}
-                <table className="w-full table-fixed border-collapse text-xs">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="w-[40%] px-3 py-2 text-left font-semibold text-slate-600">
-                        Bharthi
-                      </th>
-
-                      <th className="w-[25%] px-3 py-2 text-left font-semibold text-slate-600">
-                        Stock
-                      </th>
-
-                      <th className="w-[35%] px-3 py-2 text-right font-semibold text-slate-600">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                </table>
-
-                {/* ==================================================
-                    ONLY THIS DIV SCROLLS
-                    ==================================================
-
-                    5 rows are visible.
-
-                    Row height is approximately 40px.
-                    5 rows = approximately 200px.
-
-                    IMPORTANT:
-                    No overflow is applied to the parent
-                    Bharthi section or modal.
-
-                    The scrollbar belongs ONLY to this
-                    Bharthi rows container.
-                    ================================================== */}
-                <div
-                  className={
-                    bharthiRows.length >
-                    5
-                      ? "max-h-[200px] overflow-y-auto overflow-x-hidden"
-                      : "overflow-visible"
-                  }
-                >
-                  <table className="w-full table-fixed border-collapse text-xs">
+              {branches.length > 0 ? (
+                <div className="w-full overflow-hidden rounded-lg border border-slate-200">
+                  <table className="w-full text-xs">
+                    <thead className="border-b border-slate-200 bg-slate-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold text-slate-600">
+                          Branch
+                        </th>
+                        <th className="px-3 py-2 text-left font-semibold text-slate-600">
+                          Stock
+                        </th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      {bharthiRows.map(
-                        (
-                          row,
-                          index
-                        ) => {
-                          const bharthi =
-                            normalizeBharthi(
-                              row.bharthi
-                            );
-
-                          return (
-                            <tr
-                              key={
-                                row.id ??
-                                `${bharthi}-${index}`
-                              }
-                              className="border-b border-slate-100 last:border-b-0"
-                            >
-                              <td className="w-[40%] px-3 py-2 text-slate-800">
-                                {
-                                  bharthi
-                                }
-                              </td>
-
-                              <td className="w-[25%] px-3 py-2 text-slate-800">
-                                {Number(
-                                  row.stock
-                                )}
-                              </td>
-
-                              <td className="w-[35%] px-3 py-2 text-right">
-                                <div className="flex justify-end gap-2">
-                                  {/* Edit */}
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      editBharthiRow(
-                                        index
-                                      )
-                                    }
-                                    className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
-                                  >
-                                    Edit
-                                  </button>
-
-                                  {/* Remove */}
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      removeBharthiRow(
-                                        index
-                                      )
-                                    }
-                                    className="rounded-full border border-red-200 bg-white px-3 py-1 text-[10px] font-medium text-red-600 hover:bg-red-50"
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        }
-                      )}
+                      {branches.map((branch, index) => (
+                        <tr
+                          key={branch.id}
+                          className={`border-b border-slate-100 last:border-b-0 ${
+                            index % 2 === 0 ? "bg-white" : "bg-slate-50"
+                          }`}
+                        >
+                          <td className="px-3 py-2 text-slate-800">
+                            {branch.branch_name}
+                            {branch.branch_code ? ` (${branch.branch_code})` : ""}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="number"
+                              min="0"
+                              value={branchStockMap[branch.id] ?? ""}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setBranchStockMap({
+                                  ...branchStockMap,
+                                  [branch.id]: value ? Number(value) : 0,
+                                });
+                              }}
+                              placeholder="0"
+                              className="w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-800 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
+                            />
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
-
-                {/* ==================================================
-                    Fixed Total Footer
-                    ================================================== */}
-                <table className="w-full table-fixed border-collapse text-xs">
-                  <tfoot className="border-t border-slate-200 bg-slate-50">
-                    <tr>
-                      <td className="w-[40%] px-3 py-2 text-right font-semibold text-slate-600">
-                        Total Bharthi Stock
-                      </td>
-
-                      <td className="w-[25%] px-3 py-2 font-semibold text-slate-900">
-                        {
-                          totalBharthiStock
-                        }
-                      </td>
-
-                      <td className="w-[35%]" />
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
+              ) : (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] text-amber-600">
+                  No branches are available for the current organization.
+                </p>
+              )}
+              {/* Total Branches Stock */}
+              {branches.length > 0 && (
+                <div className="mt-3 rounded-lg bg-[#F0F9FF] px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-700">
+                      Total Branches Stock
+                    </span>
+                    <span className="text-sm font-bold text-[#2E7D32]">
+                      {totalBranchStock}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         ),
-        [
-          newBharthi,
-          newBharthiStock,
-          editingBharthiIndex,
-          bharthiRows,
-          totalBharthiStock,
-          validationError,
-          branches,
-          selectedBranchId,
-        ]
+        [branches, branchStockMap]
       );
 
     /**
@@ -2112,7 +1362,7 @@ const GunnyBagMasterPage: React.FC =
           defaultValues={
             modalDefaultValues
           }
-          syncedValues={{ code: generatedCode || modalDefaultValues.code, opening_stock: totalBharthiStock }}
+          syncedValues={{ code: generatedCode || modalDefaultValues.code, opening_stock: totalBranchStock }}
           customSection={
             bharthiSection
           }
@@ -2127,22 +1377,7 @@ const GunnyBagMasterPage: React.FC =
 
             setGeneratedCode("");
             setSelectedBranchId("");
-
-            setBharthiRows(
-              []
-            );
-
-            setEditingBharthiIndex(
-              null
-            );
-
-            setNewBharthi(
-              ""
-            );
-
-            setNewBharthiStock(
-              ""
-            );
+            setBranchStockMap({});
 
             clearValidationError();
           }}

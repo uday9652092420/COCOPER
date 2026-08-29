@@ -27,6 +27,7 @@ export type GunnyBag = {
   created_at?: string;
   organization_id?: string | null;
   branch_id?: string | null;
+  branch_stock?: Record<string, number> | null;
 
   bharthi_types?: GunnyBagBharthiType[];
 };
@@ -37,4 +38,5 @@ export type GunnyBagCreateDTO = Omit<
 > & {
   id?: string;
   bharthi_types?: GunnyBagBharthiTypeCreateDTO[];
+  branch_stock?: Record<string, number>;
 };

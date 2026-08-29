@@ -179,6 +179,9 @@ export async function updateGunnyBagService(
     branch_id:
       payload.branch_id ?? existing.branch_id ?? null,
 
+    branch_stock:
+      payload.branch_stock ?? existing.branch_stock ?? undefined,
+
     /**
      * IMPORTANT:
      *

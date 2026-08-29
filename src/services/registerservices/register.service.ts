@@ -25,6 +25,8 @@ export interface RegisterOrganizationPayload {
 
   address_line2?: string;
 
+  street?: string;
+
   city: string;
 
   pincode: string;

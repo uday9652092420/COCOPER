@@ -88,6 +88,21 @@ export async function initializeDatabase(): Promise<void> {
   await pool.query(
     "CREATE INDEX IF NOT EXISTS idx_item_branch_stock_org_item ON item_branch_stock (organization_id, item_id)"
   );
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS gunny_bag_branch_stock (
+      id TEXT PRIMARY KEY,
+      organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+      gunny_bag_id TEXT NOT NULL REFERENCES gunny_bags(id) ON DELETE CASCADE,
+      branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+      stock NUMERIC NOT NULL DEFAULT 0 CHECK (stock >= 0),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (gunny_bag_id, branch_id)
+    )
+  `);
+  await pool.query(
+    "CREATE INDEX IF NOT EXISTS idx_gunny_bag_branch_stock_bag ON gunny_bag_branch_stock (gunny_bag_id)"
+  );
   await pool.query(
     "ALTER TABLE items ADD COLUMN IF NOT EXISTS branch_wise_stock NUMERIC NOT NULL DEFAULT 0"
   );

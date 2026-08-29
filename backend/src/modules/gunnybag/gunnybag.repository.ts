@@ -140,6 +140,53 @@ async function insertBharthiTypes(
   }
 }
 
+async function replaceBranchStock(
+  client: any,
+  gunnyBagId: string,
+  organizationId: string | null | undefined,
+  branchStock?: Record<string, number> | null
+): Promise<void> {
+  await client.query(
+    `DELETE FROM gunny_bag_branch_stock WHERE gunny_bag_id = $1`,
+    [gunnyBagId]
+  );
+
+  if (!branchStock || Object.keys(branchStock).length === 0) {
+    return;
+  }
+
+  const branchIds = Object.keys(branchStock);
+  const { rows: branches } = await client.query(
+    `SELECT id FROM branches WHERE id = ANY($1::uuid[])`,
+    [branchIds]
+  );
+  const validBranchIds = new Set(
+    branches.map((branch: { id: string }) => branch.id)
+  );
+
+  for (const branchId of branchIds) {
+    if (!validBranchIds.has(branchId)) {
+      continue;
+    }
+
+    const stock = Number(branchStock[branchId]);
+    await client.query(
+      `
+        INSERT INTO gunny_bag_branch_stock
+          (id, organization_id, gunny_bag_id, branch_id, stock)
+        VALUES ($1, $2, $3, $4, $5)
+      `,
+      [
+        `GBS-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        organizationId ?? null,
+        gunnyBagId,
+        branchId,
+        Number.isNaN(stock) ? 0 : stock,
+      ]
+    );
+  }
+}
+
 /**
  * ============================================================
  * Get Bharthi Types For Gunny Bag
@@ -250,6 +297,13 @@ export async function createGunnyBagRepo(
       payload.bharthi_types
     );
 
+    await replaceBranchStock(
+      client,
+      id,
+      payload.organization_id,
+      payload.branch_stock
+    );
+
     /**
      * Commit parent + children together.
      */
@@ -328,7 +382,16 @@ export async function listGunnyBagsRepo(organizationId?: string | null, branchId
           WHERE bt.id IS NOT NULL
         ),
         '[]'::json
-      ) AS bharthi_types
+      ) AS bharthi_types,
+
+      COALESCE(
+        (
+          SELECT json_object_agg(gbbs.branch_id::text, gbbs.stock)
+          FROM gunny_bag_branch_stock gbbs
+          WHERE gbbs.gunny_bag_id = gb.id
+        ),
+        '{}'::json
+      ) AS branch_stock
 
     FROM gunny_bags gb
 
@@ -375,7 +438,16 @@ export async function getGunnyBagByIdRepo(
             WHERE bt.id IS NOT NULL
           ),
           '[]'::json
-        ) AS bharthi_types
+        ) AS bharthi_types,
+
+        COALESCE(
+          (
+            SELECT json_object_agg(gbbs.branch_id::text, gbbs.stock)
+            FROM gunny_bag_branch_stock gbbs
+            WHERE gbbs.gunny_bag_id = gb.id
+          ),
+          '{}'::json
+        ) AS branch_stock
 
       FROM gunny_bags gb
 
@@ -460,6 +532,13 @@ export async function updateGunnyBagRepo(
       client,
       id,
       payload.bharthi_types
+    );
+
+    await replaceBranchStock(
+      client,
+      id,
+      payload.organization_id,
+      payload.branch_stock
     );
 
     await client.query("COMMIT");

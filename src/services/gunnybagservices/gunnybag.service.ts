@@ -18,6 +18,7 @@ export interface GunnyBagResponse {
   created_at: string;
   organization_id?: string | null;
   branch_id?: string | null;
+  branch_stock?: Record<string, number>;
   bharthi_types?: GunnyBagBharthiType[];
 }
 
@@ -105,6 +106,19 @@ export interface GunnyBagSavePayload {
   opening_stock: number;
   status: "Active" | "Inactive";
   branch_id?: string | null;
+
+  /**
+   * Branch-wise stock mapping.
+   *
+   * Example:
+   *
+   * {
+   *   "branch-1": 100,
+   *   "branch-2": 50,
+   *   "branch-3": 25
+   * }
+   */
+  branch_stock?: Record<string, number>;
 
   /**
    * Bharthi details.

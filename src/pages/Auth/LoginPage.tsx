@@ -7,7 +7,7 @@ import type React from "react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useForm } from "react-hook-form";
-import { Lock, Mail } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 
 /**
@@ -27,6 +27,7 @@ const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const {
     register,
@@ -185,10 +186,13 @@ const LoginPage: React.FC = () => {
                   {...register("password", {
                     required: true,
                   })}
-                  type="password"
-                  className="w-full rounded-full border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
+                  type={showPassword ? "text" : "password"}
+                  className="w-full rounded-full border border-slate-200 bg-white py-2 pl-8 pr-9 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
                   placeholder="Enter password"
                 />
+                <button type="button" aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword((visible) => !visible)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700">
+                  {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
               </div>
             </div>
 

@@ -143,7 +143,7 @@ const BranchesMasterPage: React.FC = () => {
           className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
         >
           <Save className="h-3.5 w-3.5" />
-          {saving ? 'Saving...' : 'Save Assignment'}
+          {saving ? 'Saving...' : 'Save'}
         </button>
       </div>
 

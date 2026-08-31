@@ -45,6 +45,7 @@ const UserMasterPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<OrgUser | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<OrgUser | null>(null)
+  const [modalKey, setModalKey] = useState(0)
 
   const loadData = async () => {
     try {
@@ -83,7 +84,7 @@ const UserMasterPage: React.FC = () => {
   )
 
   const fields: FormFieldConfig[] = [
-    { name: 'username', label: 'Username', type: 'text', required: true, readOnly: Boolean(editing) },
+    { name: 'username', label: 'Username (Email)', type: 'text', required: true, readOnly: Boolean(editing) },
     { name: 'password', label: editing ? 'Password (leave blank to keep)' : 'Password', type: 'password' },
     { name: 'fullName', label: 'Full Name', type: 'text' },
     { name: 'email', label: 'Email', type: 'text', required: true },
@@ -107,8 +108,9 @@ const UserMasterPage: React.FC = () => {
     },
   ]
 
-  const handleSave = async (values: UserFormValues) => {
+  const handleSave = async (values: UserFormValues, resetAfter: boolean) => {
     const organizationId = getStoredOrganizationId()
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
     try {
       if (editing) {
@@ -124,6 +126,13 @@ const UserMasterPage: React.FC = () => {
         })
         toast.success('User updated successfully')
       } else {
+        const normalizedUsername = values.username.trim()
+
+        if (!emailPattern.test(normalizedUsername)) {
+          toast.error('Username must be a valid email address (example: name@example.com)')
+          return
+        }
+
         if (!organizationId) {
           toast.error('Please select an organization first')
           return
@@ -134,7 +143,7 @@ const UserMasterPage: React.FC = () => {
         }
         await createUser({
           organization_id: organizationId,
-          username: values.username,
+          username: normalizedUsername,
           password: values.password,
           full_name: values.fullName,
           email: values.email,
@@ -145,9 +154,17 @@ const UserMasterPage: React.FC = () => {
         toast.success('User created successfully')
       }
 
-      setModalOpen(false)
-      setEditing(null)
       await loadData()
+
+      if (!resetAfter) {
+        setModalOpen(false)
+        setEditing(null)
+        return
+      }
+
+      setEditing(null)
+      setModalKey((key) => key + 1)
+      setModalOpen(true)
     } catch (error: any) {
       console.error(error)
       toast.error(error?.message || 'Failed to save user')
@@ -196,7 +213,7 @@ const UserMasterPage: React.FC = () => {
           {can('users', 'edit') ? (
             <button
               type="button"
-              onClick={() => { setEditing(row); setModalOpen(true) }}
+              onClick={() => { setEditing(row); setModalKey((key) => key + 1); setModalOpen(true) }}
               className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
             >
               <Edit2 className="h-3 w-3" />
@@ -221,10 +238,11 @@ const UserMasterPage: React.FC = () => {
   return (
     <div>
       <PageHeader title="User Master" breadcrumb={['Masters', 'User Master']} />
-      <Toolbar title="User Master" onAdd={can('users', 'create') ? () => { setEditing(null); setModalOpen(true) } : undefined} />
+      <Toolbar title="User Master" onAdd={can('users', 'create') ? () => { setEditing(null); setModalKey((key) => key + 1); setModalOpen(true) } : undefined} />
       <SearchFilterPanel onSearch={setSearch} onClear={() => setSearch('')} />
       <DataGrid columns={columns} data={filtered} rowKey={(u: OrgUser) => u.id} loading={loading} />
       <MasterFormModal<UserFormValues>
+        key={`user-modal-${modalKey}`}
         open={modalOpen}
         title={editing ? 'Edit User' : 'Add User'}
         fields={fields}
@@ -249,7 +267,7 @@ const UserMasterPage: React.FC = () => {
                 status: 'ACTIVE',
               }
         }
-        onClose={() => { setModalOpen(false); setEditing(null) }}
+        onClose={() => { setModalOpen(false); setEditing(null); setModalKey((key) => key + 1) }}
         onSave={handleSave}
       />
       <ConfirmDialog

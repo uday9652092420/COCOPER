@@ -225,15 +225,17 @@ export function validateRegisterPayload(
   const username = String(
     payload.username ?? ""
   ).trim();
+  const emailRegex =
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   if (!username) {
     errors.username =
       "Username is required.";
   } else if (
-    username.length < 3
+    !emailRegex.test(username)
   ) {
     errors.username =
-      "Username must contain at least 3 characters.";
+      "Username must be a valid email address (example: name@example.com).";
   }
 
   /**

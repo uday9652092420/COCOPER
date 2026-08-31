@@ -31,8 +31,10 @@ export async function createUser(payload: UserCreateDTO): Promise<OrgUser> {
   const username = String(payload.username).trim();
   const email = String(payload.email ?? '').trim().toLowerCase();
   const password = String(payload.password ?? '');
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   if (!username) throw new AppError('Username is required', 400);
+  if (!emailRegex.test(username)) throw new AppError('Username must be a valid email address (example: name@example.com)', 400);
   if (!email) throw new AppError('Email is required', 400);
   if (!/^\S+@\S+\.\S+$/.test(email)) throw new AppError('Enter a valid email address', 400);
   if (!password || password.length < 6) throw new AppError('Password must be at least 6 characters', 400);

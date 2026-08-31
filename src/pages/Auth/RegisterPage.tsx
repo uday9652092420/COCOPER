@@ -569,7 +569,7 @@ const RegisterPage: React.FC = () => {
                 {/* User ID */}
                 <div>
                   <label className="mb-1 block text-xs font-medium text-slate-700">
-                    User ID*
+                    User ID (Email)*
                   </label>
 
                   <div className="relative">
@@ -581,10 +581,15 @@ const RegisterPage: React.FC = () => {
                         {
                           required:
                             "User ID is required",
+                          pattern: {
+                            value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                            message:
+                              "User ID must be a valid email address (example: name@example.com)",
+                          },
                         }
                       )}
                       className="w-full rounded-full border border-slate-200 bg-white py-2 pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]"
-                      placeholder="Create login user ID"
+                      placeholder="name@example.com"
                     />
                   </div>
 

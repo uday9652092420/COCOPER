@@ -260,7 +260,7 @@ export const TopBar: React.FC = () => {
 
         <div className="hidden flex-col text-right leading-tight md:flex">
           <span className="text-[11px] font-medium text-slate-800">
-            {user?.username ?? 'Guest'}
+            {user?.fullName || (user?.username ? user.username.split('@')[0] : 'Guest')}
           </span>
 
           <span className="text-[10px] text-slate-400">

@@ -73,9 +73,8 @@ export const ProfileMenu: React.FC = () => {
         <div className="absolute right-0 top-10 z-50 w-64 rounded-2xl border border-slate-100 bg-white p-3 shadow-xl">
           <div className="border-b border-slate-100 pb-3">
             <p className="text-sm font-semibold text-slate-900">
-              {profile?.full_name || user.fullName || user.username}
+              {profile?.full_name || user.fullName || (user.username ? user.username.split('@')[0] : 'User')}
             </p>
-            <p className="text-[11px] text-slate-500">@{user.username}</p>
             <p className="mt-1 text-[10px] text-slate-400">
               {user.isSuperAdmin ? 'Super Admin' : user.role}
             </p>

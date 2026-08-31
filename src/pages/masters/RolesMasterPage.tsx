@@ -36,6 +36,7 @@ const RolesMasterPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Role | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<Role | null>(null)
+  const [modalKey, setModalKey] = useState(0)
 
   const loadRoles = async () => {
     try {
@@ -78,7 +79,7 @@ const RolesMasterPage: React.FC = () => {
     },
   ]
 
-  const handleSave = async (values: RoleFormValues) => {
+  const handleSave = async (values: RoleFormValues, resetAfter: boolean) => {
     try {
       if (editing) {
         await updateRole(editing.id, {
@@ -96,9 +97,17 @@ const RolesMasterPage: React.FC = () => {
         toast.success('Role created successfully')
       }
 
-      setModalOpen(false)
-      setEditing(null)
       await loadRoles()
+
+      if (!resetAfter) {
+        setModalOpen(false)
+        setEditing(null)
+        return
+      }
+
+      setEditing(null)
+      setModalKey((key) => key + 1)
+      setModalOpen(true)
     } catch (error: any) {
       console.error(error)
       toast.error(error?.message || 'Failed to save role')
@@ -147,6 +156,7 @@ const RolesMasterPage: React.FC = () => {
               type="button"
               onClick={() => {
                 setEditing(row)
+                setModalKey((key) => key + 1)
                 setModalOpen(true)
               }}
               className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
@@ -173,10 +183,11 @@ const RolesMasterPage: React.FC = () => {
   return (
     <div>
       <PageHeader title="Roles Master" breadcrumb={['Masters', 'Roles Master']} />
-      <Toolbar title="Roles Master" onAdd={can('roles', 'create') ? () => { setEditing(null); setModalOpen(true) } : undefined} />
+      <Toolbar title="Roles Master" onAdd={can('roles', 'create') ? () => { setEditing(null); setModalKey((key) => key + 1); setModalOpen(true) } : undefined} />
       <SearchFilterPanel onSearch={setSearch} onClear={() => setSearch('')} />
       <DataGrid columns={columns} data={filtered} rowKey={(r: Role) => r.id} loading={loading} />
       <MasterFormModal<RoleFormValues>
+        key={`role-modal-${modalKey}`}
         open={modalOpen}
         title={editing ? 'Edit Role' : 'Add Role'}
         fields={fields}
@@ -185,7 +196,7 @@ const RolesMasterPage: React.FC = () => {
             ? { roleName: editing.role_name, description: editing.description ?? '', status: (editing.status as 'ACTIVE' | 'INACTIVE') || 'ACTIVE' }
             : { roleName: '', description: '', status: 'ACTIVE' }
         }
-        onClose={() => { setModalOpen(false); setEditing(null) }}
+        onClose={() => { setModalOpen(false); setEditing(null); setModalKey((key) => key + 1) }}
         onSave={handleSave}
       />
       <ConfirmDialog

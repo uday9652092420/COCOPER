@@ -24,7 +24,26 @@ export const formatAmount = (value: number): string =>
  */
 export const formatDate = (value: string): string => {
   if (!value) return ''
-  return new Date(value).toLocaleDateString('en-IN', {
+
+  const trimmed = value.trim()
+
+  const ddmmyyyy = /^([0-9]{2})\/([0-9]{2})\/([0-9]{4})$/.exec(trimmed)
+  if (ddmmyyyy) {
+    const [, day, month, year] = ddmmyyyy
+    const date = new Date(Number(year), Number(month) - 1, Number(day))
+    if (!Number.isNaN(date.getTime())) {
+      return date.toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+      })
+    }
+  }
+
+  const parsed = new Date(trimmed)
+  if (Number.isNaN(parsed.getTime())) return trimmed
+
+  return parsed.toLocaleDateString('en-IN', {
     year: 'numeric',
     month: 'short',
     day: '2-digit',

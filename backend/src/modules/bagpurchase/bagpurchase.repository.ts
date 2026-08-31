@@ -552,7 +552,8 @@ async function increaseGunnyBagStock(
   client: any,
   gunnyBagId: string,
   bharthi: number | string | null | undefined,
-  quantity: number
+  quantity: number,
+  branchId?: string | null
 ): Promise<void> {
   if (!gunnyBagId) {
     throw new Error(
@@ -573,6 +574,7 @@ async function increaseGunnyBagStock(
     `
       SELECT
         id,
+        organization_id,
         code,
         name,
         opening_stock
@@ -605,6 +607,14 @@ async function increaseGunnyBagStock(
       quantity,
       gunnyBagId,
     ]
+  );
+
+  await adjustGunnyBagBranchStock(
+    client,
+    gunnyBagId,
+    branchId,
+    quantity,
+    bagResult.rows[0].organization_id
   );
 
   /**
@@ -748,7 +758,8 @@ async function decreaseGunnyBagStock(
   client: any,
   gunnyBagId: string,
   bharthi: number | string | null | undefined,
-  quantity: number
+  quantity: number,
+  branchId?: string | null
 ): Promise<void> {
   if (!gunnyBagId) {
     throw new Error(
@@ -769,6 +780,8 @@ async function decreaseGunnyBagStock(
     `
       SELECT
         id,
+        organization_id,
+        branch_id,
         opening_stock
       FROM gunny_bags
       WHERE id = $1
@@ -810,6 +823,16 @@ async function decreaseGunnyBagStock(
       quantity,
       gunnyBagId,
     ]
+  );
+
+  await adjustGunnyBagBranchStock(
+    client,
+    gunnyBagId,
+    branchId,
+    -quantity,
+    bagResult.rows[0].organization_id,
+    bagResult.rows[0].branch_id,
+    currentStock
   );
 
   /**
@@ -1091,7 +1114,8 @@ await increaseGunnyBagStock(
   client,
   getGunnyBagId(line),
   line.bharthi,
-  quantity
+  quantity,
+  payload.branch_id
 );
     }
 
@@ -1138,7 +1162,7 @@ export async function updateBagPurchaseRepo(
     const existingPurchase =
       await client.query(
         `
-          SELECT id
+          SELECT id, branch_id
           FROM bag_purchases
           WHERE id = $1
           LIMIT 1
@@ -1189,9 +1213,8 @@ export async function updateBagPurchaseRepo(
           oldLine.bag_type_id ?? ""
         ).trim(),
         oldLine.bharthi,
-        toNumber(
-          oldLine.quantity
-        )
+        toNumber(oldLine.quantity),
+        existingPurchase.rows[0].branch_id
       );
     }
 
@@ -1319,7 +1342,8 @@ export async function updateBagPurchaseRepo(
         client,
         gunnyBagId,
         line.bharthi,
-        quantity
+        quantity,
+        payload.branch_id
       );
     }
 
@@ -1358,7 +1382,7 @@ export async function deleteBagPurchaseRepo(
     const existing =
       await client.query(
         `
-          SELECT id
+          SELECT id, branch_id
           FROM bag_purchases
           WHERE id = $1
           LIMIT 1
@@ -1408,9 +1432,8 @@ export async function deleteBagPurchaseRepo(
           line.bag_type_id ?? ""
         ).trim(),
         line.bharthi,
-        toNumber(
-          line.quantity
-        )
+        toNumber(line.quantity),
+        existing.rows[0].branch_id
       );
     }
 
@@ -1452,5 +1475,56 @@ export async function deleteBagPurchaseRepo(
     throw error;
   } finally {
     client.release();
+  }
+}
+
+async function adjustGunnyBagBranchStock(
+  client: any,
+  gunnyBagId: string,
+  branchId: string | null | undefined,
+  delta: number,
+  organizationId?: string | null,
+  legacyBranchId?: string | null,
+  legacyOpeningStock = 0
+): Promise<void> {
+  if (!branchId || delta === 0) {
+    return;
+  }
+
+  const result = await client.query(
+    `
+      SELECT stock
+      FROM gunny_bag_branch_stock
+      WHERE gunny_bag_id = $1 AND branch_id = $2
+      FOR UPDATE
+    `,
+    [gunnyBagId, branchId]
+  );
+
+  const currentStock = result.rows.length
+    ? Number(result.rows[0].stock ?? 0)
+    : legacyBranchId === branchId
+      ? Number(legacyOpeningStock)
+      : 0;
+  const nextStock = currentStock + delta;
+
+  if (nextStock < 0) {
+    throw new Error(`Insufficient branch stock for Gunny Bag ${gunnyBagId}`);
+  }
+
+  if (result.rows.length) {
+    await client.query(
+      `UPDATE gunny_bag_branch_stock SET stock = $1, updated_at = NOW() WHERE gunny_bag_id = $2 AND branch_id = $3`,
+      [nextStock, gunnyBagId, branchId]
+    );
+  } else {
+    await client.query(
+      `
+        INSERT INTO gunny_bag_branch_stock
+          (id, organization_id, gunny_bag_id, branch_id, stock)
+        VALUES ($1, $2, $3, $4, $5)
+      `,
+      [randomUUID(), organizationId ?? null, gunnyBagId, branchId, nextStock]
+    );
   }
 }

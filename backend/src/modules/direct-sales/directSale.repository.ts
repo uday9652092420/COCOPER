@@ -18,7 +18,7 @@ type SalePayload = {
 export async function listDirectSales(organizationId?: string | null) {
   const params: string[] = []
   const where = organizationId
-    ? (params.push(organizationId), 'WHERE ds.organization_id = $1 OR ds.organization_id IS NULL')
+    ? (params.push(organizationId), 'WHERE ds.organization_id = $1')
     : ''
   const { rows } = await pool.query(
     `SELECT

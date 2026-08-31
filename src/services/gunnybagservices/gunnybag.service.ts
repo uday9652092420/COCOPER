@@ -223,13 +223,21 @@ export async function getNextGunnyBagCode(branchId?: string): Promise<string> {
  *
  * GET /api/gunny-bags
  */
-export async function getGunnyBags(branchId?: string): Promise<
+export async function getGunnyBags(
+  branchId?: string,
+  includeBranchScope = true
+): Promise<
   GunnyBagResponse[]
 > {
   const query = branchId ? `?branchId=${encodeURIComponent(branchId)}` : "";
   const response = await fetch(
     `${API}/gunny-bags${query}`,
-    { headers: { ...getOrgHeader(), ...getBranchHeader() } }
+    {
+      headers: {
+        ...getOrgHeader(),
+        ...(includeBranchScope ? getBranchHeader() : {}),
+      },
+    }
   );
 
   const data =

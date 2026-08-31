@@ -200,6 +200,7 @@ export interface DirectSalesLine {
 export interface DirectSales {
   id: string
   directSaleNo?: string
+  organizationId?: string | null
   customerId: string
   customerType: CustomerType
   branchId?: string

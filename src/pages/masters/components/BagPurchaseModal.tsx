@@ -120,8 +120,15 @@ interface BagPurchaseFormValues {
 }
 
 const formatDateForDisplay = (value: string): string => {
-  const [year, month, day] = value.split("-");
-  return year && month && day ? `${day}/${month}/${year}` : value;
+  const displayDateMatch = value.match(/^\d{2}\/\d{2}\/\d{4}$/);
+  if (displayDateMatch) {
+    return value;
+  }
+
+  const apiDateMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return apiDateMatch
+    ? `${apiDateMatch[3]}/${apiDateMatch[2]}/${apiDateMatch[1]}`
+    : value;
 };
 
 const formatDateForApi = (value: string): string => {
@@ -398,12 +405,12 @@ const BagPurchaseModal: React.FC<
    * ]
    * ==========================================================
    */
-  const loadGunnyBags = async (branchId?: string) => {
+  const loadGunnyBags = async () => {
     try {
       setBagLoading(true);
 
       const data =
-        await getGunnyBags(branchId);
+        await getGunnyBags(undefined, false);
 
       const bags =
         Array.isArray(data)
@@ -579,7 +586,7 @@ const BagPurchaseModal: React.FC<
     void loadBranches();
 
     const branchId = purchase?.branch_id ?? localStorage.getItem("cocoper_branch_id") ?? "";
-    void loadGunnyBags(branchId);
+    void loadGunnyBags();
 
     /**
      * Edit existing purchase.
@@ -1204,35 +1211,6 @@ const submit = async (
         return;
       }
 
-      /**
-       * Bharthi options for selected bag.
-       */
-      const options =
-        bharthiOptions[
-          gunnyBagId
-        ] ?? [];
-
-      /**
-       * Bharthi required if bag
-       * has Bharthi types.
-       */
-      if (
-        options.length > 0 &&
-        (
-          line.bharthi ===
-            undefined ||
-          line.bharthi === null ||
-          Number.isNaN(
-            Number(line.bharthi)
-          )
-        )
-      ) {
-        toast.error(
-          `Please select Bharthi Type for line ${index + 1}.`
-        );
-
-        return;
-      }
     }
 
     /**
@@ -1260,25 +1238,11 @@ const submit = async (
               line.rate ?? 0
             );
 
-          const bharthi =
-            line.bharthi !==
-              undefined &&
-            line.bharthi !== null &&
-            !Number.isNaN(
-              Number(line.bharthi)
-            )
-              ? Number(
-                  line.bharthi
-                )
-              : undefined;
-
           return {
             id: line.id,
 
             gunny_bag_id:
               gunnyBagId,
-
-            bharthi,
 
             quantity,
 
@@ -1410,6 +1374,12 @@ const submit = async (
     toast.error(message);
   }
 };
+
+  const handleSaveAndNew = handleSubmit(
+    (values: BagPurchaseFormValues) =>
+      void submit(values, true)
+  );
+
   /**
    * ==========================================================
    * Do not render when closed.
@@ -1428,7 +1398,7 @@ const submit = async (
     <ResponsiveModal
       open={open}
       onClose={onClose}
-      maxWidth="max-w-6xl"
+      maxWidth="max-w-4xl"
       maxHeight="96vh"
       contentMaxHeight="84vh"
       title={
@@ -1451,7 +1421,7 @@ const submit = async (
       >
         {/* HEADER */}
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {/* PURCHASE DATE */}
 
           <div>
@@ -1534,9 +1504,8 @@ const submit = async (
               )}
             </select>
           </div>
-        </div>
 
-          <div className="md:col-span-2">
+          <div>
             <label className="mb-1 block text-[11px] font-medium text-slate-700">
               Branch <span className="text-rose-500">*</span>
             </label>
@@ -1546,7 +1515,6 @@ const submit = async (
               onChange={async (event) => {
                 const branchId = event.target.value;
                 setValue("branchId", branchId, { shouldDirty: true });
-                await loadGunnyBags(branchId);
                 setBharthiOptions({});
               }}
             >
@@ -1558,6 +1526,7 @@ const submit = async (
               ))}
             </select>
           </div>
+        </div>
 
         {/* REMARKS */}
 
@@ -1583,10 +1552,6 @@ const submit = async (
               <tr>
                 <th className="min-w-[180px] px-3 py-2 text-left">
                   Bag
-                </th>
-
-                <th className="min-w-[170px] px-3 py-2 text-left">
-                  Bharthi Type
                 </th>
 
                 <th className="w-28 px-3 py-2 text-left">
@@ -1622,25 +1587,6 @@ const submit = async (
                       index
                     ] ??
                     createEmptyLine();
-
-                  /**
-                   * Bharthi options for
-                   * selected Gunny Bag.
-                   */
-                  const options =
-                    bharthiOptions[
-                      currentLine
-                        .bagId
-                    ] ?? [];
-
-                  /**
-                   * Loading state.
-                   */
-                  const isLoading =
-                    bharthiLoading[
-                      currentLine
-                        .bagId
-                    ] ?? false;
 
                   return (
                     <tr
@@ -1685,98 +1631,6 @@ const submit = async (
     )}
   </select>
 </td>
-
-                      {/* BHARTHI */}
-
-                      <td className="px-3 py-2">
-                        <select
-                          className="w-full rounded-full border border-slate-200 px-2 py-1 text-[13px]"
-                          value={
-                            currentLine.bharthi !==
-                            undefined
-                              ? String(
-                                  currentLine.bharthi
-                                )
-                              : ""
-                          }
-                          disabled={
-                            !currentLine.bagId ||
-                            isLoading
-                          }
-                          onChange={(
-                            event
-                          ) =>
-                            handleBharthiSelect(
-                              index,
-                              event
-                                .target
-                                .value
-                            )
-                          }
-                        >
-                          <option value="">
-                            {isLoading
-                              ? "Loading..."
-                              : currentLine.bagId
-                              ? "Select Bharthi"
-                              : "Select bag first"}
-                          </option>
-
-                          {options.map(
-                            (
-                              item
-                            ) => {
-                              /**
-                               * Display value.
-                               *
-                               * Supports:
-                               *
-                               * 120
-                               * "120"
-                               * "120-Bharthi"
-                               */
-                              const numericBharthi =
-                                normalizeBharthiValue(
-                                  item.bharthi
-                                );
-
-                              const displayBharthi =
-                                String(
-                                  item.bharthi
-                                ).toLowerCase()
-                                  .includes(
-                                    "bharthi"
-                                  )
-                                  ? String(
-                                      item.bharthi
-                                    )
-                                  : `${item.bharthi}-Bharthi`;
-
-                              return (
-                                <option
-                                  key={
-                                    item.id
-                                  }
-                                  value={
-                                    numericBharthi !==
-                                    undefined
-                                      ? String(
-                                          numericBharthi
-                                        )
-                                      : String(
-                                          item.bharthi
-                                        )
-                                  }
-                                >
-                                  {
-                                    displayBharthi
-                                  }
-                                </option>
-                              );
-                            }
-                          )}
-                        </select>
-                      </td>
 
                       {/* QUANTITY */}
 
@@ -1900,15 +1754,7 @@ const submit = async (
             {!purchase && (
               <button
                 type="button"
-                onClick={handleSubmit(
-                  (
-                    values: BagPurchaseFormValues
-                  ) =>
-                    void submit(
-                      values,
-                      true
-                    )
-                )}
+                onClick={handleSaveAndNew}
                 className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-100"
               >
                 Save & New

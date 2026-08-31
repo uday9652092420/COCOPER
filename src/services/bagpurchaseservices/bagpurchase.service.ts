@@ -173,7 +173,7 @@ export async function getBagPurchases(): Promise<
 > {
   const response = await fetch(
     `${API}/bag-purchases`,
-    { headers: { ...getOrgHeader(), ...getBranchHeader() } }
+    { headers: { ...getOrgHeader() } }
   );
 
   const data =

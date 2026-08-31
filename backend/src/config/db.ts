@@ -121,11 +121,13 @@ export async function initializeDatabase(): Promise<void> {
       id TEXT PRIMARY KEY,
       direct_sale_id TEXT NOT NULL REFERENCES direct_sales(id) ON DELETE CASCADE,
       gunny_bag_id TEXT NOT NULL REFERENCES gunny_bags(id),
+      bag_bharthi TEXT,
       bharthi_type_id TEXT REFERENCES gunny_bag_bharthi_types(id),
       quantity NUMERIC NOT NULL DEFAULT 0,
       rate NUMERIC NOT NULL DEFAULT 0,
       amount NUMERIC NOT NULL DEFAULT 0
     )
   `);
+  await pool.query("ALTER TABLE direct_sale_gunny_bags ADD COLUMN IF NOT EXISTS bag_bharthi TEXT");
   console.log("Database connected successfully.");
 }

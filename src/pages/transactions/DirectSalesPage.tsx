@@ -55,6 +55,7 @@ interface DirectSalesFormValues extends FieldValues {
   }[]
   gunnyBags: {
     bagTypeId: string
+    bagBharthi?: string
     bharthiTypeId?: string
     quantity: number
     rate: number
@@ -202,7 +203,16 @@ const DirectSalesModal: React.FC<{
                   salesAmount: 0,
                 },
               ],
-            gunnyBags: [{ bagTypeId: '', quantity: 0, rate: 0, amount: 0 }],
+            gunnyBags: existing.gunnyBags?.length
+              ? existing.gunnyBags.map((bag) => ({
+                  bagTypeId: bag.bagTypeId ?? '',
+                  bagBharthi: bag.bagBharthi ?? '',
+                  bharthiTypeId: bag.bharthiTypeId ?? '',
+                  quantity: Number(bag.quantity ?? 0),
+                  rate: Number(bag.rate ?? 0),
+                  amount: Number(bag.amount ?? 0),
+                }))
+              : [{ bagTypeId: '', bagBharthi: '', quantity: 0, rate: 0, amount: 0 }],
             loadingCharges: 0,
           }
         : {
@@ -212,7 +222,7 @@ const DirectSalesModal: React.FC<{
             salesOrderNo: '',
             invoiceDate: todayDDMMYYYY(),
             lines: [{ itemId: '', quantity: 0, discount: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 }],
-            gunnyBags: [{ bagTypeId: '', quantity: 0, rate: 0, amount: 0 }],
+            gunnyBags: [{ bagTypeId: '', bagBharthi: '', quantity: 0, rate: 0, amount: 0 }],
             loadingCharges: 0,
           }
     )
@@ -339,7 +349,14 @@ const DirectSalesModal: React.FC<{
       salesOrderNo: values.salesOrderNo,
       lines: linesOut,
       mode,
-      gunnyBags: values.gunnyBags,
+      gunnyBags: values.gunnyBags.map((g) => ({
+        bagTypeId: g.bagTypeId,
+        bagBharthi: g.bagBharthi ?? '',
+        bharthiTypeId: g.bharthiTypeId ?? '',
+        quantity: Number(g.quantity || 0),
+        rate: Number(g.rate || 0),
+        amount: Number(g.amount || 0),
+      })),
       charges: {
         gunnyBags: chargesOut.gunnyBags,
         transportation: chargesOut.transportation,
@@ -565,7 +582,7 @@ const DirectSalesModal: React.FC<{
                   <label className="block text-[11px] font-medium text-slate-700">Gunny Bags</label>
                   {!isReadOnly && <button
                     type="button"
-                    onClick={() => gunnyField.append({ bagTypeId: '', quantity: 0, rate: 0, amount: 0 })}
+                    onClick={() => gunnyField.append({ bagTypeId: '', bagBharthi: '', quantity: 0, rate: 0, amount: 0 })}
                     className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
                   >
                     Add Bag
@@ -577,6 +594,7 @@ const DirectSalesModal: React.FC<{
                     <thead className="bg-slate-50 text-slate-500">
                       <tr>
                         <th className="px-3 py-2">Bag Type</th>
+                        <th className="px-3 py-2">Bag Bharthi</th>
                         <th className="px-3 py-2">Quantity</th>
                         <th className="px-3 py-2">Rate</th>
                         <th className="px-3 py-2">Amount</th>
@@ -601,6 +619,15 @@ const DirectSalesModal: React.FC<{
                                 </option>
                               ))}
                             </select>
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <input
+                              type="text"
+                              disabled={isApproved}
+                              className="w-28 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
+                              placeholder="Bag Bharthi"
+                              {...register(`gunnyBags.${index}.bagBharthi` as const)}
+                            />
                           </td>
                           <td className="px-3 py-1.5">
                             <input
@@ -743,7 +770,7 @@ const DirectSalesPage: React.FC = () => {
     getBranches().then(setMasterBranches).catch(() => setMasterBranches([]))
     getItems().then(setMasterItems).catch(() => setMasterItems([]))
     getSalesOrders().then(setConvertedSalesOrders).catch(() => setConvertedSalesOrders([]))
-    getGunnyBags().then(setMasterGunnyBags).catch(() => setMasterGunnyBags([]))
+    getGunnyBags(undefined, false).then(setMasterGunnyBags).catch(() => setMasterGunnyBags([]))
     getCurrentOrganization(selectedOrganizationId).then((organization) => setOrganizationName(organization.organization_name)).catch(() => setOrganizationName(''))
     loadRecords()
 

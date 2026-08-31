@@ -12,7 +12,7 @@ type SalePayload = {
   invoiceTotal?: number
   charges?: { gunnyBags?: number; transportation?: number; loadingCharges?: number }
   lines?: Array<{ id?: string; itemId: string; quantity: number; discount: number; actualQuantity?: number; salesPrice: number; salesAmount: number }>
-  gunnyBags?: Array<{ bagTypeId: string; bharthiTypeId?: string; quantity: number; rate: number; amount: number }>
+  gunnyBags?: Array<{ bagTypeId: string; bagBharthi?: string; bharthiTypeId?: string; quantity: number; rate: number; amount: number }>
 }
 
 export async function listDirectSales(organizationId?: string | null) {
@@ -66,6 +66,7 @@ export async function listDirectSales(organizationId?: string | null) {
        , COALESCE(
          (SELECT json_agg(json_build_object(
            'bagTypeId', dsgb.gunny_bag_id,
+           'bagBharthi', dsgb.bag_bharthi,
            'bharthiTypeId', dsgb.bharthi_type_id,
            'quantity', dsgb.quantity,
            'rate', dsgb.rate,
@@ -206,16 +207,28 @@ export async function createDirectSale(payload: SalePayload) {
       if (!payload.salesOrderNo) {
         const bagQuantity = Number(bag.quantity)
         const bagStock = await client.query(
-          `SELECT id, code
-           FROM gunny_bags
-           WHERE id = $1
-             AND organization_id = $2
-             AND branch_id = $3
-             AND opening_stock >= $4
-           FOR UPDATE`,
+          `SELECT gb.id, gb.code, gb.branch_id, gb.opening_stock,
+                  gbbs.stock AS branch_stock
+           FROM gunny_bags gb
+           LEFT JOIN gunny_bag_branch_stock gbbs
+             ON gbbs.gunny_bag_id = gb.id
+            AND gbbs.branch_id = $3
+           WHERE gb.id = $1
+             AND gb.organization_id = $2
+             AND COALESCE(gbbs.stock,
+                          CASE WHEN gb.branch_id = $3 THEN gb.opening_stock END,
+                          0) >= $4
+           FOR UPDATE OF gb`,
           [bag.bagTypeId, payload.organizationId, payload.branchId, bagQuantity]
         )
-        if (!bagStock.rows[0]) throw new Error(`Insufficient gunny bag stock for ${bag.bagTypeId}`)
+        if (!bagStock.rows[0]) {
+          const bagDetails = await client.query(
+            `SELECT code FROM gunny_bags WHERE id = $1 AND organization_id = $2`,
+            [bag.bagTypeId, payload.organizationId]
+          )
+          const bagLabel = bagDetails.rows[0]?.code ?? bag.bagTypeId
+          throw new Error(`Insufficient gunny bag stock for ${bagLabel}`)
+        }
 
         if (bag.bharthiTypeId) {
           const bharthiStock = await client.query(
@@ -232,16 +245,25 @@ export async function createDirectSale(payload: SalePayload) {
           )
         }
 
-        await client.query(
-          `UPDATE gunny_bags SET opening_stock = opening_stock - $1
-           WHERE id = $2 AND organization_id = $3 AND branch_id = $4`,
-          [bagQuantity, bag.bagTypeId, payload.organizationId, payload.branchId]
-        )
+        if (bagStock.rows[0].branch_stock !== null) {
+          await client.query(
+            `UPDATE gunny_bag_branch_stock
+             SET stock = stock - $1, updated_at = NOW()
+             WHERE gunny_bag_id = $2 AND organization_id = $3 AND branch_id = $4`,
+            [bagQuantity, bag.bagTypeId, payload.organizationId, payload.branchId]
+          )
+        } else {
+          await client.query(
+            `UPDATE gunny_bags SET opening_stock = opening_stock - $1
+             WHERE id = $2 AND organization_id = $3 AND branch_id = $4`,
+            [bagQuantity, bag.bagTypeId, payload.organizationId, payload.branchId]
+          )
+        }
       }
       await client.query(
-        `INSERT INTO direct_sale_gunny_bags (id, direct_sale_id, gunny_bag_id, bharthi_type_id, quantity, rate, amount)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [`DSGB-${Date.now()}-${index}`, id, bag.bagTypeId, bag.bharthiTypeId || null, bag.quantity, bag.rate, bag.amount]
+        `INSERT INTO direct_sale_gunny_bags (id, direct_sale_id, gunny_bag_id, bag_bharthi, bharthi_type_id, quantity, rate, amount)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [`DSGB-${Date.now()}-${index}`, id, bag.bagTypeId, bag.bagBharthi ?? null, bag.bharthiTypeId || null, bag.quantity, bag.rate, bag.amount]
       )
     }
     await client.query('COMMIT')

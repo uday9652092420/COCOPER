@@ -212,6 +212,7 @@ export interface DirectSales {
   lines: DirectSalesLine[]
   gunnyBags?: {
     bagTypeId: string
+    bagBharthi?: string
     bharthiTypeId?: string
     quantity: number
     rate: number

@@ -63,11 +63,14 @@ CREATE TABLE IF NOT EXISTS direct_sale_gunny_bags (
   id TEXT PRIMARY KEY,
   direct_sale_id TEXT NOT NULL REFERENCES direct_sales(id) ON DELETE CASCADE,
   gunny_bag_id TEXT NOT NULL REFERENCES gunny_bags(id),
+  bag_bharthi TEXT,
   bharthi_type_id TEXT REFERENCES gunny_bag_bharthi_types(id),
   quantity NUMERIC NOT NULL DEFAULT 0,
   rate NUMERIC NOT NULL DEFAULT 0,
   amount NUMERIC NOT NULL DEFAULT 0
 );
+
+ALTER TABLE direct_sale_gunny_bags ADD COLUMN IF NOT EXISTS bag_bharthi TEXT;
 
 -- Sample seed data: one sale with two items
 INSERT INTO direct_sales (id, invoice_no, customer_id, customer_name, sale_date, total_amount, payment_mode, reference_no, remarks, status, created_at)

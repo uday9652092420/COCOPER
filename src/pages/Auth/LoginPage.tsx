@@ -69,7 +69,7 @@ const LoginPage: React.FC = () => {
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 p-1 shadow-lg">
               <img
-                src="/logo.jpg"
+                src="logo.jpg"
                 alt="COCOPER Logo"
                 className="h-full w-full rounded-xl object-contain"
               />

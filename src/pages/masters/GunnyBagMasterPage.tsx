@@ -387,7 +387,7 @@ const GunnyBagMasterPage: React.FC =
           setLoading(true);
 
           const data =
-            await getGunnyBags();
+            await getGunnyBags(undefined, false);
 
           /**
            * Always protect DataGrid from non-array data.

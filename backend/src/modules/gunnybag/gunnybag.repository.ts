@@ -15,7 +15,10 @@ import {
 
 /**
  * ============================================================
- * Get Next Gunny Bag Code (branch-scoped)
+ * Get Next Gunny Bag Code.
+ *
+ * The prefix is branch-derived, but gunny bag codes are globally unique,
+ * so the sequence must also be checked across all branches.
  * ============================================================
  */
 export async function getNextGunnyBagCodeRepo(branchId?: string | null): Promise<string> {
@@ -28,6 +31,7 @@ export async function getNextGunnyBagCodeRepo(branchId?: string | null): Promise
     moduleLetter: "G",
     fallbackPrefix: "GB",
     padLength: 2,
+    sequenceScope: "global",
   });
 }
 

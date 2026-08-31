@@ -31,6 +31,8 @@ export interface ScopedCodeOptions {
   fallbackPrefix: string;
   /** Zero-padding length for the sequence number. */
   padLength?: number;
+  /** Use one sequence for the table when its code is globally unique. */
+  sequenceScope?: 'scope' | 'global';
 }
 
 export async function getNextScopedCode(options: ScopedCodeOptions): Promise<string> {
@@ -43,6 +45,7 @@ export async function getNextScopedCode(options: ScopedCodeOptions): Promise<str
     moduleLetter,
     fallbackPrefix,
     padLength = 2,
+    sequenceScope = 'scope',
   } = options;
 
   let prefix = fallbackPrefix;
@@ -61,11 +64,19 @@ export async function getNextScopedCode(options: ScopedCodeOptions): Promise<str
       prefix = `${firstLetter.toUpperCase()}${moduleLetter.toUpperCase()}`;
     }
 
+    const scopeCondition =
+      sequenceScope === 'global'
+        ? ''
+        : ` AND ${scopeColumn} = $2`;
+    const params =
+      sequenceScope === 'global'
+        ? [`${prefix}-%`]
+        : [`${prefix}-%`, scopeId];
     const { rows } = await pool.query(
       `SELECT COALESCE(MAX(CASE WHEN code ~ '-[0-9]+$' THEN substring(code FROM '([0-9]+)$')::int ELSE 0 END), 0)::int AS total
        FROM ${table}
-      WHERE code LIKE $1 AND ${scopeColumn} = $2`,
-          [`${prefix}-%`, scopeId]
+      WHERE code LIKE $1${scopeCondition}`,
+      params
     );
 
     total = rows[0]?.total ?? 0;

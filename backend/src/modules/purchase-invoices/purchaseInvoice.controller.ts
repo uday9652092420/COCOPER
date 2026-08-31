@@ -39,7 +39,7 @@ export async function getPurchaseInvoiceHandler(
   next: NextFunction
 ) {
   try {
-    const row = await getPurchaseInvoiceById(String(req.params.id));
+    const row = await getPurchaseInvoiceById(String(req.params.id), resolveOrganizationId(req));
     if (!row) {
       return next(new AppError("Purchase invoice not found", 404));
     }
@@ -72,7 +72,8 @@ export async function updatePurchaseInvoiceHandler(
   next: NextFunction
 ) {
   try {
-    const updated = await updatePurchaseInvoice(String(req.params.id), req.body);
+    const organizationId = resolveOrganizationId(req);
+    const updated = await updatePurchaseInvoice(String(req.params.id), req.body, organizationId);
     return res.status(200).json(updated);
   } catch (error) {
     return next(new AppError("Failed to update purchase invoice", 500, { cause: error }));
@@ -85,7 +86,8 @@ export async function deletePurchaseInvoiceHandler(
   next: NextFunction
 ) {
   try {
-    await deletePurchaseInvoice(String(req.params.id));
+    const organizationId = resolveOrganizationId(req);
+    await deletePurchaseInvoice(String(req.params.id), organizationId);
     return res.status(200).json({ success: true });
   } catch (error) {
     return next(new AppError("Failed to delete purchase invoice", 500, { cause: error }));

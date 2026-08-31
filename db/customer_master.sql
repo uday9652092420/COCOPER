@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS customers (
   contact_no1 TEXT,
   contact_person2 TEXT,
   contact_no2 TEXT,
+  contact_person3 TEXT,
+  contact_no3 TEXT,
   credit_limit NUMERIC DEFAULT 0,
   status customer_status DEFAULT 'Active',
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
@@ -55,19 +57,19 @@ CREATE INDEX IF NOT EXISTS idx_customers_mobile ON customers(mobile);
 CREATE INDEX IF NOT EXISTS idx_customers_organization ON customers(organization_id);
 
 -- Sample data
-INSERT INTO customers (id, code, name, type, state, address, mobile, whatsapp, contact_person, contact_person1, contact_no1, contact_person2, contact_no2, credit_limit, status, created_at)
+INSERT INTO customers (id, code, name, type, state, address, mobile, whatsapp, contact_person, contact_person1, contact_no1, contact_person2, contact_no2, contact_person3, contact_no3, credit_limit, status, created_at)
 VALUES
-('CUST-1', 'CUST-001', 'Apex Traders', 'Premium', 'Karnataka', '12 Market Road, Bangalore', '9000100001', '9000100001', 'Ramesh', 'Sakthi', '9000100101', 'Kumar', '9000100201', 500000, 'Active', CURRENT_DATE - INTERVAL '60 days')
+('CUST-1', 'CUST-001', 'Apex Traders', 'Premium', 'Karnataka', '12 Market Road, Bangalore', '9000100001', '9000100001', 'Ramesh', 'Sakthi', '9000100101', 'Kumar', '9000100201', 'Gopal', '9000100301', 500000, 'Active', CURRENT_DATE - INTERVAL '60 days')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO customers (id, code, name, type, state, address, mobile, whatsapp, contact_person, contact_person1, contact_no1, contact_person2, contact_no2, credit_limit, status, created_at)
+INSERT INTO customers (id, code, name, type, state, address, mobile, whatsapp, contact_person, contact_person1, contact_no1, contact_person2, contact_no2, contact_person3, contact_no3, credit_limit, status, created_at)
 VALUES
-('CUST-2', 'CUST-002', 'Local Fresh', 'Local', 'Tamil Nadu', '5 Street Lane, Chennai', '9000100002', '9000100002', 'Meena', NULL, NULL, NULL, NULL, 20000, 'Active', CURRENT_DATE - INTERVAL '30 days')
+('CUST-2', 'CUST-002', 'Local Fresh', 'Local', 'Tamil Nadu', '5 Street Lane, Chennai', '9000100002', '9000100002', 'Meena', NULL, NULL, NULL, NULL, NULL, NULL, 20000, 'Active', CURRENT_DATE - INTERVAL '30 days')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO customers (id, code, name, type, state, address, mobile, whatsapp, contact_person, contact_person1, contact_no1, contact_person2, contact_no2, credit_limit, status, created_at)
+INSERT INTO customers (id, code, name, type, state, address, mobile, whatsapp, contact_person, contact_person1, contact_no1, contact_person2, contact_no2, contact_person3, contact_no3, credit_limit, status, created_at)
 VALUES
-('CUST-3', 'CUST-003', 'Red Mart', 'Red', 'Kerala', '9 Harbor Road, Kochi', '9000100003', '9000100003', 'Prakash', NULL, NULL, NULL, NULL, 0, 'Active', CURRENT_DATE - INTERVAL '7 days')
+('CUST-3', 'CUST-003', 'Red Mart', 'Red', 'Kerala', '9 Harbor Road, Kochi', '9000100003', '9000100003', 'Prakash', NULL, NULL, NULL, NULL, NULL, NULL, 0, 'Active', CURRENT_DATE - INTERVAL '7 days')
 ON CONFLICT (id) DO NOTHING;
 
 COMMIT;

@@ -48,6 +48,10 @@ export type Supplier = {
 
   contact_no2?: string;
 
+  contact_person3?: string;
+
+  contact_no3?: string;
+
 
   opening_balance?: number;
 

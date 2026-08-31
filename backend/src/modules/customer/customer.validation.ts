@@ -82,6 +82,18 @@ export const customerSchema = z
       .optional()
       .or(z.literal("")),
 
+    contact_person3: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal("")),
+
+    contact_no3: z
+      .string()
+      .trim()
+      .optional()
+      .or(z.literal("")),
+
     credit_limit: z
       .coerce
       .number()

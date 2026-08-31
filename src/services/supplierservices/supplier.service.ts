@@ -32,6 +32,10 @@ export interface SupplierResponse {
 
   contact_no2?: string;
 
+  contact_person3?: string;
+
+  contact_no3?: string;
+
   opening_balance: number;
 
   status:
@@ -72,6 +76,10 @@ export async function createSupplier(
     contact_person2?: string;
 
     contact_no2?: string;
+
+    contact_person3?: string;
+
+    contact_no3?: string;
 
     opening_balance:number;
 
@@ -227,7 +235,9 @@ export async function updateSupplier(
     contact_person2?:string;
 
     contact_no2?:string;
+    contact_person3?: string;
 
+    contact_no3?: string;
     opening_balance:number;
 
     status:

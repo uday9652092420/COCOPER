@@ -43,6 +43,10 @@ export interface Customer {
 
   contact_no2?: string;
 
+  contact_person3?: string;
+
+  contact_no3?: string;
+
   credit_limit?: number;
 
   status: CustomerStatus;
@@ -82,6 +86,10 @@ export interface CreateCustomerInput {
 
   contact_no2?: string;
 
+  contact_person3?: string;
+
+  contact_no3?: string;
+
   credit_limit?: number;
 
   status: CustomerStatus;
@@ -118,6 +126,10 @@ export interface UpdateCustomerInput {
   contact_person2?: string;
 
   contact_no2?: string;
+
+  contact_person3?: string;
+
+  contact_no3?: string;
 
   credit_limit?: number;
 

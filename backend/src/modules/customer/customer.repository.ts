@@ -77,6 +77,8 @@ export async function getCustomerRepository(
       contact_no1,
       contact_person2,
       contact_no2,
+      contact_person3,
+      contact_no3,
       credit_limit,
       status,
       organization_id,
@@ -132,6 +134,8 @@ export async function createCustomerRepository(
       contact_no1,
       contact_person2,
       contact_no2,
+      contact_person3,
+      contact_no3,
       credit_limit,
       status,
       organization_id
@@ -140,8 +144,8 @@ export async function createCustomerRepository(
     (
       gen_random_uuid()::text,
       $1,$2,$3,$4,$5,$6,$7,
-      $8,$9,$10,$11,$12,
-      $13,$14,$15
+      $8,$9,$10,$11,$12,$13,$14,
+      $15,$16
     )
     RETURNING *
     `,
@@ -158,6 +162,8 @@ export async function createCustomerRepository(
       payload.contact_no1 ?? "",
       payload.contact_person2 ?? "",
       payload.contact_no2 ?? "",
+      payload.contact_person3 ?? "",
+      payload.contact_no3 ?? "",
       payload.credit_limit,
       payload.status,
       payload.organization_id ?? null,
@@ -191,9 +197,11 @@ export async function updateCustomerRepository(
       contact_no1=$10,
       contact_person2=$11,
       contact_no2=$12,
-      credit_limit=$13,
-      status=$14
-    WHERE id=$15 AND organization_id=$16
+      contact_person3=$13,
+      contact_no3=$14,
+      credit_limit=$15,
+      status=$16
+    WHERE id=$17 AND organization_id=$18
     RETURNING *
     `,
     [
@@ -209,6 +217,8 @@ export async function updateCustomerRepository(
       payload.contact_no1 ?? "",
       payload.contact_person2 ?? "",
       payload.contact_no2 ?? "",
+      payload.contact_person3 ?? "",
+      payload.contact_no3 ?? "",
       payload.credit_limit,
       payload.status,
       id,

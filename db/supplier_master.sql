@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
   contact_no1 TEXT,
   contact_person2 TEXT,
   contact_no2 TEXT,
+  contact_person3 TEXT,
+  contact_no3 TEXT,
   opening_balance NUMERIC DEFAULT 0,
   status supplier_status DEFAULT 'Active',
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,

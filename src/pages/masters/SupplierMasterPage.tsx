@@ -75,6 +75,10 @@ interface Supplier {
 
   contactNo2?:string;
 
+  contactPerson3?:string;
+
+  contactNo3?:string;
+
 
   openingBalance:number;
 
@@ -126,6 +130,10 @@ contactNo1?:string;
 contactPerson2?:string;
 
 contactNo2?:string;
+
+contactPerson3?:string;
+
+contactNo3?:string;
 
 
 opening_balance:number;
@@ -198,6 +206,10 @@ contactNo1:item.contact_no1 ?? "",
 contactPerson2:item.contact_person2 ?? "",
 
 contactNo2:item.contact_no2 ?? "",
+
+contactPerson3:item.contact_person3 ?? "",
+
+contactNo3:item.contact_no3 ?? "",
 
 
 openingBalance:item.opening_balance,
@@ -557,7 +569,7 @@ required:false
 
 {
 name:"contactNo1",
-label:"Contact Person No 1",
+label:"Contact No",
 type:"text",
 required:false
 },
@@ -574,11 +586,24 @@ required:false
 
 {
 name:"contactNo2",
-label:"Contact Person No 2",
+label:"Contact No",
 type:"text",
 required:false
 },
 
+{
+name:"contactPerson2",
+label:"Contact Person 3",
+type:"text",
+required:false
+},
+
+{
+name:"contactNo3",
+label:"Contact No",
+type:"text",
+required:false
+},
 
 
 {
@@ -669,6 +694,8 @@ const openAdd = async () => {
   contactNo1: "",
   contactPerson2: "",
   contactNo2: "",
+  contactPerson3: "",
+  contactNo3: "",
   openingBalance: 0,
   status: "Active",
   createdAt: "",
@@ -757,6 +784,11 @@ values.contactPerson2,
 contact_no2:
 values.contactNo2,
 
+contact_person3:
+values.contactPerson3,
+
+contact_no3:
+values.contactNo3,
 
 
 opening_balance:
@@ -819,6 +851,8 @@ else {
   contactNo1: "",
   contactPerson2: "",
   contactNo2: "",
+  contactPerson3: "",
+  contactNo3: "",
   openingBalance: 0,
   status: "Active",
   createdAt: "",
@@ -1068,6 +1102,12 @@ editing.contactPerson2 ?? "",
 contactNo2:
 editing.contactNo2 ?? "",
 
+contactPerson3:
+editing.contactPerson3 ?? "",
+
+contactNo3:
+editing.contactNo3 ?? "",
+
 
 opening_balance:
 editing.openingBalance,
@@ -1110,6 +1150,10 @@ contactNo1:"",
 contactPerson2:"",
 
 contactNo2:"",
+
+contactPerson3:"",
+
+contactNo3:"",
 
 opening_balance:0,
 

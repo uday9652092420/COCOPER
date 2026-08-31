@@ -36,6 +36,10 @@ export interface CustomerResponse {
 
   contact_no2?: string;
 
+  contact_person3?: string;
+
+  contact_no3?: string;
+
   credit_limit?: number;
 
   status:
@@ -76,6 +80,10 @@ export async function createCustomer(
     contact_person2?: string;
 
     contact_no2?: string;
+
+    contact_person3?: string;
+
+    contact_no3?: string;
 
     credit_limit?: number;
 
@@ -196,6 +204,10 @@ export async function updateCustomer(
     contact_person2?: string;
 
     contact_no2?: string;
+
+    contact_person3?: string;
+
+    contact_no3?: string;
 
     credit_limit?: number;
 

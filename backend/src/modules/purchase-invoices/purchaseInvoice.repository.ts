@@ -51,7 +51,7 @@ export async function listPurchaseInvoicesRepo(
   let where = "";
   if (organizationId) {
     params.push(organizationId);
-    where = "WHERE pi.organization_id = $1 OR pi.organization_id IS NULL";
+    where = "WHERE pi.organization_id = $1"
   }
   const { rows } = await pool.query(
     `${PI_SELECT} ${where} GROUP BY pi.id ORDER BY pi.created_at DESC`,
@@ -61,11 +61,18 @@ export async function listPurchaseInvoicesRepo(
 }
 
 export async function getPurchaseInvoiceByIdRepo(
-  id: string
+  id: string,
+  organizationId?: string | null
 ): Promise<PurchaseInvoiceRow | null> {
+  const params: string[] = [id]
+  let where = "WHERE pi.id = $1"
+  if (organizationId) {
+    params.push(organizationId)
+    where = `WHERE pi.id = $1 AND pi.organization_id = $2`
+  }
   const { rows } = await pool.query(
-    `${PI_SELECT} WHERE pi.id = $1 GROUP BY pi.id`,
-    [id]
+    `${PI_SELECT} ${where} GROUP BY pi.id`,
+    params
   );
   return rows[0] ?? null;
 }
@@ -130,14 +137,22 @@ export async function createPurchaseInvoiceRepo(
   } finally {
     client.release();
   }
-  const created = await getPurchaseInvoiceByIdRepo(id);
+  const created = await getPurchaseInvoiceByIdRepo(id, payload.organizationId);
   return created!;
 }
 
 export async function updatePurchaseInvoiceRepo(
   id: string,
-  payload: PurchaseInvoiceUpdateDTO
+  payload: PurchaseInvoiceUpdateDTO,
+  organizationId?: string | null
 ): Promise<PurchaseInvoiceRow> {
+  const currentInvoice = await getPurchaseInvoiceByIdRepo(id, organizationId ?? null);
+  if (!currentInvoice) {
+    throw new Error("Purchase invoice not found");
+  }
+
+  const resolvedOrganizationId = currentInvoice.organizationId;
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -152,10 +167,10 @@ export async function updatePurchaseInvoiceRepo(
         market_cess = COALESCE($8, market_cess),
         bags_and_sticks = COALESCE($9, bags_and_sticks),
         freight = COALESCE($10, freight),
-        grand_total = COALESCE($11, grand_total)
-        ,status = COALESCE($12, status)
-        ,purchase_order_id = COALESCE($13, purchase_order_id)
-       WHERE id = $1`,
+        grand_total = COALESCE($11, grand_total),
+        status = COALESCE($12, status),
+        purchase_order_id = COALESCE($13, purchase_order_id)
+       WHERE id = $1 AND organization_id = $14`,
       [
         id,
         payload.invoiceNo,
@@ -170,8 +185,18 @@ export async function updatePurchaseInvoiceRepo(
         payload.grandTotal,
         payload.status,
         payload.purchaseOrderId,
+        resolvedOrganizationId ?? null,
       ]
     );
+
+    const updateResult = await client.query(
+      "SELECT id FROM purchase_invoices WHERE id = $1 AND organization_id = $2",
+      [id, resolvedOrganizationId ?? null]
+    );
+    if (updateResult.rowCount === 0) {
+      throw new Error("Purchase invoice not found");
+    }
+
     if (payload.lines !== undefined) {
       await client.query(
         "DELETE FROM purchase_invoice_items WHERE purchase_invoice_id = $1",
@@ -202,14 +227,18 @@ export async function updatePurchaseInvoiceRepo(
   } finally {
     client.release();
   }
-  const updated = await getPurchaseInvoiceByIdRepo(id);
+
+  const updated = await getPurchaseInvoiceByIdRepo(id, resolvedOrganizationId ?? null);
   return updated!;
 }
 
-export async function deletePurchaseInvoiceRepo(id: string): Promise<boolean> {
+export async function deletePurchaseInvoiceRepo(
+  id: string,
+  organizationId?: string | null
+): Promise<boolean> {
   const { rowCount } = await pool.query(
-    "DELETE FROM purchase_invoices WHERE id = $1",
-    [id]
+    "DELETE FROM purchase_invoices WHERE id = $1 AND ($2::uuid IS NULL OR organization_id = $2::uuid)",
+    [id, organizationId ?? null]
   );
   return (rowCount ?? 0) > 0;
 }

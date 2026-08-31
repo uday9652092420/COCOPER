@@ -45,6 +45,8 @@ interface CustomerFormValues {
   contactNo1?: string
   contactPerson2?: string
   contactNo2?: string
+  contactPerson3?: string
+  contactNo3?: string
 }
 interface Customer {
   id: string;
@@ -62,6 +64,8 @@ interface Customer {
   contactNo1: string;
   contactPerson2: string;
   contactNo2: string;
+  contactPerson3: string;
+  contactNo3: string;
 
   creditLimit: number;
 
@@ -100,6 +104,10 @@ const mapCustomer = (
   contactPerson2: item.contact_person2 ?? "",
 
   contactNo2: item.contact_no2 ?? "",
+
+  contactPerson3: item.contact_person3 ?? "",
+
+  contactNo3: item.contact_no3 ?? "",
 
   creditLimit: item.credit_limit ?? 0,
 
@@ -196,6 +204,8 @@ useEffect(() => {
         <td>${escapeHtml(customer.contactNo1)}</td>
         <td>${escapeHtml(customer.contactPerson2)}</td>
         <td>${escapeHtml(customer.contactNo2)}</td>
+        <td>${escapeHtml(customer.contactPerson3)}</td>
+        <td>${escapeHtml(customer.contactNo3)}</td>
         <td>${escapeHtml(customer.type)}</td>
         <td>${escapeHtml(customer.state)}</td>
         <td>${escapeHtml(customer.mobile)}</td>
@@ -206,8 +216,8 @@ useEffect(() => {
       </tr>`).join('')
     const sheet = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Customers</title></head><body>
       <table border="1"><thead><tr>
-        <th>Code</th><th>Name</th><th>Contact Person 1</th><th>Contact Person No 1</th>
-        <th>Contact Person 2</th><th>Contact Person No 2</th><th>Type</th><th>State</th>
+        <th>Code</th><th>Name</th><th>Contact Person 1</th><th>Contact No</th>
+        <th>Contact Person 2</th><th>Contact No</th><th>Contact Person 3</th><th>Contact No</th><th>Type</th><th>State</th>
         <th>Mobile</th><th>WhatsApp</th><th>Credit Limit</th><th>Status</th><th>Created Date</th>
       </tr></thead><tbody>${rows}</tbody></table></body></html>`
     const url = URL.createObjectURL(new Blob([sheet], { type: 'application/vnd.ms-excel' }))
@@ -228,6 +238,8 @@ useEffect(() => {
         <td>${escapeHtml(customer.contactNo1)}</td>
         <td>${escapeHtml(customer.contactPerson2)}</td>
         <td>${escapeHtml(customer.contactNo2)}</td>
+        <td>${escapeHtml(customer.contactPerson3)}</td>
+        <td>${escapeHtml(customer.contactNo3)}</td>
         <td>${escapeHtml(customer.type)}</td>
         <td>${escapeHtml(customer.state)}</td>
         <td>${escapeHtml(customer.mobile)}</td>
@@ -251,8 +263,8 @@ useEffect(() => {
       th { background: #e2e8f0; text-align: left; }
       th, td { border: 1px solid #cbd5e1; padding: 5px; }
     </style></head><body><h1>Customer Master</h1><p>Saved customers</p>
-      <table><thead><tr><th>Code</th><th>Name</th><th>Contact Person 1</th><th>Contact Person No 1</th>
-      <th>Contact Person 2</th><th>Contact Person No 2</th><th>Type</th><th>State</th><th>Mobile</th>
+      <table><thead><tr><th>Code</th><th>Name</th><th>Contact Person 1</th><th>Contact No</th>
+      <th>Contact Person 2</th><th>Contact No</th><th>Contact Person 3</th><th>Contact No</th><th>Type</th><th>State</th><th>Mobile</th>
       <th>Credit Limit</th><th>Status</th><th>Created Date</th></tr></thead><tbody>${rows}</tbody></table>
     </body></html>`)
     printWindow.document.close()
@@ -322,9 +334,11 @@ useEffect(() => {
     { name: 'code', label: 'Customer Code', type: 'text', required: true, readOnly:true},
     { name: 'name', label: 'Customer Name', type: 'text', required: true },
     { name: 'contactPerson1', label: 'Contact Person 1', type: 'text', required: false },
-    { name: 'contactNo1', label: 'Contact Person No 1', type: 'text', required: false },
+    { name: 'contactNo1', label: 'Contact No', type: 'text', required: false },
     { name: 'contactPerson2', label: 'Contact Person 2', type: 'text', required: false },
-    { name: 'contactNo2', label: 'Contact Person No 2', type: 'text', required: false },
+    { name: 'contactNo2', label: 'Contact No', type: 'text', required: false },
+    { name: 'contactPerson3', label: 'Contact Person 3', type: 'text', required: false },
+    { name: 'contactNo3', label: 'Contact No', type: 'text', required: false },
     {
       name: 'type',
       label: 'Customer Type',
@@ -397,6 +411,10 @@ useEffect(() => {
       contactPerson2: "",
 
       contactNo2: "",
+
+      contactPerson3: "",
+
+      contactNo3: "",
 
       creditLimit: 0,
 
@@ -471,6 +489,12 @@ useEffect(() => {
       contact_no2:
         values.contactNo2,
 
+      contact_person3:
+        values.contactPerson3,
+
+      contact_no3:
+        values.contactNo3,
+
       credit_limit: values.type === "Red" ? 0 : Number(values.creditLimit || 0),
 
       status:
@@ -543,6 +567,10 @@ useEffect(() => {
         contactPerson2: "",
 
         contactNo2: "",
+
+        contactPerson3: "",
+
+        contactNo3: "",
 
         creditLimit: 0,
 
@@ -639,6 +667,8 @@ useEffect(() => {
                 contactNo1: (editing as any).contactNo1 ?? '',
                 contactPerson2: (editing as any).contactPerson2 ?? '',
                 contactNo2: (editing as any).contactNo2 ?? '',
+                contactPerson3: (editing as any).contactPerson3 ?? '',
+                contactNo3: (editing as any).contactNo3 ?? '',
                 type: editing.type,
                 state: editing.state,
                 address: editing.address,
@@ -654,6 +684,8 @@ useEffect(() => {
                 contactNo1: '',
                 contactPerson2: '',
                 contactNo2: '',
+                contactPerson3: '',
+                contactNo3: '',
                 type: 'Local',
                 state: '',
                 address: '',

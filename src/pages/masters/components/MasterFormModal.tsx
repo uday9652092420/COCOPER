@@ -212,9 +212,9 @@ export const MasterFormModal = <
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-xl">
+      <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">
           <h2 className="text-sm font-semibold text-slate-900">
             {title}
           </h2>
@@ -231,10 +231,10 @@ export const MasterFormModal = <
         {/* Form */}
         <form
           onSubmit={handleSubmit(submit)}
-          className="grid grid-rows-[auto_1fr_auto] gap-3 px-4 py-4"
+          className="grid grid-rows-[auto_1fr_auto] gap-2 px-3 py-3"
         >
           {/* Standard Fields */}
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-2 md:grid-cols-2">
             {fields.map((field) => (
               <div
                 key={field.name}
@@ -371,7 +371,7 @@ export const MasterFormModal = <
           )}
 
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs">
+          <div className="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs">
             {/* Reset */}
             <button
               type="button"
@@ -398,7 +398,7 @@ export const MasterFormModal = <
                 type="submit"
                 className="rounded-full bg-[#2E7D32] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#256427]"
               >
-                Save
+                {title.toLowerCase().includes("edit") ? "Update" : "Save"}
               </button>
 
               {/* Close */}

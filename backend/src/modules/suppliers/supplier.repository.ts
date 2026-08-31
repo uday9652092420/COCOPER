@@ -82,6 +82,8 @@ export async function createSupplierRepo(
       contact_no1,
       contact_person2,
       contact_no2,
+      contact_person3,
+      contact_no3,
       opening_balance,
       status,
       organization_id,
@@ -91,7 +93,7 @@ export async function createSupplierRepo(
     VALUES
     (
       $1,$2,$3,$4,$5,$6,$7,$8,
-      $9,$10,$11,$12,$13,$14,$15,$16,
+      $9,$10,$11,$12,$13,$14,$15,$16,$17,$18,
       CURRENT_DATE
     )
 
@@ -124,6 +126,10 @@ export async function createSupplierRepo(
       payload.contact_person2 ?? "",
 
       payload.contact_no2 ?? "",
+
+      payload.contact_person3 ?? "",
+
+      payload.contact_no3 ?? "",
 
       payload.opening_balance ?? 0,
 
@@ -258,12 +264,16 @@ export async function updateSupplierRepo(
 
       contact_no2=$13,
 
-      opening_balance=$14,
+      contact_person3=$14,
 
-      status=$15
+      contact_no3=$15,
+
+      opening_balance=$16,
+
+      status=$17
 
 
-    WHERE id=$1 AND organization_id=$16
+    WHERE id=$1 AND organization_id=$18
 
 
     RETURNING *
@@ -296,6 +306,10 @@ export async function updateSupplierRepo(
       payload.contact_person2,
 
       payload.contact_no2,
+
+      payload.contact_person3,
+
+      payload.contact_no3,
 
       payload.opening_balance,
 

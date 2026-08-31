@@ -19,8 +19,8 @@ export async function listPurchaseInvoices(organizationId?: string | null) {
   return listPurchaseInvoicesRepo(organizationId ?? null);
 }
 
-export async function getPurchaseInvoiceById(id: string) {
-  return getPurchaseInvoiceByIdRepo(id);
+export async function getPurchaseInvoiceById(id: string, organizationId?: string | null) {
+  return getPurchaseInvoiceByIdRepo(id, organizationId);
 }
 
 export async function createPurchaseInvoice(payload: PurchaseInvoiceCreateDTO) {
@@ -32,11 +32,15 @@ export async function createPurchaseInvoice(payload: PurchaseInvoiceCreateDTO) {
 
 export async function updatePurchaseInvoice(
   id: string,
-  payload: PurchaseInvoiceUpdateDTO
+  payload: PurchaseInvoiceUpdateDTO,
+  organizationId?: string | null
 ) {
-  return updatePurchaseInvoiceRepo(id, payload);
+  return updatePurchaseInvoiceRepo(id, payload, organizationId ?? null);
 }
 
-export async function deletePurchaseInvoice(id: string) {
-  return deletePurchaseInvoiceRepo(id);
+export async function deletePurchaseInvoice(
+  id: string,
+  organizationId?: string | null
+) {
+  return deletePurchaseInvoiceRepo(id, organizationId ?? null);
 }

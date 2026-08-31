@@ -971,7 +971,10 @@ const PurchaseInvoicePage: React.FC = () => {
     const linesTotal = row.lines.reduce((s, l) => s + Number(l.purchaseAmount ?? 0), 0)
     const charges =
       (Number(row.loadingCost) || 0) + (Number(row.marketCess) || 0) + (Number(row.bagsAndSticks) || 0) + (Number(row.freight) || 0)
-    const supplier = resolveSupplierName(row.supplierId)
+    const supplierObj = suppliers.find((s) => s.id === row.supplierId)
+    const supplierAddress = supplierObj 
+      ? `${supplierObj.name}${supplierObj.address ? ', ' + supplierObj.address : ''}${supplierObj.state ? ', ' + supplierObj.state : ''}`
+      : ''
     const branch = resolveBranchName(row.branchId)
 
     win.document.write(`<!DOCTYPE html>
@@ -999,7 +1002,7 @@ const PurchaseInvoicePage: React.FC = () => {
       <div class="muted">Date: ${toDDMMYYYY(row.invoiceDate)}</div>
     </div>
     <div class="muted" style="text-align:right">
-      <div>Supplier: <b>${supplier}</b></div>
+      <div>Supplier: <b>${supplierAddress}</b></div>
       <div>Branch: ${branch}</div>
     </div>
   </div>

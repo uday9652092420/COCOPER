@@ -204,6 +204,13 @@ export async function updateSupplierService(
       payload.contact_no2 ??
       existing.contact_no2,
 
+    contact_person3:
+      payload.contact_person3 ??
+      existing.contact_person3,
+
+    contact_no3:
+      payload.contact_no3 ??
+      existing.contact_no3,
 
     opening_balance:
       payload.opening_balance ??

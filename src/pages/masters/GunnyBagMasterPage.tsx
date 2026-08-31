@@ -1126,7 +1126,7 @@ const GunnyBagMasterPage: React.FC =
     const bharthiSection =
       useMemo(
         () => (
-          <div className="w-full min-w-0">
+          <div className="w-full">
             {/* ==================================================
                 Branch Wise Stock Display (Editable)
                 ================================================== */}
@@ -1135,9 +1135,9 @@ const GunnyBagMasterPage: React.FC =
                 Branch Wise Stock <span className="text-rose-500">*</span>
               </label>
               {branches.length > 0 ? (
-                <div className="w-full overflow-hidden rounded-lg border border-slate-200">
+                <div className={`w-full rounded-lg border border-slate-200 ${branches.length > 2 ? 'max-h-28 overflow-y-auto' : ''}`}>
                   <table className="w-full text-xs">
-                    <thead className="border-b border-slate-200 bg-slate-50">
+                    <thead className="sticky top-0 border-b border-slate-200 bg-slate-50">
                       <tr>
                         <th className="px-3 py-2 text-left font-semibold text-slate-600">
                           Branch

@@ -104,6 +104,12 @@ useEffect(() => {
     });
 }, [editing, modalOpen]);
 
+// Recalculate total branch stock whenever rows change
+useEffect(() => {
+  const total = branchStockRows.reduce((sum, row) => sum + (Number(row.stock) || 0), 0);
+  setBranchWiseStockTotal(total);
+}, [branchStockRows]);
+
   const filtered = useMemo(
     () =>
       records.filter((it) => {
@@ -169,7 +175,7 @@ useEffect(() => {
     { name: 'name', label: 'Item Name', type: 'text', required: true },
     { name: 'category', label: 'Category', type: 'text', required: true },
     { name: 'uom', label: 'UOM', type: 'text', required: true },
-    { name: 'branchWiseStock', label: 'Opening Stock', type: 'number', required: true },
+    { name: 'branchWiseStock', label: 'Opening Stock', type: 'number', required: true, readOnly: true },
     {
       name: 'status',
       label: 'Status',
@@ -317,6 +323,7 @@ const openEdit = (row: ItemResponse) => {
               }
                   : { code: '', name: '', category: '', uom: '', status: 'Active', branchWiseStock: 0 }
         }
+        syncedValues={{ branchWiseStock: branchWiseStockTotal }}
                 customSection={
                   <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
                     <div className="mb-2 flex items-center justify-between">
@@ -332,9 +339,9 @@ const openEdit = (row: ItemResponse) => {
                         Add Branch
                       </button>
                     </div>
-                    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                    <div className={`rounded-lg border border-slate-200 bg-white ${branchStockRows.length > 2 ? 'max-h-28 overflow-y-auto' : ''}`}>
                       <table className="min-w-full text-left text-[11px]">
-                        <thead className="bg-slate-100 text-slate-600">
+                        <thead className="sticky top-0 bg-slate-100 text-slate-600">
                           <tr>
                             <th className="px-3 py-2">Branch</th>
                             <th className="px-3 py-2">Stock</th>

@@ -231,7 +231,7 @@ export const MasterFormModal = <
         {/* Form */}
         <form
           onSubmit={handleSubmit(submit)}
-          className="grid max-h-[70vh] grid-rows-[1fr_auto] gap-3 overflow-y-auto px-4 py-4"
+          className="grid grid-rows-[auto_1fr_auto] gap-3 px-4 py-4"
         >
           {/* Standard Fields */}
           <div className="grid gap-3 md:grid-cols-2">

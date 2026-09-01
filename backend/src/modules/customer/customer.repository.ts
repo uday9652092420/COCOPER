@@ -39,9 +39,11 @@ export async function listCustomersRepository(organizationId?: string | null): P
       contact_person1,
       contact_no1,
       contact_person2,
-      contact_no2,
-      credit_limit,
-      status,
+contact_no2,
+contact_person3,
+contact_no3,
+credit_limit,
+status,
       organization_id,
       created_at
     FROM customers
@@ -141,12 +143,12 @@ export async function createCustomerRepository(
       organization_id
     )
     VALUES
-    (
-      gen_random_uuid()::text,
-      $1,$2,$3,$4,$5,$6,$7,
-      $8,$9,$10,$11,$12,$13,$14,
-      $15,$16
-    )
+(
+  gen_random_uuid()::text,
+  $1,$2,$3,$4,$5,$6,$7,
+  $8,$9,$10,$11,$12,$13,$14,
+  $15,$16,$17
+)
     RETURNING *
     `,
     [

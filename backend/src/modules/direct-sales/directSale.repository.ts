@@ -41,6 +41,7 @@ export async function listDirectSales(organizationId?: string | null) {
       c.type AS "customerType",
       TO_CHAR(ds.sale_date, 'YYYY-MM-DD') AS "invoiceDate",
        ds.total_amount AS "invoiceTotal",
+       ds.customer_receipt_status AS "customerReceiptStatus",
       ds.approved,
        json_build_object(
          'gunnyBags', ds.gunny_bags_total,

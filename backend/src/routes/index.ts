@@ -4,6 +4,7 @@ import itemRoutes from "../modules/item/item.routes.js";
 import gunnyBagRoutes from "../modules/gunnybag/gunnybag.routes.js";
 import supplierRoutes from "../modules/suppliers/supplier.routes.js";
 import customerRoutes from "../modules/customer/customer.routes.js";
+import customerReceiptRoutes from "../modules/customer-receipts/customerReceipt.routes.js";
 import labourStaffRoutes from "../modules/labourstaff/labourstaff.routes.js";
 import bagPurchaseRoutes from "../modules/bagpurchase/bagpurchase.routes.js";
 import registerRoutes from "../modules/register/register.routes.js";
@@ -26,6 +27,7 @@ router.use("/items", itemRoutes);
 router.use("/gunny-bags", gunnyBagRoutes);
 router.use("/suppliers", supplierRoutes);
 router.use("/customers", customerRoutes);
+router.use("/customer-receipts", customerReceiptRoutes);
 router.use( "/labour-staff",labourStaffRoutes);
 router.use(
   "/bag-purchases",

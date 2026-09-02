@@ -7,7 +7,7 @@
  */
 
 import React from 'react'
-import { Eye, Edit2, Trash2, Printer } from 'lucide-react'
+import { Check, Eye, Edit2, Trash2, Printer } from 'lucide-react'
 
 /**
  * @interface ColumnDef
@@ -49,6 +49,9 @@ export interface DataGridProps<T> {
   onEdit?: (row: T) => void
   onDelete?: (row: T) => void
   onPrint?: (row: T) => void
+  onApprove?: (row: T) => void
+  isRowApproved?: (row: T) => boolean
+  getRowClassName?: (row: T) => string
 }
 
 /**
@@ -66,6 +69,9 @@ export function DataGrid<T>({
   onEdit,
   onDelete,
   onPrint,
+  onApprove,
+  isRowApproved,
+  getRowClassName,
 }: DataGridProps<T>) {
   /**
    * @function resolveRowId
@@ -121,33 +127,36 @@ export function DataGrid<T>({
                 {col.label}
               </th>
             ))}
-            {/* <th className="w-40 px-3 py-2 text-right font-medium text-slate-600">Actions</th> */}
+            {(onView || onEdit || onApprove || onPrint || onDelete) ? (
+              <th className="w-40 px-3 py-2 text-right font-medium text-slate-600">Actions</th>
+            ) : null}
           </tr>
         </thead>
 
         <tbody className="divide-y divide-slate-100">
           {loading ? (
             <tr>
-              <td colSpan={columns.length + 1} className="px-4 py-8 text-center text-slate-500">
+              <td colSpan={columns.length + (onView || onEdit || onApprove || onPrint || onDelete ? 1 : 0)} className="px-4 py-8 text-center text-slate-500">
                 Loading...
               </td>
             </tr>
           ) : data.length === 0 ? (
             <tr>
-              <td colSpan={columns.length + 1} className="px-4 py-8 text-center text-slate-500">
+              <td colSpan={columns.length + (onView || onEdit || onApprove || onPrint || onDelete ? 1 : 0)} className="px-4 py-8 text-center text-slate-500">
                 No records found.
               </td>
             </tr>
           ) : (
             data.map((row) => (
-              <tr key={resolveRowId(row)} className="hover:bg-slate-50">
+              <tr key={resolveRowId(row)} className={`${getRowClassName?.(row) ?? ''} hover:bg-slate-50`}>
                 {columns.map((col) => (
                   <td key={String(col.key)} className="px-3 py-3 align-middle text-slate-700">
                     {renderCell(col, row)}
                   </td>
                 ))}
 
-                {/* <td className="px-3 py-3 text-right">
+                {(onView || onEdit || onApprove || onPrint || onDelete) ? (
+                  <td className="px-3 py-3 text-right">
                   <div className="inline-flex items-center gap-2">
                     {onView ? (
                       <button
@@ -159,13 +168,23 @@ export function DataGrid<T>({
                       </button>
                     ) : null}
 
-                    {onEdit ? (
+                    {onEdit && !isRowApproved?.(row) ? (
                       <button
                         title="Edit"
                         onClick={() => onEdit(row)}
                         className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-50 text-sky-700 hover:bg-sky-100"
                       >
                         <Edit2 className="h-4 w-4" />
+                      </button>
+                    ) : null}
+
+                    {onApprove && !isRowApproved?.(row) ? (
+                      <button
+                        title="Approve"
+                        onClick={() => onApprove(row)}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      >
+                        <Check className="h-4 w-4" />
                       </button>
                     ) : null}
 
@@ -179,7 +198,7 @@ export function DataGrid<T>({
                       </button>
                     ) : null}
 
-                    {onDelete ? (
+                    {onDelete && !isRowApproved?.(row) ? (
                       <button
                         title="Delete"
                         onClick={() => onDelete(row)}
@@ -189,7 +208,8 @@ export function DataGrid<T>({
                       </button>
                     ) : null}
                   </div>
-                </td> */}
+                  </td>
+                ) : null}
               </tr>
             ))
           )}

@@ -61,8 +61,11 @@ status,
  */
 export async function getCustomerRepository(
   id: string,
-  organizationId: string
+  organizationId?: string | null
 ): Promise<Customer | null> {
+  const params = organizationId ? [id, organizationId] : [id];
+  const where = organizationId ? "WHERE id = $1 AND organization_id = $2" : "WHERE id = $1";
+
   const { rows } = await pool.query(
     `
     SELECT
@@ -86,9 +89,9 @@ export async function getCustomerRepository(
       organization_id,
       created_at
     FROM customers
-    WHERE id = $1 AND organization_id = $2
+    ${where}
     `,
-    [id, organizationId]
+    params
   );
 
   return rows[0] ?? null;
@@ -99,15 +102,18 @@ export async function getCustomerRepository(
  */
 export async function getCustomerByCodeRepository(
   code: string,
-  organizationId: string
+  organizationId?: string | null
 ): Promise<Customer | null> {
+  const params = organizationId ? [code, organizationId] : [code];
+  const where = organizationId ? "WHERE code = $1 AND organization_id = $2" : "WHERE code = $1";
+
   const { rows } = await pool.query(
     `
     SELECT *
     FROM customers
-    WHERE code = $1 AND organization_id = $2
+    ${where}
     `,
-    [code, organizationId]
+    params
   );
 
   return rows[0] ?? null;
@@ -181,8 +187,51 @@ export async function createCustomerRepository(
 export async function updateCustomerRepository(
   id: string,
   payload: UpdateCustomerInput,
-  organizationId: string
+  organizationId?: string | null
 ): Promise<Customer> {
+  const params = organizationId
+    ? [
+        payload.code,
+        payload.name,
+        payload.type,
+        payload.state ?? "",
+        payload.address ?? "",
+        payload.mobile ?? "",
+        payload.whatsapp ?? "",
+        payload.contact_person ?? "",
+        payload.contact_person1 ?? "",
+        payload.contact_no1 ?? "",
+        payload.contact_person2 ?? "",
+        payload.contact_no2 ?? "",
+        payload.contact_person3 ?? "",
+        payload.contact_no3 ?? "",
+        payload.credit_limit,
+        payload.status,
+        id,
+        organizationId,
+      ]
+    : [
+        payload.code,
+        payload.name,
+        payload.type,
+        payload.state ?? "",
+        payload.address ?? "",
+        payload.mobile ?? "",
+        payload.whatsapp ?? "",
+        payload.contact_person ?? "",
+        payload.contact_person1 ?? "",
+        payload.contact_no1 ?? "",
+        payload.contact_person2 ?? "",
+        payload.contact_no2 ?? "",
+        payload.contact_person3 ?? "",
+        payload.contact_no3 ?? "",
+        payload.credit_limit,
+        payload.status,
+        id,
+      ];
+
+  const where = organizationId ? "WHERE id=$17 AND organization_id=$18" : "WHERE id=$17";
+
   const { rows } = await pool.query(
     `
     UPDATE customers
@@ -203,29 +252,10 @@ export async function updateCustomerRepository(
       contact_no3=$14,
       credit_limit=$15,
       status=$16
-    WHERE id=$17 AND organization_id=$18
+    ${where}
     RETURNING *
     `,
-    [
-      payload.code,
-      payload.name,
-      payload.type,
-      payload.state ?? "",
-      payload.address ?? "",
-      payload.mobile ?? "",
-      payload.whatsapp ?? "",
-      payload.contact_person ?? "",
-      payload.contact_person1 ?? "",
-      payload.contact_no1 ?? "",
-      payload.contact_person2 ?? "",
-      payload.contact_no2 ?? "",
-      payload.contact_person3 ?? "",
-      payload.contact_no3 ?? "",
-      payload.credit_limit,
-      payload.status,
-      id,
-      organizationId,
-    ]
+    params
   );
 
   return rows[0];
@@ -236,15 +266,18 @@ export async function updateCustomerRepository(
  */
 export async function deleteCustomerRepository(
   id: string,
-  organizationId: string
+  organizationId?: string | null
 ): Promise<void> {
+  const params = organizationId ? [id, organizationId] : [id];
+  const where = organizationId ? "WHERE id=$1 AND organization_id=$2" : "WHERE id=$1";
+
   await pool.query(
     `
     DELETE
     FROM customers
-    WHERE id=$1 AND organization_id=$2
+    ${where}
     `,
-    [id, organizationId]
+    params
   );
 }
 

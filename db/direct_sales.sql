@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS direct_sales (
   customer_name TEXT,
   sale_date DATE NOT NULL DEFAULT CURRENT_DATE,
   total_amount NUMERIC DEFAULT 0,
+  outstanding_amount NUMERIC NOT NULL DEFAULT 0,
   payment_mode TEXT DEFAULT 'Cash',
   reference_no TEXT,
   remarks TEXT,

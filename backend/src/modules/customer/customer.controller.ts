@@ -66,7 +66,7 @@ export async function createCustomerHandler(
   res: Response
 ): Promise<Response> {
   try {
-    const organizationId = requireOrganizationId(req);
+    const organizationId = resolveOrganizationId(req) ?? req.body?.organization_id ?? null;
 
     const customer = await createCustomerService(
       {
@@ -105,7 +105,7 @@ export async function listCustomersHandler(
   try {
     const customers =
       await listCustomersService(
-        requireOrganizationId(req)
+        resolveOrganizationId(req) ?? null
       );
 
     return res.status(200).json({
@@ -128,12 +128,12 @@ export async function listCustomersHandler(
  * GET /api/customers/:id
  */
 export async function getCustomerHandler(
-  req: Request<IdParams>,
+  req: Request<any>,
   res: Response
 ): Promise<Response> {
   try {
     const customer =
-      await getCustomerService(req.params.id, requireOrganizationId(req));
+      await getCustomerService(req.params.id, resolveOrganizationId(req) ?? null);
 
     return res.status(200).json({
       success: true,
@@ -157,15 +157,16 @@ export async function getCustomerHandler(
  * PUT /api/customers/:id
  */
 export async function updateCustomerHandler(
-  req: Request<IdParams>,
+  req: Request<any>,
   res: Response
 ): Promise<Response> {
   try {
+    const organizationId = resolveOrganizationId(req) ?? req.body?.organization_id ?? null;
     const customer =
       await updateCustomerService(
         req.params.id,
-        { ...req.body, organization_id: requireOrganizationId(req) },
-        requireOrganizationId(req)
+        { ...req.body, organization_id: organizationId },
+        organizationId
       );
 
     return res.status(200).json({
@@ -193,12 +194,12 @@ export async function updateCustomerHandler(
  * DELETE /api/customers/:id
  */
 export async function deleteCustomerHandler(
-  req: Request<IdParams>,
+  req: Request<any>,
   res: Response
 ): Promise<Response> {
   try {
     const result =
-      await deleteCustomerService(req.params.id, requireOrganizationId(req));
+      await deleteCustomerService(req.params.id, resolveOrganizationId(req) ?? null);
 
     return res.status(200).json({
       success: true,
@@ -216,8 +217,3 @@ export async function deleteCustomerHandler(
   }
 }
 
-function requireOrganizationId(req: Request<any>): string {
-  const organizationId = resolveOrganizationId(req);
-  if (!organizationId) throw { status: 400, message: "Organization ID is required" };
-  return organizationId;
-}

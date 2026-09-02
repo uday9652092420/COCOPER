@@ -6,6 +6,7 @@
 import type React from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
+import { useAuthStore } from '../../store/authStore'
 import {
   getCustomers,
   createCustomer,
@@ -27,6 +28,7 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog'
 import { formatDate } from '../../utils/format'
 import { usePermissions } from '../../hooks/usePermissions'
 import { INDIAN_STATES } from '../../constants/indianStates'
+import { onScopeChange } from '../../utils/scopeEvents'
 
 /**
  * @description Customer form values including two additional contact persons and numbers.
@@ -141,6 +143,7 @@ const escapeHtml = (value: string | number): string =>
  */
 const CustomerMasterPage: React.FC = () => {
   const { can } = usePermissions()
+  const { selectedOrganizationId } = useAuthStore()
   const [records, setRecords] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -178,10 +181,12 @@ const CustomerMasterPage: React.FC = () => {
 };
 
 useEffect(() => {
-
   loadCustomers();
 
-}, []);
+  return onScopeChange(() => {
+    loadCustomers();
+  });
+}, [selectedOrganizationId]);
 
   const filtered = useMemo(
     () => 

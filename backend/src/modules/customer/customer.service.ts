@@ -42,10 +42,10 @@ export async function listCustomersService(organizationId?: string | null): Prom
  */
 export async function getCustomerService(
   id: string,
-  organizationId: string
+  organizationId?: string | null
 ): Promise<Customer> {
 
-  const customer = await getCustomerRepository(id, organizationId);
+  const customer = await getCustomerRepository(id, organizationId ?? null);
 
   if (!customer) {
     throw {
@@ -81,7 +81,7 @@ export async function createCustomerService(
   const existing =
     await getCustomerByCodeRepository(
       validated.code,
-      validated.organization_id as string
+      validated.organization_id ?? null
     );
 
   if (existing) {
@@ -100,11 +100,11 @@ export async function createCustomerService(
 export async function updateCustomerService(
   id: string,
   payload: UpdateCustomerInput,
-  organizationId: string
+  organizationId?: string | null
 ): Promise<Customer> {
 
   const existing =
-    await getCustomerRepository(id, organizationId);
+    await getCustomerRepository(id, organizationId ?? null);
 
   if (!existing) {
     throw {
@@ -129,7 +129,7 @@ export async function updateCustomerService(
   const duplicate =
     await getCustomerByCodeRepository(
       validated.code,
-      organizationId
+      organizationId ?? null
     );
 
   if (
@@ -154,11 +154,11 @@ export async function updateCustomerService(
  */
 export async function deleteCustomerService(
   id: string,
-  organizationId: string
+  organizationId?: string | null
 ): Promise<{ message: string }> {
 
   const existing =
-    await getCustomerRepository(id, organizationId);
+    await getCustomerRepository(id, organizationId ?? null);
 
   if (!existing) {
     throw {
@@ -167,7 +167,7 @@ export async function deleteCustomerService(
     };
   }
 
-  await deleteCustomerRepository(id, organizationId);
+  await deleteCustomerRepository(id, organizationId ?? null);
 
   return {
     message: "Customer deleted successfully",

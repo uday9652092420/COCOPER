@@ -11,6 +11,7 @@ export interface SupplierPayment {
   id: string
   paymentNumber: string
   supplierId?: string
+  invoiceMode?: 'Invoice by Invoice' | 'Cumulative'
   supplierName?: string
   date: string // YYYY-MM-DD
   paymentMode: 'Cash' | 'Bank' | 'UPI'
@@ -27,6 +28,7 @@ export interface SupplierPayment {
 export interface SupplierPaymentCreatePayload {
   paymentNumber: string
   supplierId?: string
+  invoiceMode?: 'Invoice by Invoice' | 'Cumulative'
   supplierName?: string
   date?: string
   paymentMode?: 'Cash' | 'Bank' | 'UPI'
@@ -43,6 +45,7 @@ export interface SupplierPaymentUpdatePayload {
   id: string
   paymentNumber?: string
   supplierId?: string
+  invoiceMode?: 'Invoice by Invoice' | 'Cumulative'
   supplierName?: string
   date?: string
   paymentMode?: 'Cash' | 'Bank' | 'UPI'

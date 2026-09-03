@@ -557,19 +557,19 @@ const PurchaseInvoiceModal: React.FC<{
           <div className="mt-3 grid gap-3 md:grid-cols-4">
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Loading Cost</label>
-              <input type="number" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('loadingCost', { valueAsNumber: true })} />
+              <input type="number" step="any" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('loadingCost', { valueAsNumber: true })} />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Market Cess</label>
-              <input type="number" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('marketCess', { valueAsNumber: true })} />
+              <input type="number" step="any" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('marketCess', { valueAsNumber: true })} />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Bags & Sticks</label>
-              <input type="number" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('bagsAndSticks', { valueAsNumber: true })} />
+              <input type="number" step="any" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('bagsAndSticks', { valueAsNumber: true })} />
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Freight</label>
-              <input type="number" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('freight', { valueAsNumber: true })} />
+              <input type="number" step="any" disabled={isApproved} className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100" {...register('freight', { valueAsNumber: true })} />
             </div>
           </div>
 

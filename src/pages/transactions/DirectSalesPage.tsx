@@ -540,6 +540,7 @@ const DirectSalesModal: React.FC<{
                       <td className="px-3 py-1.5">
                         <input
                           type="number"
+                          step="any"
                           disabled={Boolean(selectedSalesOrderNo) || isApproved}
                           className="w-24 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
                           {...register(`lines.${index}.salesPrice` as const, {
@@ -643,6 +644,7 @@ const DirectSalesModal: React.FC<{
                           <td className="px-3 py-1.5">
                             <input
                               type="number"
+                              step="any"
                               disabled={isApproved}
                               className="w-28 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
                               {...register(`gunnyBags.${index}.rate` as const, {
@@ -684,6 +686,7 @@ const DirectSalesModal: React.FC<{
                 <label className="mb-1 block text-[11px] font-medium text-slate-700">Loading Charges</label>
                 <input
                   type="number"
+                  step="any"
                   disabled={isReadOnly}
                   className="w-full rounded-full border border-slate-200 px-3 py-1.5 text-xs disabled:bg-slate-100"
                   {...register('loadingCharges', { valueAsNumber: true })}

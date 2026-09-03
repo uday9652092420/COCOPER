@@ -279,10 +279,13 @@ export interface SupplierPayment {
   id: string
   paymentNumber: string
   supplierId: string
+  invoiceMode?: 'Invoice by Invoice' | 'Cumulative'
   date: string
   paymentMode: 'Cash' | 'Bank' | 'UPI'
   amount: number
   remarks: string
+  approved?: boolean
+  attachments?: File[]
   /**
    * @description Optional related purchase invoice id for this payment (supports partial payments).
    */

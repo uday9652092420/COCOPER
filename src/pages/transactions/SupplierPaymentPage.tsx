@@ -5,12 +5,11 @@
  */
 
 import type React from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import {
   supplierPayments as dbPayments,
-  suppliers,
   purchaseInvoices,
   type SupplierPayment,
   type PurchaseInvoice,
@@ -21,6 +20,16 @@ import { SearchFilterPanel } from '../../components/common/SearchFilterPanel'
 import { DataGrid, type ColumnDef } from '../../components/common/DataGrid'
 import { ConfirmDialog } from '../../components/common/ConfirmDialog'
 import { formatCurrency, formatDate } from '../../utils/format'
+import { getSuppliers, type SupplierResponse } from '../../services/supplierservices/supplier.service'
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
 
 /**
  * @description Supplier payment form values.
@@ -28,11 +37,13 @@ import { formatCurrency, formatDate } from '../../utils/format'
 interface SupplierPaymentFormValues {
   paymentNumber: string
   supplierId: string
+  invoiceMode: 'Invoice by Invoice' | 'Cumulative'
   date: string
   paymentMode: 'Cash' | 'Bank' | 'UPI'
   amount: number
   remarks: string
   purchaseInvoiceId?: string
+  attachments?: File[]
 }
 
 /**
@@ -47,6 +58,11 @@ const SupplierPaymentPage: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<SupplierPayment | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<SupplierPayment | null>(null)
+  const [supplierOptions, setSupplierOptions] = useState<SupplierResponse[]>([])
+  const [attachments, setAttachments] = useState<File[]>([])
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null)
+  const [columnChooserOpen, setColumnChooserOpen] = useState(false)
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState(['paymentNumber', 'date', 'supplierId', 'invoiceMode', 'paymentMode', 'amount'])
 
   const {
     register,
@@ -60,14 +76,22 @@ const SupplierPaymentPage: React.FC = () => {
   // Watch fields for reactive UI
   const watchedSupplierId = watch('supplierId')
   const watchedInvoiceId = watch('purchaseInvoiceId')
+  const watchedInvoiceMode = watch('invoiceMode')
   const watchedAmount = Number(watch('amount') ?? 0)
 
   useEffect(() => {
-    const id = setTimeout(() => {
-      setRecords(dbPayments)
-      setLoading(false)
-    }, 400)
-    return () => clearTimeout(id)
+    const loadSupplierPayments = async () => {
+      try {
+        setRecords(dbPayments)
+        setSupplierOptions(await getSuppliers())
+      } catch (error) {
+        console.error(error)
+        toast.error('Unable to load suppliers from Supplier Master.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    void loadSupplierPayments()
   }, [])
 
   /**
@@ -77,14 +101,14 @@ const SupplierPaymentPage: React.FC = () => {
     () =>
       records.filter((p) => {
         const q = search.toLowerCase()
-        const supplier = suppliers.find((s) => s.id === p.supplierId)
+        const supplier = supplierOptions.find((s) => s.id === p.supplierId)
         const matchesSearch =
           !q ||
           p.paymentNumber.toLowerCase().includes(q) ||
           supplier?.name.toLowerCase().includes(q)
         return matchesSearch
       }),
-    [records, search]
+    [records, search, supplierOptions]
   )
 
   const columns: ColumnDef<SupplierPayment>[] = [
@@ -97,8 +121,9 @@ const SupplierPaymentPage: React.FC = () => {
     {
       key: 'supplierId',
       label: 'Supplier',
-      render: (row) => suppliers.find((s) => s.id === row.supplierId)?.name ?? '',
+      render: (row) => supplierOptions.find((s) => s.id === row.supplierId)?.name ?? '',
     },
+    { key: 'invoiceMode', label: 'Invoice Mode', render: (row) => row.invoiceMode ?? 'Invoice by Invoice' },
     { key: 'paymentMode', label: 'Mode' },
     {
       key: 'amount',
@@ -107,22 +132,62 @@ const SupplierPaymentPage: React.FC = () => {
     },
   ]
 
+  const visibleColumns = columns.filter((column) => visibleColumnKeys.includes(String(column.key)))
+
+  const getExportValue = (row: SupplierPayment, key: string): string => {
+    if (key === 'date') return formatDate(row.date)
+    if (key === 'supplierId') return supplierOptions.find((supplier) => supplier.id === row.supplierId)?.name ?? ''
+    if (key === 'invoiceMode') return row.invoiceMode ?? 'Invoice by Invoice'
+    if (key === 'amount') return formatCurrency(row.amount)
+    return String(row[key as keyof SupplierPayment] ?? '')
+  }
+
+  const exportSupplierPaymentsToExcel = () => {
+    const headers = visibleColumns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join('')
+    const rows = filtered.map((row) => `<tr>${visibleColumns.map((column) => `<td>${escapeHtml(getExportValue(row, String(column.key)))}</td>`).join('')}</tr>`).join('')
+    const url = URL.createObjectURL(new Blob([`<html><body><table border="1"><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></body></html>`], { type: 'application/vnd.ms-excel' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'supplier-payments.xls'
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success('Supplier payments exported to Excel.')
+  }
+
+  const printSupplierPayments = () => {
+    const win = window.open('', '_blank', 'width=1100,height=750')
+    if (!win) {
+      toast.error('Popup blocked. Please allow popups and try again.')
+      return
+    }
+    const headers = visibleColumns.map((column) => `<th>${escapeHtml(column.label)}</th>`).join('')
+    const rows = filtered.map((row) => `<tr>${visibleColumns.map((column) => `<td>${escapeHtml(getExportValue(row, String(column.key)))}</td>`).join('')}</tr>`).join('')
+    win.document.write(`<html><head><title>Supplier Payments</title><style>body{font-family:Arial,sans-serif;margin:24px}table{border-collapse:collapse;width:100%;font-size:11px}th,td{border:1px solid #cbd5e1;padding:7px;text-align:left}th{background:#e2e8f0}</style></head><body><h1>Supplier Payments</h1><table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+  }
+
   /**
    * @function openAdd
    * @description Prepare form for a new payment.
    */
   const openAdd = () => {
     setEditing(null)
+    setAttachments([])
     reset({
-      paymentNumber: `PAY-${(Math.floor(Math.random() * 9000) + 1000)
-        .toString()
-        .padStart(4, '0')}`,
+      paymentNumber: `PAY-${String(records.reduce((highest, payment) => {
+        const number = Number(payment.paymentNumber.match(/(\d+)$/)?.[1] ?? 0)
+        return Math.max(highest, number)
+      }, 0) + 1).padStart(4, '0')}`,
       supplierId: '',
+      invoiceMode: 'Invoice by Invoice',
       date: new Date().toISOString().slice(0, 10),
       paymentMode: 'Cash',
       amount: 0,
       remarks: '',
       purchaseInvoiceId: undefined,
+      attachments: [],
     })
     setModalOpen(true)
   }
@@ -133,15 +198,16 @@ const SupplierPaymentPage: React.FC = () => {
    */
   const openEdit = (row: SupplierPayment) => {
     setEditing(row)
+    setAttachments([])
     reset({
       paymentNumber: row.paymentNumber,
       supplierId: row.supplierId,
+      invoiceMode: row.invoiceMode ?? 'Invoice by Invoice',
       date: row.date,
       paymentMode: row.paymentMode,
       amount: row.amount,
       remarks: row.remarks ?? '',
-      // invoice id may be stored on mock row as optional
-      // @ts-expect-error allow optional field
+      attachments: [],
       purchaseInvoiceId: (row as any).purchaseInvoiceId ?? undefined,
     })
     setModalOpen(true)
@@ -166,10 +232,13 @@ const SupplierPaymentPage: React.FC = () => {
         id: `SP-${Date.now()}`,
         paymentNumber: values.paymentNumber,
         supplierId: values.supplierId,
+        invoiceMode: values.invoiceMode,
         date: values.date,
         paymentMode: values.paymentMode,
         amount: Number(values.amount),
         remarks: values.remarks,
+        approved: false,
+        attachments,
         purchaseInvoiceId: values.purchaseInvoiceId,
       }
       setRecords((prev) => [record as SupplierPayment, ...prev])
@@ -177,6 +246,7 @@ const SupplierPaymentPage: React.FC = () => {
     }
     setModalOpen(false)
     setEditing(null)
+    setAttachments([])
   }
 
   /**
@@ -188,6 +258,24 @@ const SupplierPaymentPage: React.FC = () => {
     setRecords((prev) => prev.filter((p) => p.id !== confirmDelete.id))
     toast.success('Supplier payment deleted.')
     setConfirmDelete(null)
+  }
+
+  const handleAttachmentSelection = (fileList: FileList | null) => {
+    if (!fileList) return
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.pdf']
+    const selectedFiles = Array.from(fileList).filter((file) => {
+      const lowerName = file.name.toLowerCase()
+      return allowedExtensions.some((extension) => lowerName.endsWith(extension))
+    })
+    if (selectedFiles.length !== fileList.length) {
+      toast.error('Attachments must be JPG, PNG, or PDF files.')
+    }
+    setAttachments((current) => [...current, ...selectedFiles])
+  }
+
+  const handleApprove = (row: SupplierPayment) => {
+    setRecords((prev) => prev.map((payment) => payment.id === row.id ? { ...payment, approved: true } : payment))
+    toast.success(`${row.paymentNumber} approved.`)
   }
 
   /**
@@ -234,23 +322,34 @@ const SupplierPaymentPage: React.FC = () => {
       <PageHeader title="Supplier Payment" breadcrumb={['Transactions', 'Supplier Payment']} />
       <Toolbar
         onAddNew={openAdd}
-        onExportExcel={() => toast.info('Exported supplier payments to Excel (mock).')}
-        onExportPdf={() => toast.info('Exported supplier payments to PDF (mock).')}
-        onPrint={() => toast.info('Sending supplier payment list to printer (mock).')}
-        onRefresh={() => toast.success('Supplier payment list refreshed.')}
-        onColumnChooser={() => toast.info('Column chooser not configurable in mock grid.')}
+        onExportExcel={exportSupplierPaymentsToExcel}
+        onExportPdf={printSupplierPayments}
+        onPrint={printSupplierPayments}
+        onRefresh={() => { setRecords(dbPayments); toast.success('Supplier payment list refreshed.') }}
+        onColumnChooser={() => setColumnChooserOpen((open) => !open)}
       />
+      {columnChooserOpen ? (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-sm">
+          <span className="font-medium text-slate-700">Show columns:</span>
+          {columns.map((column) => {
+            const key = String(column.key)
+            return <label key={key} className="inline-flex items-center gap-1.5 text-slate-600"><input type="checkbox" checked={visibleColumnKeys.includes(key)} disabled={visibleColumnKeys.length === 1 && visibleColumnKeys.includes(key)} onChange={() => setVisibleColumnKeys((keys) => keys.includes(key) ? keys.filter((item) => item !== key) : [...keys, key])} />{column.label}</label>
+          })}
+        </div>
+      ) : null}
       <SearchFilterPanel
         onSearchChange={setSearch}
         searchPlaceholder="Search by payment no or supplier..."
       />
       <DataGrid<SupplierPayment>
         data={filtered}
-        columns={columns}
+        columns={visibleColumns}
         getRowId={(row) => row.id}
         loading={loading}
         onView={openEdit}
         onEdit={openEdit}
+        onApprove={handleApprove}
+        isRowApproved={(row) => row.approved === true}
         onDelete={(row) => setConfirmDelete(row)}
         onPrint={(row) => toast.info(`Printing payment ${row.paymentNumber} (mock).`)}
       />
@@ -268,6 +367,7 @@ const SupplierPaymentPage: React.FC = () => {
                     Payment Number
                   </label>
                   <input
+                    readOnly
                     className="w-full rounded-full border border-slate-200 px-3 py-1.5"
                     {...register('paymentNumber', { required: true })}
                   />
@@ -291,7 +391,7 @@ const SupplierPaymentPage: React.FC = () => {
                     {...register('supplierId', { required: true })}
                   >
                     <option value="">Select supplier</option>
-                    {suppliers.map((s) => (
+                    {supplierOptions.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
                       </option>
@@ -302,7 +402,27 @@ const SupplierPaymentPage: React.FC = () => {
                   ) : null}
                 </div>
 
-                {/* Purchase Invoice selector - shows invoices for selected supplier */}
+                <div>
+                  <label className="mb-1 block text-[11px] font-medium text-slate-700">
+                    Invoice Mode
+                  </label>
+                  <select
+                    className="w-full rounded-full border border-slate-200 px-3 py-1.5"
+                    {...register('invoiceMode', {
+                      required: true,
+                      onChange: (event) => {
+                        if (event.target.value === 'Cumulative') {
+                          setValue('purchaseInvoiceId', undefined, { shouldDirty: true })
+                        }
+                      },
+                    })}
+                  >
+                    <option value="Invoice by Invoice">Invoice by Invoice</option>
+                    <option value="Cumulative">Cumulative</option>
+                  </select>
+                </div>
+
+                {watchedInvoiceMode === 'Invoice by Invoice' ? (
                 <div>
                   <label className="mb-1 block text-[11px] font-medium text-slate-700">
                     Purchase Invoice (optional)
@@ -327,7 +447,10 @@ const SupplierPaymentPage: React.FC = () => {
                     </p>
                   ) : null}
                 </div>
+                ) : null}
+              </div>
 
+              <div className="grid gap-3 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-[11px] font-medium text-slate-700">
                     Payment Mode
@@ -341,9 +464,6 @@ const SupplierPaymentPage: React.FC = () => {
                     <option value="UPI">UPI</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-[11px] font-medium text-slate-700">
                     Amount (partial allowed)
@@ -362,14 +482,38 @@ const SupplierPaymentPage: React.FC = () => {
                     </p>
                   ) : null}
                 </div>
-                <div>
-                  <label className="mb-1 block text-[11px] font-medium text-slate-700">
-                    Remarks
-                  </label>
-                  <input
-                    className="w-full rounded-full border border-slate-200 px-3 py-1.5"
-                    {...register('remarks')}
-                  />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-slate-700">Remarks</label>
+                <input className="w-full rounded-full border border-slate-200 px-3 py-1.5" {...register('remarks')} />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-slate-700">Attachment</label>
+                <div
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    handleAttachmentSelection(event.dataTransfer.files)
+                  }}
+                  className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <button type="button" onClick={() => attachmentInputRef.current?.click()} className="rounded-full bg-slate-200 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-300">Choose files</button>
+                    <span className="text-[10px] text-slate-500">JPG, PNG, PDF</span>
+                  </div>
+                  {attachments.length > 0 ? (
+                    <div className="mt-2 max-h-20 space-y-1 overflow-y-auto">
+                      {attachments.map((file, index) => (
+                        <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-md bg-white px-2 py-1 text-[10px] text-slate-600">
+                          <span className="truncate">{file.name}</span>
+                          <button type="button" onClick={() => setAttachments((current) => current.filter((_, fileIndex) => fileIndex !== index))} className="ml-2 text-rose-600 hover:text-rose-700">Delete</button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  <input ref={attachmentInputRef} type="file" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" className="hidden" onChange={(event) => handleAttachmentSelection(event.target.files)} />
                 </div>
               </div>
 

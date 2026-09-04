@@ -140,7 +140,7 @@ function resolveCustomerInvoiceBalances(
     const invoiceKeys = new Set([sale.directSaleNo, sale.invoice_no, sale.id].filter(Boolean))
     const total = Number(sale.invoiceTotal ?? sale.total_amount ?? 0)
     const directInvoicePaid = allReceipts
-      .filter((receipt) => receipt.invoice_no && invoiceKeys.has(receipt.invoice_no))
+      .filter((receipt) => receipt.customer_id === customerId && receipt.invoice_no && invoiceKeys.has(receipt.invoice_no))
       .reduce((sum, receipt) => sum + Number(receipt.amount ?? 0), 0)
 
     let outstanding = Math.max(0, total - directInvoicePaid)
@@ -343,7 +343,7 @@ const CustomerReceiptPage: React.FC = () => {
   const invoicesForCustomer = useMemo(() => {
     if (!watchedCustomerId) return []
     return customerInvoiceBalances
-      .filter((invoice) => invoice.outstanding > 0)
+      .filter((invoice) => Number.isFinite(invoice.outstanding) && invoice.outstanding > 0.01)
       .map((invoice) => ({
         ...invoice,
         directSaleNo: invoice.invoiceNo,

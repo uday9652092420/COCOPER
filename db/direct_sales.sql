@@ -34,10 +34,19 @@ CREATE TABLE IF NOT EXISTS direct_sales (
   payment_mode TEXT DEFAULT 'Cash',
   reference_no TEXT,
   remarks TEXT,
+  gunny_bags_total NUMERIC NOT NULL DEFAULT 0,
+  transportation_charges NUMERIC NOT NULL DEFAULT 0,
+  loading_charges NUMERIC NOT NULL DEFAULT 0,
+  approved BOOLEAN NOT NULL DEFAULT FALSE,
   status direct_sale_status DEFAULT 'Draft',
   mode TEXT NOT NULL DEFAULT 'tonage',
   created_at DATE DEFAULT CURRENT_DATE
 );
+
+ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS gunny_bags_total NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS transportation_charges NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS loading_charges NUMERIC NOT NULL DEFAULT 0;
 
 -- Create direct_sale_items table (line items)
 CREATE TABLE IF NOT EXISTS direct_sale_items (

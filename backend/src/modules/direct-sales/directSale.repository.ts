@@ -23,6 +23,7 @@ export async function listDirectSales(organizationId?: string | null) {
   const { rows } = await pool.query(
     `SELECT
        ds.id,
+      ds.invoice_no,
        CASE
          WHEN ds.invoice_no ~ '^DS-[0-9]{10,}$' THEN CONCAT(
            UPPER(LEFT(COALESCE(NULLIF(TRIM(o.organization_name), ''), 'M'), 1)),
@@ -38,6 +39,7 @@ export async function listDirectSales(organizationId?: string | null) {
        ds.organization_id AS "organizationId",
        ds.branch_id AS "branchId",
        ds.customer_id AS "customerId",
+      TO_CHAR(ds.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "createdAt",
       c.type AS "customerType",
       TO_CHAR(ds.sale_date, 'YYYY-MM-DD') AS "invoiceDate",
        ds.total_amount AS "invoiceTotal",
@@ -81,7 +83,7 @@ export async function listDirectSales(organizationId?: string | null) {
      LEFT JOIN direct_sale_items dsi ON dsi.direct_sale_id = ds.id
      ${where}
     GROUP BY ds.id, c.type, o.organization_name
-     ORDER BY ds.created_at DESC, ds.sale_date DESC`,
+    ORDER BY ds.created_at DESC, ds.id DESC, ds.sale_date DESC`,
     params
   )
   return rows

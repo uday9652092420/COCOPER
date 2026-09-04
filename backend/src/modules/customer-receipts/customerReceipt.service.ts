@@ -10,6 +10,26 @@ function requireOrganizationId(req: any): string {
   return organizationId;
 }
 
+async function requireApprovedSalesInvoice(
+  invoiceNo: string,
+  customerId: string,
+  organizationId: string,
+): Promise<void> {
+  const result = await pool.query(
+    `SELECT id
+     FROM direct_sales
+     WHERE invoice_no = $1
+       AND customer_id = $2
+       AND organization_id = $3
+       AND approved = TRUE`,
+    [invoiceNo, customerId, organizationId],
+  );
+
+  if (!result.rows.length) {
+    throw new Error('Only an approved sales invoice for the selected customer can be used.');
+  }
+}
+
 export async function getCustomerReceiptsService(req: any): Promise<CustomerReceipt[]> {
   const organizationId = requireOrganizationId(req);
   return listCustomerReceiptsRepo(organizationId);
@@ -42,6 +62,10 @@ export async function createCustomerReceiptService(req: any): Promise<CustomerRe
 
   if (finalPayload.invoice_mode === 'Invoice by Invoice' && !finalPayload.invoice_no) {
     throw new Error('Invoice number is required when mode is Invoice by Invoice.');
+  }
+
+  if (finalPayload.invoice_mode === 'Invoice by Invoice') {
+    await requireApprovedSalesInvoice(finalPayload.invoice_no!, payload.customer_id, organizationId);
   }
 
   const customerExists = await pool.query('SELECT id FROM customers WHERE id = $1 AND organization_id = $2', [payload.customer_id, organizationId]);
@@ -77,6 +101,10 @@ export async function updateCustomerReceiptService(req: any): Promise<CustomerRe
 
   if (finalPayload.invoice_mode === 'Invoice by Invoice' && !finalPayload.invoice_no) {
     throw new Error('Invoice number is required when mode is Invoice by Invoice.');
+  }
+
+  if (finalPayload.invoice_mode === 'Invoice by Invoice') {
+    await requireApprovedSalesInvoice(finalPayload.invoice_no!, payload.customer_id, organizationId);
   }
 
   const updated = await updateCustomerReceiptRepo(id, finalPayload);

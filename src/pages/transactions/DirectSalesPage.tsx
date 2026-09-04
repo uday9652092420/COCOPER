@@ -213,7 +213,7 @@ const DirectSalesModal: React.FC<{
                   amount: Number(bag.amount ?? 0),
                 }))
               : [{ bagTypeId: '', bagBharthi: '', quantity: 0, rate: 0, amount: 0 }],
-            loadingCharges: 0,
+            loadingCharges: Number(existing.charges?.loadingCharges ?? 0),
           }
         : {
             directSaleNo: generateDirectSaleNo(),
@@ -372,9 +372,11 @@ const DirectSalesModal: React.FC<{
   if (!open) return null
 
   const lineTotal = lines?.reduce((sum, l) => sum + Number(l.salesAmount || 0), 0) ?? 0
-  const gunnyTotal = gunny?.reduce((sum, g) => sum + Number(g.amount || 0), 0) ?? 0
+  const calculatedGunnyTotal = gunny?.reduce((sum, g) => sum + Number(g.amount || 0), 0) ?? 0
+  const gunnyTotal = calculatedGunnyTotal || Number(existing?.charges?.gunnyBags ?? 0)
   const gunnyQuantityTotal = gunny?.reduce((sum, g) => sum + Number(g.quantity || 0), 0) ?? 0
-  const invoiceTotal = lineTotal + gunnyTotal + Number(loadingCharges || 0)
+  const calculatedInvoiceTotal = lineTotal + gunnyTotal + Number(loadingCharges || 0)
+  const invoiceTotal = existing ? Number(existing.invoiceTotal ?? calculatedInvoiceTotal) : calculatedInvoiceTotal
   const getItemName = (itemId: string) => items.find((it) => it.id === itemId)?.name ?? (itemId || 'Select item')
 
   return (

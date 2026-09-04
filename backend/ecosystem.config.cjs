@@ -52,7 +52,7 @@ module.exports = {
         FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:8000',
       },
 
-      // [B] TESTING SERVER (R & D) - ACTIVE
+      // [B] TESTING SERVER (R & D)
       // env: {
       //   NODE_ENV: 'production',
       //   PORT: process.env.PORT || '3003',
@@ -65,7 +65,7 @@ module.exports = {
       //   FRONTEND_URL: process.env.FRONTEND_URL || 'http://192.168.1.230:92',
       // },
 
-      // [C] LIVE / PRODUCTION SERVER - uncomment & fill in to activate
+      // [C] LIVE / PRODUCTION SERVER - ACTIVE
       // env: {
       //   NODE_ENV: 'production',
       //   PORT: process.env.PORT || '3005',

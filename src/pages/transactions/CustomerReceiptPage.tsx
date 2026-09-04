@@ -47,7 +47,9 @@ interface DirectSaleOption {
   total_amount?: number
   invoiceDate?: string
   sale_date?: string
+  createdAt?: string
   customerReceiptStatus?: boolean
+  approved?: boolean
 }
 
 function normalizeReceiptNo(value?: string | null): string {
@@ -118,11 +120,15 @@ function resolveCustomerInvoiceBalances(
   allReceipts: CustomerReceiptRow[],
 ) {
   const customerSales = allSales
-    .filter((sale) => (sale.customerId ?? sale.customer_id) === customerId)
+    .filter((sale) => (sale.customerId ?? sale.customer_id) === customerId && sale.approved === true)
     .sort((a, b) => {
       const dateA = new Date(a.invoiceDate ?? a.sale_date ?? '1970-01-01').getTime()
       const dateB = new Date(b.invoiceDate ?? b.sale_date ?? '1970-01-01').getTime()
-      return dateA - dateB
+      if (dateA !== dateB) return dateA - dateB
+      const createdA = new Date(a.createdAt ?? '1970-01-01').getTime()
+      const createdB = new Date(b.createdAt ?? '1970-01-01').getTime()
+      if (createdA !== createdB) return createdA - createdB
+      return String(a.id).localeCompare(String(b.id))
     })
 
   let remainingCumulativeReceipts = allReceipts
@@ -131,9 +137,10 @@ function resolveCustomerInvoiceBalances(
 
   return customerSales.map((sale) => {
     const invoiceNo = sale.directSaleNo ?? sale.invoice_no ?? sale.id
+    const invoiceKeys = new Set([sale.directSaleNo, sale.invoice_no, sale.id].filter(Boolean))
     const total = Number(sale.invoiceTotal ?? sale.total_amount ?? 0)
     const directInvoicePaid = allReceipts
-      .filter((receipt) => receipt.invoice_no && receipt.invoice_no === invoiceNo)
+      .filter((receipt) => receipt.invoice_no && invoiceKeys.has(receipt.invoice_no))
       .reduce((sum, receipt) => sum + Number(receipt.amount ?? 0), 0)
 
     let outstanding = Math.max(0, total - directInvoicePaid)
@@ -146,9 +153,11 @@ function resolveCustomerInvoiceBalances(
     return {
       id: sale.id ?? invoiceNo,
       invoiceNo,
+      storedInvoiceNo: sale.invoice_no,
       total,
       paid: Math.max(0, total - outstanding),
       outstanding,
+      customerReceiptStatus: sale.customerReceiptStatus,
     }
   })
 }
@@ -338,14 +347,14 @@ const CustomerReceiptPage: React.FC = () => {
       .map((invoice) => ({
         ...invoice,
         directSaleNo: invoice.invoiceNo,
-        invoice_no: invoice.invoiceNo,
+        invoice_no: invoice.storedInvoiceNo ?? invoice.invoiceNo,
         invoiceTotal: invoice.total,
       }))
   }, [customerInvoiceBalances, watchedCustomerId])
 
   const selectedInvoice = useMemo(() => {
     const value = watchedInvoiceNo || ''
-    return invoicesForCustomer.find((sale) => (sale.directSaleNo ?? sale.invoice_no ?? sale.id) === value)
+    return invoicesForCustomer.find((sale) => (sale.invoice_no ?? sale.directSaleNo ?? sale.id) === value)
   }, [invoicesForCustomer, watchedInvoiceNo])
 
   const outstandingBefore = useMemo(() => {
@@ -367,7 +376,7 @@ const CustomerReceiptPage: React.FC = () => {
     if (!watchedCustomerId) return { totalInvoices: 0, paid: 0, outstanding: 0 }
 
     const totalInvoices = directSales
-      .filter((sale) => (sale.customerId ?? sale.customer_id) === watchedCustomerId)
+      .filter((sale) => (sale.customerId ?? sale.customer_id) === watchedCustomerId && sale.approved === true)
       .reduce((sum, sale) => sum + Number(sale.invoiceTotal ?? sale.total_amount ?? 0), 0)
 
     const paid = customerInvoiceBalances.reduce((sum, invoice) => sum + invoice.paid, 0)
@@ -764,7 +773,8 @@ const CustomerReceiptPage: React.FC = () => {
                       <option value="">Select invoice</option>
                       {invoicesForCustomer.map((invoice) => {
                         const invoiceNo = invoice.directSaleNo ?? invoice.invoice_no ?? invoice.id
-                        return <option key={invoice.id} value={invoiceNo}>{invoiceNo}</option>
+                        const invoiceValue = invoice.invoice_no ?? invoiceNo
+                        return <option key={invoice.id} value={invoiceValue}>{invoiceNo} - {formatAmount(Number(invoice.invoiceTotal ?? invoice.total ?? 0))}</option>
                       })}
                     </select>
                     {selectedInvoice ? (

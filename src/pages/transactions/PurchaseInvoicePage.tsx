@@ -898,7 +898,9 @@ const PurchaseInvoicePage: React.FC = () => {
         freight: invoice.freight ?? 0,
         purchaseOrderId: invoice.purchaseOrderId ?? null,
         grandTotal: invoice.grandTotal,
+        outstandingAmount: invoice.outstandingAmount ?? invoice.grandTotal,
         status: invoice.status ?? 'Draft',
+        supplierPaymentReceiptStatus: invoice.supplierPaymentReceiptStatus ?? true,
         lines: invoice.lines.map((l) => ({
           id: l.id,
           itemId: l.itemId,
@@ -1073,6 +1075,12 @@ const PurchaseInvoicePage: React.FC = () => {
       key: 'grandTotal',
       label: 'Grand Total',
       render: (row) => formatCurrency(row.grandTotal),
+      width: 'w-[140px]',
+    },
+    {
+      key: 'supplierPaymentReceiptStatus',
+      label: 'Payment Receipt',
+      render: (row) => row.supplierPaymentReceiptStatus ? 'Received' : 'Pending',
       width: 'w-[140px]',
     },
     {

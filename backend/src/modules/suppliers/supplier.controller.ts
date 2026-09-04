@@ -205,7 +205,7 @@ export async function listSuppliersHandler(
 
     const suppliers =
       await listSuppliersService(
-        requireOrganizationId(req)
+        resolveOrganizationId(req)
       );
 
 

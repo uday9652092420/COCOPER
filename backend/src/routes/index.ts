@@ -18,6 +18,7 @@ import purchaseOrderRoutes from "../modules/purchase-orders/purchaseOrder.routes
 import purchaseInvoiceRoutes from "../modules/purchase-invoices/purchaseInvoice.routes.js";
 import salesOrderRoutes from "../modules/sales-orders/salesOrder.routes.js";
 import directSaleRoutes from "../modules/direct-sales/directSale.routes.js";
+import supplierPaymentRoutes from "../modules/supplier-payments/supplierPayment.routes.js";
 
 const router = Router();
 
@@ -74,4 +75,5 @@ router.use(
   salesOrderRoutes
 );
 router.use("/direct-sales", directSaleRoutes);
+router.use("/supplier-payments", supplierPaymentRoutes);
 export default router;

@@ -27,17 +27,29 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
   supplier_id TEXT,
   supplier_name TEXT,
   payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  invoice_mode TEXT NOT NULL DEFAULT 'Invoice by Invoice',
   payment_mode supplier_payment_mode DEFAULT 'Cash',
   amount NUMERIC NOT NULL DEFAULT 0,
   purchase_invoice_id TEXT, -- optional link to purchase_invoices(id)
   remarks TEXT,
+  attachment_names TEXT,
+  attachment_files TEXT,
+  approved BOOLEAN NOT NULL DEFAULT FALSE,
+  organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   created_at DATE DEFAULT CURRENT_DATE
 );
+
+ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS invoice_mode TEXT NOT NULL DEFAULT 'Invoice by Invoice';
+ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS organization_id UUID;
+ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS attachment_names TEXT;
+ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS attachment_files TEXT;
 
 -- Indexes for quick lookups
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_supplier_id ON supplier_payments(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_date ON supplier_payments(payment_date);
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_invoice_id ON supplier_payments(purchase_invoice_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_payments_organization_id ON supplier_payments(organization_id);
 
 -- Sample seed data
 INSERT INTO supplier_payments (id, payment_number, supplier_id, supplier_name, payment_date, payment_mode, amount, purchase_invoice_id, remarks, created_at)

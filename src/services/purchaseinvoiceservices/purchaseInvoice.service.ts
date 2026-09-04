@@ -30,7 +30,9 @@ export interface PurchaseInvoiceDTO {
   bagsAndSticks: number;
   freight: number;
   grandTotal: number;
+  outstandingAmount: number;
   status?: "Draft" | "Approved";
+  supplierPaymentReceiptStatus?: boolean;
   lines: PurchaseInvoiceLineDTO[];
 }
 
@@ -48,7 +50,9 @@ export interface PurchaseInvoicePayload {
   bagsAndSticks?: number;
   freight?: number;
   grandTotal?: number;
-  status?: "Draft" | "Approved";
+  outstandingAmount?: number;
+    status?: "Draft" | "Approved";
+    supplierPaymentReceiptStatus?: boolean;
   lines: PurchaseInvoiceLineDTO[];
 }
 

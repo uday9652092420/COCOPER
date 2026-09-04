@@ -24,7 +24,8 @@ export interface Warehouse {
 }
 
 /**
- * @description Item master record.
+    organizationId?: string | null;
+    supplierPaymentReceiptStatus?: boolean;
  */
 export interface Item {
   id: string
@@ -157,8 +158,10 @@ export interface PurchaseInvoice {
   lines: PurchaseInvoiceLine[]
   gunnyBags: PurchaseInvoiceGunny[]
   grandTotal: number
+  outstandingAmount?: number
   organizationId?: string | null
   status?: 'Draft' | 'Approved'
+  supplierPaymentReceiptStatus?: boolean
   mode?: 'tonage' | 'lessing'
   loadingCost?: number
   marketCess?: number
@@ -277,6 +280,7 @@ export interface Dispatch {
  */
 export interface SupplierPayment {
   id: string
+  organizationId?: string | null
   paymentNumber: string
   supplierId: string
   invoiceMode?: 'Invoice by Invoice' | 'Cumulative'
@@ -286,6 +290,8 @@ export interface SupplierPayment {
   remarks: string
   approved?: boolean
   attachments?: File[]
+  attachmentNames?: string | null
+  attachmentFiles?: string | null
   /**
    * @description Optional related purchase invoice id for this payment (supports partial payments).
    */

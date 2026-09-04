@@ -175,6 +175,9 @@ export async function initializeDatabase(): Promise<void> {
     )
   `);
   await pool.query("ALTER TABLE direct_sale_gunny_bags ADD COLUMN IF NOT EXISTS bag_bharthi TEXT");
+    await pool.query("ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS outstanding_amount NUMERIC NOT NULL DEFAULT 0");
+    await pool.query("ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS supplier_payment_receipt_status BOOLEAN NOT NULL DEFAULT TRUE");
+    await pool.query("UPDATE purchase_invoices SET outstanding_amount = grand_total WHERE outstanding_amount = 0 AND grand_total > 0");
   await pool.query(`
     CREATE TABLE IF NOT EXISTS customer_receipts (
       id TEXT PRIMARY KEY,
@@ -206,5 +209,28 @@ export async function initializeDatabase(): Promise<void> {
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_receipts_org_receipt_no ON customer_receipts (organization_id, receipt_no) WHERE organization_id IS NOT NULL");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_customer_receipts_customer_id ON customer_receipts(customer_id)");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_customer_receipts_date ON customer_receipts(receipt_date)");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS supplier_payments (
+      id TEXT PRIMARY KEY,
+      payment_number TEXT NOT NULL,
+      supplier_id TEXT NOT NULL,
+      supplier_name TEXT,
+      payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      invoice_mode TEXT NOT NULL DEFAULT 'Invoice by Invoice',
+      payment_mode TEXT NOT NULL DEFAULT 'Cash',
+      amount NUMERIC NOT NULL DEFAULT 0,
+      purchase_invoice_id TEXT,
+      remarks TEXT,
+      approved BOOLEAN NOT NULL DEFAULT FALSE,
+      organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+    await pool.query("ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS attachment_names TEXT");
+    await pool.query("ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS attachment_files TEXT");
+  await pool.query("ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS invoice_mode TEXT NOT NULL DEFAULT 'Invoice by Invoice'");
+  await pool.query("ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT FALSE");
+  await pool.query("ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE");
+  await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_supplier_payments_org_number ON supplier_payments (organization_id, payment_number) WHERE organization_id IS NOT NULL");
   console.log("Database connected successfully.");
 }

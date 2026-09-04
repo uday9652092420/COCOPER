@@ -23,10 +23,11 @@ export interface PurchaseInvoiceRow {
   invoiceDate: string
   mode: string
   loadingCost: number
-  marketCess: number
+  supplierPaymentReceiptStatus: boolean
   bagsAndSticks: number
   freight: number
   grandTotal: number
+  outstandingAmount: number
   status: "Draft" | "Approved"
   lines: PurchaseInvoiceItem[]
 }
@@ -45,7 +46,9 @@ export interface PurchaseInvoiceCreateDTO {
   bagsAndSticks?: number
   freight?: number
   grandTotal?: number
+  outstandingAmount?: number
   status?: "Draft" | "Approved"
+    supplierPaymentReceiptStatus?: boolean;
   lines?: PurchaseInvoiceItem[]
 }
 

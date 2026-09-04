@@ -31,12 +31,17 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
   tax_amount NUMERIC DEFAULT 0,
   freight_amount NUMERIC DEFAULT 0,
   grand_total NUMERIC DEFAULT 0,
+  outstanding_amount NUMERIC NOT NULL DEFAULT 0,
+  supplier_payment_receipt_status BOOLEAN NOT NULL DEFAULT TRUE,
   payment_term TEXT,
   due_date DATE,
   remarks TEXT,
   status purchase_invoice_status DEFAULT 'Draft',
   created_at DATE DEFAULT CURRENT_DATE
 );
+
+ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS supplier_payment_receipt_status BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS outstanding_amount NUMERIC NOT NULL DEFAULT 0;
 
 -- Create purchase_invoice_items table (line items)
 CREATE TABLE IF NOT EXISTS purchase_invoice_items (

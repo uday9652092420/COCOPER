@@ -111,6 +111,8 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
   bags_and_sticks NUMERIC DEFAULT 0,
   freight NUMERIC DEFAULT 0,
   grand_total NUMERIC DEFAULT 0,
+  outstanding_amount NUMERIC NOT NULL DEFAULT 0,
+  supplier_payment_receipt_status BOOLEAN NOT NULL DEFAULT TRUE,
   status TEXT NOT NULL DEFAULT 'Draft',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (invoice_no, organization_id)
@@ -137,6 +139,8 @@ ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS loading_cost NUMERIC DEFA
 ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS market_cess NUMERIC DEFAULT 0;
 ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS bags_and_sticks NUMERIC DEFAULT 0;
 ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS freight NUMERIC DEFAULT 0;
+ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS outstanding_amount NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS supplier_payment_receipt_status BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE purchase_invoices ALTER COLUMN status TYPE TEXT USING status::text;
 
 ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS quantity_tons NUMERIC DEFAULT 0;

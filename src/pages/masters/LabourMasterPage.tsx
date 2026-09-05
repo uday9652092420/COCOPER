@@ -17,6 +17,15 @@ import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { formatDate } from "../../utils/format";
 import { usePermissions } from "../../hooks/usePermissions";
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 import {
   getLabours,
   createLabour,
@@ -376,6 +385,48 @@ const LabourMasterPage: React.FC = () => {
     }
   };
 
+  const getLabourListRows = () => filtered.map((row) => ({
+    name: row.labour_name,
+    gender: row.gender,
+    contact: row.contact_number ?? "-",
+    inOut: `${row.in_time ?? ""} - ${row.out_time ?? ""}`,
+    loading: Number(row.loading_amount ?? 0).toLocaleString(),
+    status: row.status,
+    created: formatDate(row.created_at),
+  }));
+
+  const exportLabourToExcel = () => {
+    const rows = getLabourListRows();
+    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.gender)}</td><td>${escapeHtml(row.contact)}</td><td>${escapeHtml(row.inOut)}</td><td>${escapeHtml(row.loading)}</td><td>${escapeHtml(row.status)}</td><td>${escapeHtml(row.created)}</td></tr>`).join("");
+    const workbook = `<html><head><meta charset="UTF-8"></head><body><table border="1"><thead><tr><th>Labour Name</th><th>Gender</th><th>Contact</th><th>In / Out</th><th>Loading</th><th>Status</th><th>Created</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`;
+    const url = URL.createObjectURL(new Blob([workbook], { type: "application/vnd.ms-excel" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "labour-staff.xls";
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("Labour staff exported to Excel.");
+  };
+
+  const printLabourList = (asPdf = false) => {
+    const rows = getLabourListRows();
+    if (!rows.length) {
+      toast.info("No labour staff to print.");
+      return;
+    }
+    const win = window.open("", "_blank", "width=1100,height=750");
+    if (!win) {
+      toast.error("Popup blocked. Please allow popups and try again.");
+      return;
+    }
+    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.gender)}</td><td>${escapeHtml(row.contact)}</td><td>${escapeHtml(row.inOut)}</td><td class="right">${escapeHtml(row.loading)}</td><td>${escapeHtml(row.status)}</td><td>${escapeHtml(row.created)}</td></tr>`).join("");
+    win.document.write(`<!DOCTYPE html><html><head><title>${asPdf ? "Labour Staff PDF" : "Labour Staff"}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#172033}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#e2e8f0}.right{text-align:right}</style></head><body><h1>Labour Staff</h1><p>Generated on ${escapeHtml(formatDate(new Date().toISOString()))}</p><table><thead><tr><th>Labour Name</th><th>Gender</th><th>Contact</th><th>In / Out</th><th class="right">Loading</th><th>Status</th><th>Created</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`);
+    win.document.close();
+    win.focus();
+    setTimeout(() => win.print(), 300);
+    toast.success(asPdf ? "Labour staff PDF is ready to save." : "Labour staff sent to print.");
+  };
+
   return (
     <>
       <PageHeader
@@ -385,16 +436,10 @@ const LabourMasterPage: React.FC = () => {
 
       <Toolbar
         onAddNew={can("labour", "create") ? openAdd : undefined}
-        onRefresh={loadLabours}
-        onExportExcel={() =>
-          toast.info("Excel export will be implemented.")
-        }
-        onExportPdf={() =>
-          toast.info("PDF export will be implemented.")
-        }
-        onPrint={() =>
-          toast.info("Print will be implemented.")
-        }
+        onRefresh={() => { void loadLabours(); toast.success("Labour staff list refreshed."); }}
+        onExportExcel={exportLabourToExcel}
+        onExportPdf={() => printLabourList(true)}
+        onPrint={() => printLabourList(false)}
       />
 
       <div className="mt-4">
@@ -415,9 +460,7 @@ const LabourMasterPage: React.FC = () => {
           onView={(row) => openEdit(row)}
           onEdit={(row) => openEdit(row)}
           onDelete={(row) => setConfirmDelete(row)}
-          onPrint={(row) =>
-            toast.info(`Printing ${row.labour_name}`)
-          }
+          onPrint={() => printLabourList(false)}
         />
 
         <MasterFormModal<LabourFormValues>

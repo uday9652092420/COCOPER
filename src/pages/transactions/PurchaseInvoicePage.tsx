@@ -49,6 +49,15 @@ import { onScopeChange } from '../../utils/scopeEvents'
 import { useIsMobile } from '../../hooks/use-mobile'
 import { usePermissions } from '../../hooks/usePermissions'
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 /**
  * @description Convert a date string to DD/MM/YYYY (accepts ISO YYYY-MM-DD).
  */
@@ -139,7 +148,7 @@ const PurchaseInvoiceModal: React.FC<{
             itemId: l.itemId ?? '',
             quantity: String(l.quantityTons ?? ''),
             discount: String(l.discount ?? ''),
-            actualQuantity: l.actualQuantity ?? 0,
+            actualQuantity: Math.round(Number(l.actualQuantity ?? 0)),
             purchaseCost: l.purchaseCost !== undefined ? String(l.purchaseCost) : '',
             purchaseAmount: l.purchaseAmount ?? 0,
             locked: Boolean(existing.purchaseOrderId),
@@ -234,10 +243,11 @@ const PurchaseInvoiceModal: React.FC<{
       actualQuantity = quantity - discount
     }
 
+    const roundedActualQuantity = Number.isFinite(actualQuantity) ? Math.round(actualQuantity) : 0
     const purchaseCost = Number(line.purchaseCost ?? 0) || 0
-    const purchaseAmount = purchaseCost * actualQuantity
+    const purchaseAmount = purchaseCost * roundedActualQuantity
 
-    setValue(`lines.${index}.actualQuantity`, Number.isFinite(actualQuantity) ? Number(actualQuantity.toFixed(6)) : 0)
+    setValue(`lines.${index}.actualQuantity`, roundedActualQuantity)
     setValue(`lines.${index}.purchaseAmount`, Number.isFinite(purchaseAmount) ? Number(purchaseAmount.toFixed(2)) : 0)
   }
 
@@ -676,7 +686,7 @@ const ViewPurchaseInvoiceModal: React.FC<{
                       <td className="px-3 py-1.5 font-medium text-slate-800">{item?.name ?? l.itemId}</td>
                       <td className="px-3 py-1.5">{l.quantityTons}</td>
                       <td className="px-3 py-1.5">{l.discount ?? 0}</td>
-                      <td className="px-3 py-1.5">{l.actualQuantity ?? 0}</td>
+                      <td className="px-3 py-1.5">{Math.round(Number(l.actualQuantity ?? 0))}</td>
                       <td className="px-3 py-1.5">{Number(l.purchaseCost ?? 0).toFixed(2)}</td>
                       <td className="px-3 py-1.5 text-right font-semibold">{formatAmount(Number(l.purchaseAmount ?? 0))}</td>
                     </tr>
@@ -740,6 +750,8 @@ const PurchaseInvoicePage: React.FC = () => {
   const [editing, setEditing] = useState<PurchaseInvoice | null>(null)
   const [viewing, setViewing] = useState<PurchaseInvoice | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<PurchaseInvoice | null>(null)
+  const [columnChooserOpen, setColumnChooserOpen] = useState(false)
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState(['invoiceNo', 'invoiceDate', 'supplierId', 'branchId', 'grandTotal', 'supplierPaymentReceiptStatus'])
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderDTO[]>([])
 
   // Org-scoped master data + organizations for invoice number generation.
@@ -792,6 +804,7 @@ const PurchaseInvoicePage: React.FC = () => {
    */
   const loadRecords = async () => {
     try {
+      setLoading(true)
       setRecords((await getPurchaseInvoices()) as unknown as PurchaseInvoice[])
     } catch {
       setRecords([])
@@ -964,7 +977,7 @@ const PurchaseInvoicePage: React.FC = () => {
           <td>${item?.name ?? l.itemId}</td>
           <td class="right">${l.quantityTons}</td>
           <td class="right">${l.discount ?? 0}</td>
-          <td class="right">${l.actualQuantity ?? 0}</td>
+          <td class="right">${Math.round(Number(l.actualQuantity ?? 0))}</td>
           <td class="right">${Number(l.purchaseCost ?? 0).toFixed(2)}</td>
           <td class="right">${formatAmount(Number(l.purchaseAmount ?? 0))}</td>
         </tr>`
@@ -1102,19 +1115,71 @@ const PurchaseInvoicePage: React.FC = () => {
     },
   ]
 
+  const visibleColumns = columns.filter((column) => String(column.key) === 'actions' || visibleColumnKeys.includes(String(column.key)))
+
+  const getInvoiceListRows = () => filtered.map((row) => ({
+    invoiceNo: row.invoiceNo,
+    invoiceDate: toDDMMYYYY(row.invoiceDate),
+    supplier: resolveSupplierName(row.supplierId),
+    branch: resolveBranchName(row.branchId),
+    grandTotal: formatCurrency(row.grandTotal),
+    paymentReceipt: row.supplierPaymentReceiptStatus ? 'Received' : 'Pending',
+  }))
+
+  const exportPurchaseInvoicesToExcel = () => {
+    const rows = getInvoiceListRows()
+    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.invoiceNo)}</td><td>${escapeHtml(row.invoiceDate)}</td><td>${escapeHtml(row.supplier)}</td><td>${escapeHtml(row.branch)}</td><td>${escapeHtml(row.grandTotal)}</td><td>${escapeHtml(row.paymentReceipt)}</td></tr>`).join('')
+    const workbook = `<html><head><meta charset="UTF-8"></head><body><table border="1"><thead><tr><th>Invoice No</th><th>Invoice Date</th><th>Supplier</th><th>Branch</th><th>Grand Total</th><th>Payment Receipt</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`
+    const url = URL.createObjectURL(new Blob([workbook], { type: 'application/vnd.ms-excel' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'purchase-invoices.xls'
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success('Purchase invoices exported to Excel.')
+  }
+
+  const printPurchaseInvoiceList = (asPdf = false) => {
+    const rows = getInvoiceListRows()
+    if (!rows.length) {
+      toast.info('No purchase invoices to print.')
+      return
+    }
+    const win = window.open('', '_blank', 'width=1100,height=750')
+    if (!win) {
+      toast.error('Popup blocked. Please allow popups and try again.')
+      return
+    }
+    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.invoiceNo)}</td><td>${escapeHtml(row.invoiceDate)}</td><td>${escapeHtml(row.supplier)}</td><td>${escapeHtml(row.branch)}</td><td class="right">${escapeHtml(row.grandTotal)}</td><td>${escapeHtml(row.paymentReceipt)}</td></tr>`).join('')
+    win.document.write(`<!DOCTYPE html><html><head><title>${asPdf ? 'Purchase Invoices PDF' : 'Purchase Invoices'}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#172033}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#e2e8f0}.right{text-align:right}</style></head><body><h1>Purchase Invoices</h1><p>Generated on ${escapeHtml(toDDMMYYYY(new Date().toISOString().slice(0, 10)))}</p><table><thead><tr><th>Invoice No</th><th>Invoice Date</th><th>Supplier</th><th>Branch</th><th class="right">Grand Total</th><th>Payment Receipt</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+    toast.success(asPdf ? 'Purchase invoice PDF is ready to save.' : 'Purchase invoices sent to print.')
+  }
+
   return (
     <div>
       <PageHeader title="Purchase Invoice" breadcrumb={['Transactions', 'Purchase Invoice']} />
       <Toolbar
         onAddNew={can('purchase-invoice', 'create') ? openAdd : undefined}
-        onExportExcel={() => toast.info('Exported purchase invoices to Excel (mock).')}
-        onExportPdf={() => toast.info('Exported purchase invoices to PDF (mock).')}
-        onPrint={() => toast.info('Sending invoice list to printer (mock).')}
-        onRefresh={() => toast.success('Purchase invoice list refreshed.')}
-        onColumnChooser={() => toast.info('Column chooser not configurable in mock grid.')}
+        onExportExcel={exportPurchaseInvoicesToExcel}
+        onExportPdf={() => printPurchaseInvoiceList(true)}
+        onPrint={() => printPurchaseInvoiceList(false)}
+        onRefresh={() => { void loadRecords(); toast.success('Purchase invoice list refreshed.') }}
+        onColumnChooser={() => setColumnChooserOpen((open) => !open)}
       />
+      {columnChooserOpen ? (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-sm">
+          <span className="font-medium text-slate-700">Show columns:</span>
+          {columns.filter((column) => String(column.key) !== 'actions').map((column) => {
+            const key = String(column.key)
+            return <label key={key} className="inline-flex items-center gap-1.5 text-slate-600"><input type="checkbox" checked={visibleColumnKeys.includes(key)} disabled={visibleColumnKeys.length === 1 && visibleColumnKeys.includes(key)} onChange={() => setVisibleColumnKeys((keys) => keys.includes(key) ? keys.filter((item) => item !== key) : [...keys, key])} />{column.label}</label>
+          })}
+        </div>
+      ) : null}
       <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by invoice no, supplier, branch..." />
-      <DataGrid<PurchaseInvoice> data={filtered} columns={columns} getRowId={(row) => row.id} loading={loading} />
+      <DataGrid<PurchaseInvoice> data={filtered} columns={visibleColumns} getRowId={(row) => row.id} loading={loading} />
 
       <PurchaseInvoiceModal
         open={modalOpen}

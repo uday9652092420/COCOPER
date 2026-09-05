@@ -61,6 +61,15 @@ const todayDDMMYYYY = (): string => {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 const toISODate = (value: string): string => {
   if (!value) return ''
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
@@ -298,11 +307,12 @@ const PurchaseOrderModal: React.FC<{
       actualQuantity = quantity - discount
     }
 
-    // Purchase Cost is USER INPUT — preserved. Purchase Amount = Purchase Cost × Actual Quantity.
+    const roundedActualQuantity = Number.isFinite(actualQuantity) ? roundValue(actualQuantity, 0) : 0
+    // Purchase Cost is USER INPUT — preserved. Purchase Amount = Purchase Cost × rounded Actual Quantity.
     const purchaseCost = Number(line.purchaseCost ?? 0) || 0
-    const purchaseAmount = purchaseCost * actualQuantity
+    const purchaseAmount = purchaseCost * roundedActualQuantity
 
-    setValue(`lines.${index}.actualQuantity`, Number.isFinite(actualQuantity) ? roundValue(actualQuantity, 0) : 0)
+    setValue(`lines.${index}.actualQuantity`, roundedActualQuantity)
     setValue(`lines.${index}.purchaseAmount`, Number.isFinite(purchaseAmount) ? roundValue(purchaseAmount, 0) : 0)
   }
 
@@ -357,7 +367,7 @@ const PurchaseOrderModal: React.FC<{
         itemId: l.itemId,
         quantity,
         discount,
-        actualQuantity: Number(actualQuantity.toFixed(6)),
+        actualQuantity: roundValue(actualQuantity, 0),
         purchaseCost: Number(purchaseCost.toFixed(2)),
         purchaseAmount: Number(purchaseAmount.toFixed(2)),
         // Amount = auto Purchase Amount for the line.
@@ -1360,7 +1370,7 @@ const ViewPurchaseOrderModal: React.FC<{
                       <td className="px-3 py-1.5 font-medium text-slate-800">{item?.name ?? l.itemId}</td>
                       <td className="px-3 py-1.5">{l.quantity}</td>
                       <td className="px-3 py-1.5">{l.discount ?? 0}</td>
-                      <td className="px-3 py-1.5">{l.actualQuantity ?? 0}</td>
+                      <td className="px-3 py-1.5">{roundValue(Number(l.actualQuantity ?? 0), 0)}</td>
                       <td className="px-3 py-1.5">{Number(l.purchaseCost ?? 0).toFixed(2)}</td>
                             <td className="px-3 py-1.5 text-right font-semibold">{formatAmount(amount)}</td>
                     </tr>
@@ -1421,6 +1431,8 @@ const PurchaseOrderPage: React.FC = () => {
   const [editingSalesOrder, setEditingSalesOrder] = useState<SalesOrder | null>(null)
   const [viewing, setViewing] = useState<PurchaseOrder | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<PurchaseOrder | null>(null)
+  const [columnChooserOpen, setColumnChooserOpen] = useState(false)
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState(['poNumber', 'date', 'supplierId', 'branchId', 'status'])
   const [printSelection, setPrintSelection] = useState<PurchaseOrder | null>(null)
 
   // Org-scoped item / supplier / customer master data + organizations for PO number generation.
@@ -1484,6 +1496,7 @@ const PurchaseOrderPage: React.FC = () => {
    */
   const loadRecords = async () => {
     try {
+      setLoading(true)
       setRecords((await getPurchaseOrders()) as unknown as PurchaseOrder[])
     } catch {
       setRecords([])
@@ -1731,7 +1744,7 @@ const PurchaseOrderPage: React.FC = () => {
           <td>${item?.name ?? l.itemId}</td>
           <td class="right">${l.quantity}</td>
           <td class="right">${l.discount ?? 0}</td>
-          <td class="right">${l.actualQuantity ?? 0}</td>
+          <td class="right">${roundValue(Number(l.actualQuantity ?? 0), 0)}</td>
           <td class="right">${Number(l.purchaseCost ?? 0).toFixed(2)}</td>
           <td class="right">${formatAmount(amount)}</td>
         </tr>`
@@ -1910,24 +1923,75 @@ const PurchaseOrderPage: React.FC = () => {
     },
   ]
 
+  const visibleColumns = columns.filter((column) => String(column.key) === 'actions' || visibleColumnKeys.includes(String(column.key)))
+
+  const getPurchaseOrderListRows = () => filtered.map((row) => ({
+    poNumber: row.poNumber,
+    date: toDDMMYYYY(row.date),
+    supplier: resolveSupplierName(row.supplierId),
+    branch: row.branchId ? branches.find((branch) => branch.id === row.branchId)?.branch_name ?? row.branchId : '-',
+    status: row.status,
+  }))
+
+  const exportPurchaseOrdersToExcel = () => {
+    const rows = getPurchaseOrderListRows()
+    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.poNumber)}</td><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.supplier)}</td><td>${escapeHtml(row.branch)}</td><td>${escapeHtml(row.status)}</td></tr>`).join('')
+    const workbook = `<html><head><meta charset="UTF-8"></head><body><table border="1"><thead><tr><th>PO Number</th><th>Date</th><th>Supplier</th><th>Branch</th><th>Status</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`
+    const url = URL.createObjectURL(new Blob([workbook], { type: 'application/vnd.ms-excel' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'purchase-orders.xls'
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success('Purchase orders exported to Excel.')
+  }
+
+  const printPurchaseOrderList = (asPdf = false) => {
+    const rows = getPurchaseOrderListRows()
+    if (!rows.length) {
+      toast.info('No purchase orders to print.')
+      return
+    }
+    const win = window.open('', '_blank', 'width=1100,height=750')
+    if (!win) {
+      toast.error('Popup blocked. Please allow popups and try again.')
+      return
+    }
+    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.poNumber)}</td><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.supplier)}</td><td>${escapeHtml(row.branch)}</td><td>${escapeHtml(row.status)}</td></tr>`).join('')
+    win.document.write(`<!DOCTYPE html><html><head><title>${asPdf ? 'Purchase Orders PDF' : 'Purchase Orders'}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#172033}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#e2e8f0}</style></head><body><h1>Purchase Orders</h1><p>Generated on ${escapeHtml(toDDMMYYYY(new Date().toISOString().slice(0, 10)))}</p><table><thead><tr><th>PO Number</th><th>Date</th><th>Supplier</th><th>Branch</th><th>Status</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+    toast.success(asPdf ? 'Purchase order PDF is ready to save.' : 'Purchase orders sent to print.')
+  }
+
   return (
     <div>
       <PageHeader title="Purchase Order" breadcrumb={['Transactions', 'Purchase Order']} />
       <Toolbar
         onAddNew={openAdd}
-        onExportExcel={() => toast.info('Exported purchase orders to Excel (mock).')}
-        onExportPdf={() => toast.info('Exported purchase orders to PDF (mock).')}
-        onPrint={() => toast.info('Sending PO list to printer (mock).')}
-        onRefresh={() => toast.success('Purchase order list refreshed.')}
-        onColumnChooser={() => toast.info('Column chooser not configurable in mock grid.')}
+        onExportExcel={exportPurchaseOrdersToExcel}
+        onExportPdf={() => printPurchaseOrderList(true)}
+        onPrint={() => printPurchaseOrderList(false)}
+        onRefresh={() => { void loadRecords(); toast.success('Purchase order list refreshed.') }}
+        onColumnChooser={() => setColumnChooserOpen((open) => !open)}
       />
+      {columnChooserOpen ? (
+        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-sm">
+          <span className="font-medium text-slate-700">Show columns:</span>
+          {columns.filter((column) => String(column.key) !== 'actions').map((column) => {
+            const key = String(column.key)
+            return <label key={key} className="inline-flex items-center gap-1.5 text-slate-600"><input type="checkbox" checked={visibleColumnKeys.includes(key)} disabled={visibleColumnKeys.length === 1 && visibleColumnKeys.includes(key)} onChange={() => setVisibleColumnKeys((keys) => keys.includes(key) ? keys.filter((item) => item !== key) : [...keys, key])} />{column.label}</label>
+          })}
+        </div>
+      ) : null}
       <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by PO number, supplier, branch..." />
       <div className="mt-3 rounded-3xl border border-emerald-100 bg-emerald-50/30 p-3 shadow-sm">
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-emerald-800">Purchase Orders</h3>
           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">{filtered.length} records</span>
         </div>
-        <DataGrid<PurchaseOrder> data={filtered} columns={columns} getRowId={(row) => row.id} loading={loading} />
+        <DataGrid<PurchaseOrder> data={filtered} columns={visibleColumns} getRowId={(row) => row.id} loading={loading} />
       </div>
 
       <PurchaseOrderModal

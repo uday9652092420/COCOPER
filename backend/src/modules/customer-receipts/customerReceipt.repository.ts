@@ -89,7 +89,7 @@ export async function listCustomerReceiptsRepo(organizationId?: string | null): 
         cr.remarks,
         cr.approved,
         cr.organization_id,
-        TO_CHAR(cr.created_at, 'YYYY-MM-DD') AS created_at
+        TO_CHAR(cr.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
       FROM customer_receipts cr
       LEFT JOIN customers c ON c.id = cr.customer_id
       ${where}
@@ -181,7 +181,7 @@ export async function createCustomerReceiptRepo(payload: CreateCustomerReceiptIn
         $9,
         $10,
         $11,
-        CURRENT_DATE
+        CURRENT_TIMESTAMP
       )
       RETURNING
         id,
@@ -198,7 +198,7 @@ export async function createCustomerReceiptRepo(payload: CreateCustomerReceiptIn
         attachment_names,
         attachment_files,
         organization_id,
-        TO_CHAR(created_at, 'YYYY-MM-DD') AS created_at
+        TO_CHAR(created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
     `,
     [
       payload.receipt_no,

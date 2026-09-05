@@ -34,6 +34,15 @@ const todayDDMMYYYY = (): string => {
   return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 /**
  * @interface DirectSalesFormValues
  * @description Form values used for direct sales modal.
@@ -861,6 +870,50 @@ const DirectSalesPage: React.FC = () => {
     },
   ]
 
+  const getSalesListRows = () => filtered.map((row) => {
+    const customer = masterCustomers.find((c) => c.id === row.customerId) ?? mockCustomers.find((c) => c.id === row.customerId)
+    const branch = masterBranches.find((b) => b.id === row.branchId)?.branch_name ?? '-'
+    return {
+      date: formatDate(row.invoiceDate),
+      customer: customer?.name ?? '-',
+      type: row.customerType ?? '-',
+      branch,
+      total: formatCurrency(row.invoiceTotal),
+    }
+  })
+
+  const exportDirectSalesToExcel = () => {
+    const rows = getSalesListRows()
+    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.customer)}</td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.branch)}</td><td>${escapeHtml(row.total)}</td></tr>`).join('')
+    const workbook = `<html><head><meta charset="UTF-8"></head><body><table border="1"><thead><tr><th>Invoice Date</th><th>Customer</th><th>Type</th><th>Branch</th><th>Invoice Total</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`
+    const url = URL.createObjectURL(new Blob([workbook], { type: 'application/vnd.ms-excel' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'direct-sales.xls'
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success('Direct sales exported to Excel.')
+  }
+
+  const printDirectSalesList = (asPdf = false) => {
+    const rows = getSalesListRows()
+    if (!rows.length) {
+      toast.info('No direct sales to print.')
+      return
+    }
+    const win = window.open('', '_blank', 'width=1100,height=750')
+    if (!win) {
+      toast.error('Popup blocked. Please allow popups and try again.')
+      return
+    }
+    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.customer)}</td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.branch)}</td><td class="right">${escapeHtml(row.total)}</td></tr>`).join('')
+    win.document.write(`<!DOCTYPE html><html><head><title>${asPdf ? 'Direct Sales PDF' : 'Direct Sales'}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#172033}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#e2e8f0}.right{text-align:right}</style></head><body><h1>Direct Sales</h1><p>Generated on ${escapeHtml(formatDate(new Date().toISOString()))}</p><table><thead><tr><th>Invoice Date</th><th>Customer</th><th>Type</th><th>Branch</th><th class="right">Invoice Total</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+    toast.success(asPdf ? 'Direct sales PDF is ready to save.' : 'Direct sales sent to print.')
+  }
+
   const openAdd = () => {
     setEditing(null)
     setViewing(null)
@@ -1045,16 +1098,10 @@ const DirectSalesPage: React.FC = () => {
       <PageHeader title="Direct Sales" breadcrumb={['Transactions', 'Direct Sales']} />
       <Toolbar
         onAddNew={openAdd}
-        onExportExcel={() => toast.info('Exported direct sales to Excel (mock).')}
-        onExportPdf={() => toast.info('Exported direct sales to PDF (mock).')}
-        onPrint={() => {
-          if (filtered.length) {
-            printDirectSale(filtered[0])
-            return
-          }
-          toast.info('No direct sales to print.')
-        }}
-        onRefresh={loadRecords}
+        onExportExcel={exportDirectSalesToExcel}
+        onExportPdf={() => printDirectSalesList(true)}
+        onPrint={() => printDirectSalesList(false)}
+        onRefresh={() => { void loadRecords(); toast.success('Direct sales list refreshed.') }}
       />
       <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by customer, branch, direct sale no..." />
       <DataGrid<DirectSales>

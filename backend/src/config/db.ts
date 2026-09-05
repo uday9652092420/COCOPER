@@ -160,6 +160,8 @@ export async function initializeDatabase(): Promise<void> {
   await pool.query("ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS transportation_charges NUMERIC NOT NULL DEFAULT 0");
   await pool.query("ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS loading_charges NUMERIC NOT NULL DEFAULT 0");
   await pool.query("ALTER TABLE direct_sales ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'tonage'");
+  await pool.query("ALTER TABLE direct_sales ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at::timestamp");
+  await pool.query("ALTER TABLE direct_sales ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP");
   await pool.query("ALTER TABLE direct_sale_items ADD COLUMN IF NOT EXISTS discount NUMERIC NOT NULL DEFAULT 0");
   await pool.query("ALTER TABLE direct_sale_items ADD COLUMN IF NOT EXISTS actual_quantity NUMERIC NOT NULL DEFAULT 0");
   await pool.query(`
@@ -206,6 +208,8 @@ export async function initializeDatabase(): Promise<void> {
   await pool.query("ALTER TABLE customer_receipts ADD COLUMN IF NOT EXISTS attachment_names TEXT");
   await pool.query("ALTER TABLE customer_receipts ADD COLUMN IF NOT EXISTS attachment_files TEXT");
   await pool.query("ALTER TABLE customer_receipts ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE");
+  await pool.query("ALTER TABLE customer_receipts ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at::timestamp");
+  await pool.query("ALTER TABLE customer_receipts ALTER COLUMN created_at SET DEFAULT CURRENT_TIMESTAMP");
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_receipts_org_receipt_no ON customer_receipts (organization_id, receipt_no) WHERE organization_id IS NOT NULL");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_customer_receipts_customer_id ON customer_receipts(customer_id)");
   await pool.query("CREATE INDEX IF NOT EXISTS idx_customer_receipts_date ON customer_receipts(receipt_date)");

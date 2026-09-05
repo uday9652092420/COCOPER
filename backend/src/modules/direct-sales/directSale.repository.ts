@@ -154,8 +154,8 @@ export async function createDirectSale(payload: SalePayload) {
       }
     }
     await client.query(
-      `INSERT INTO direct_sales (id, invoice_no, sales_order_no, organization_id, branch_id, customer_id, sale_date, total_amount, gunny_bags_total, transportation_charges, loading_charges, status, mode)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Posted',$12)`,
+      `INSERT INTO direct_sales (id, invoice_no, sales_order_no, organization_id, branch_id, customer_id, sale_date, total_amount, gunny_bags_total, transportation_charges, loading_charges, status, mode, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'Posted',$12,CURRENT_TIMESTAMP)`,
       [id, invoiceNo, payload.salesOrderNo || null, payload.organizationId, payload.branchId, payload.customerId, parseDate(payload.invoiceDate), payload.invoiceTotal ?? 0, payload.charges?.gunnyBags ?? 0, payload.charges?.transportation ?? 0, payload.charges?.loadingCharges ?? 0, payload.mode ?? 'tonage']
     )
 

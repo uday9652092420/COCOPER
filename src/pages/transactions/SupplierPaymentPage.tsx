@@ -48,6 +48,13 @@ function toApiDate(value?: string | null): string {
   return match ? `${match[3]}-${match[2]}-${match[1]}` : value ?? ''
 }
 
+function toInvoiceSortTime(value?: string | null): number {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value ?? '')
+  if (match) return new Date(`${match[3]}-${match[2]}-${match[1]}`).getTime()
+  const time = new Date(value ?? '').getTime()
+  return Number.isNaN(time) ? Number.MAX_SAFE_INTEGER : time
+}
+
 function formatDateInputText(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 8)
   if (digits.length <= 2) return digits
@@ -64,6 +71,22 @@ function formatAmountInputText(value: string | number): string {
 function toNumericAmount(value: unknown): number {
   const numeric = typeof value === 'number' ? value : Number(String(value ?? '').replace(/[^\d.-]/g, ''))
   return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0
+}
+
+function toCents(value: unknown): number {
+  return Math.round(toNumericAmount(value) * 100)
+}
+
+function fromCents(value: number): number {
+  return Math.max(0, value) / 100
+}
+
+function formatRoundedCurrency(value: number): string {
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(Math.round(toNumericAmount(value)))
 }
 
 /**
@@ -99,6 +122,7 @@ const SupplierPaymentPage: React.FC = () => {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<SupplierPayment | null>(null)
+  const [viewing, setViewing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<SupplierPayment | null>(null)
   const [supplierOptions, setSupplierOptions] = useState<SupplierResponse[]>([])
   const [purchaseInvoiceOptions, setPurchaseInvoiceOptions] = useState<PurchaseInvoiceDTO[]>([])
@@ -279,6 +303,7 @@ const SupplierPaymentPage: React.FC = () => {
    */
   const openAdd = async () => {
     setEditing(null)
+    setViewing(false)
     setAttachments([])
     const nextPaymentNumber = await getNextSupplierPaymentNo().catch(() => {
       const next = records.reduce((highest, payment) => {
@@ -305,8 +330,9 @@ const SupplierPaymentPage: React.FC = () => {
    * @function openEdit
    * @description Load existing payment into form for editing.
    */
-  const openEdit = (row: SupplierPayment & { attachmentNames?: string | null; attachmentFiles?: string | null }) => {
+  const openEdit = (row: SupplierPayment & { attachmentNames?: string | null; attachmentFiles?: string | null }, readOnly = false) => {
     setEditing(row)
+    setViewing(readOnly)
     let names: string[] = []
     let files: string[] = []
     try { names = row.attachmentNames ? JSON.parse(row.attachmentNames) : [] } catch { names = [] }
@@ -328,6 +354,10 @@ const SupplierPaymentPage: React.FC = () => {
       purchaseInvoiceId: (row as any).purchaseInvoiceId ?? undefined,
     })
     setModalOpen(true)
+  }
+
+  const openView = (row: SupplierPayment & { attachmentNames?: string | null; attachmentFiles?: string | null }) => {
+    openEdit(row, true)
   }
 
   /**
@@ -463,9 +493,7 @@ const SupplierPaymentPage: React.FC = () => {
     if (!watchedSupplierId) return []
 
     const invoices = [...approvedInvoicesForSupplier].sort((a, b) => {
-      const dateA = new Date(a.invoiceDate ?? '').getTime()
-      const dateB = new Date(b.invoiceDate ?? '').getTime()
-      return dateA - dateB || String(a.id).localeCompare(String(b.id))
+      return toInvoiceSortTime(a.invoiceDate) - toInvoiceSortTime(b.invoiceDate) || String(a.id).localeCompare(String(b.id))
     })
     const invoiceIds = new Set(invoices.map((invoice) => invoice.id))
     const paidByInvoice = new Map<string, number>()
@@ -474,7 +502,7 @@ const SupplierPaymentPage: React.FC = () => {
     records
       .filter((payment) => payment.supplierId === watchedSupplierId)
       .forEach((payment) => {
-        const amount = Number(payment.amount ?? 0)
+        const amount = toCents(payment.amount)
         const purchaseInvoiceId = (payment as SupplierPayment & { purchaseInvoiceId?: string }).purchaseInvoiceId
         if (purchaseInvoiceId && invoiceIds.has(purchaseInvoiceId)) {
           paidByInvoice.set(purchaseInvoiceId, (paidByInvoice.get(purchaseInvoiceId) ?? 0) + amount)
@@ -484,12 +512,13 @@ const SupplierPaymentPage: React.FC = () => {
       })
 
     return invoices.map((invoice) => {
-      const total = Number(invoice.grandTotal ?? 0)
-      const directPaid = Number(paidByInvoice.get(invoice.id) ?? 0)
+      const total = toCents(invoice.grandTotal)
+      const directPaid = paidByInvoice.get(invoice.id) ?? 0
       const cumulativeApplied = Math.min(cumulativePaid, Math.max(0, total - directPaid))
       cumulativePaid = Math.max(0, cumulativePaid - cumulativeApplied)
       const paid = Math.min(total, directPaid + cumulativeApplied)
-      return { invoice, total, paid, outstanding: Math.max(0, total - paid) }
+      const outstanding = Math.max(0, total - paid)
+      return { invoice, total: fromCents(total), paid: fromCents(paid), outstanding: fromCents(outstanding) }
     })
   }, [approvedInvoicesForSupplier, records, watchedSupplierId])
 
@@ -500,17 +529,33 @@ const SupplierPaymentPage: React.FC = () => {
     const outstandingByInvoiceId = new Map(
       supplierInvoiceBalances.map((entry) => [entry.invoice.id, entry.outstanding])
     )
-    return approvedInvoicesForSupplier.filter((invoice) =>
-      (outstandingByInvoiceId.get(invoice.id) ?? Number(invoice.outstandingAmount ?? invoice.grandTotal ?? 0)) > 0
-    )
+    return approvedInvoicesForSupplier.filter((invoice) => {
+      const calculatedOutstanding = outstandingByInvoiceId.get(invoice.id)
+      return calculatedOutstanding !== undefined
+        && Number.isFinite(calculatedOutstanding)
+        && Math.round(calculatedOutstanding) > 0
+    })
   }, [approvedInvoicesForSupplier, supplierInvoiceBalances])
+
+  useEffect(() => {
+    if (!viewing && !editing && watchedInvoiceId && !invoicesForSupplier.some((invoice) => invoice.id === watchedInvoiceId)) {
+      setValue('purchaseInvoiceId', undefined, { shouldDirty: true })
+    }
+  }, [editing, invoicesForSupplier, setValue, viewing, watchedInvoiceId])
 
   /**
    * @description Selected invoice and computed outstanding amounts.
    */
   const selectedInvoice = useMemo<PurchaseInvoiceDTO | undefined>(() => {
-    return invoicesForSupplier.find((inv) => inv.id === watchedInvoiceId)
-  }, [invoicesForSupplier, watchedInvoiceId])
+    return purchaseInvoiceOptions.find((invoice) => invoice.id === watchedInvoiceId)
+  }, [purchaseInvoiceOptions, watchedInvoiceId])
+
+  const invoiceOptions = useMemo(() => {
+    if (!selectedInvoice || invoicesForSupplier.some((invoice) => invoice.id === selectedInvoice.id)) {
+      return invoicesForSupplier
+    }
+    return [selectedInvoice, ...invoicesForSupplier]
+  }, [invoicesForSupplier, selectedInvoice])
 
   const selectedInvoiceBalance = useMemo(
     () => supplierInvoiceBalances.find((entry) => entry.invoice.id === watchedInvoiceId),
@@ -528,10 +573,10 @@ const SupplierPaymentPage: React.FC = () => {
     if (!watchedSupplierId) return { total: 0, paid: 0, outstanding: 0 }
 
     const total = supplierInvoiceBalances.reduce((sum, entry) => sum + entry.total, 0)
-    const paid = supplierInvoiceBalances.reduce((sum, entry) => sum + entry.paid, 0)
+    const paid = Math.min(total, supplierInvoiceBalances.reduce((sum, entry) => sum + entry.paid, 0))
 
     return { total, paid, outstanding: Math.max(0, total - paid) }
-  }, [supplierInvoiceBalances, watchedSupplierId])
+  }, [records, supplierInvoiceBalances, watchedSupplierId])
 
   const cumulativeOutstandingAfter = useMemo(() => {
     return Math.max(0, cumulativeSupplierSummary.outstanding - Number(watchedAmount || 0))
@@ -566,7 +611,7 @@ const SupplierPaymentPage: React.FC = () => {
         columns={visibleColumns}
         getRowId={(row) => row.id}
         loading={loading}
-        onView={openEdit}
+        onView={openView}
         onEdit={openEdit}
         onApprove={handleApprove}
         isRowApproved={(row) => row.approved === true}
@@ -579,13 +624,14 @@ const SupplierPaymentPage: React.FC = () => {
           <div className="w-full max-w-lg rounded-3xl bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold text-slate-900">
-                {editing ? 'Edit Supplier Payment' : 'New Supplier Payment'}
+                {viewing ? 'View Supplier Payment' : editing ? 'Edit Supplier Payment' : 'New Supplier Payment'}
               </h2>
               <button
                 type="button"
                 onClick={() => {
                   setModalOpen(false)
                   setEditing(null)
+                  setViewing(false)
                 }}
                 className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50"
               >
@@ -612,6 +658,7 @@ const SupplierPaymentPage: React.FC = () => {
                     <input
                       type="text"
                       inputMode="numeric"
+                      disabled={viewing}
                       placeholder="dd/mm/yyyy"
                       className="w-full rounded-full border border-slate-200 px-3 py-1.5 pr-9"
                       {...register('date', {
@@ -630,6 +677,7 @@ const SupplierPaymentPage: React.FC = () => {
                     />
                     <button
                       type="button"
+                      disabled={viewing}
                       aria-label="Select date"
                       onClick={() => dateInputRef.current?.showPicker?.() ?? dateInputRef.current?.click()}
                       className="absolute inset-y-0 right-2 flex items-center justify-center text-slate-500 hover:text-slate-700"
@@ -643,6 +691,7 @@ const SupplierPaymentPage: React.FC = () => {
                     Supplier
                   </label>
                   <select
+                    disabled={viewing}
                     className="w-full rounded-full border border-slate-200 px-3 py-1.5"
                     {...register('supplierId', {
                       required: true,
@@ -666,6 +715,7 @@ const SupplierPaymentPage: React.FC = () => {
                     Invoice Mode
                   </label>
                   <select
+                    disabled={viewing}
                     className="w-full rounded-full border border-slate-200 px-3 py-1.5"
                     {...register('invoiceMode', {
                       required: true,
@@ -681,11 +731,11 @@ const SupplierPaymentPage: React.FC = () => {
                   </select>
                   {watchedInvoiceMode === 'Cumulative' && watchedSupplierId ? (
                     <p className="mt-1 text-[11px] text-slate-600">
-                      Total Invoices: <span className="font-medium">{formatCurrency(cumulativeSupplierSummary.total)}</span>
+                      Total Invoices: <span className="font-medium">{formatRoundedCurrency(cumulativeSupplierSummary.total)}</span>
                       {' • '}
-                      Paid: <span className="font-medium text-slate-700">{formatCurrency(cumulativeSupplierSummary.paid)}</span>
+                      Paid: <span className="font-medium text-slate-700">{formatRoundedCurrency(cumulativeSupplierSummary.paid)}</span>
                       {' • '}
-                      Outstanding: <span className="font-semibold text-rose-600">{formatCurrency(cumulativeSupplierSummary.outstanding)}</span>
+                      Outstanding: <span className="font-semibold text-rose-600">{formatRoundedCurrency(cumulativeSupplierSummary.outstanding)}</span>
                     </p>
                   ) : null}
                 </div>
@@ -700,20 +750,20 @@ const SupplierPaymentPage: React.FC = () => {
                     {...register('purchaseInvoiceId')}
                   >
                     <option value="">-- No invoice --</option>
-                    {invoicesForSupplier.map((inv) => (
+                    {invoiceOptions.map((inv) => (
                       <option key={inv.id} value={inv.id}>
-                        {inv.invoiceNo} — {formatCurrency(inv.grandTotal ?? 0)}
+                        {inv.invoiceNo} — {formatRoundedCurrency(inv.grandTotal ?? 0)}
                       </option>
                     ))}
                   </select>
 
                   {selectedInvoice ? (
                     <p className="mt-1 text-[11px] text-slate-600">
-                      Invoice Total: <span className="font-medium">{formatCurrency(selectedInvoice.grandTotal ?? 0)}</span>
+                      Invoice Total: <span className="font-medium">{formatRoundedCurrency(selectedInvoice.grandTotal ?? 0)}</span>
                       {' • '}
-                      Paid: <span className="font-medium text-slate-700">{formatCurrency(paidBefore)}</span>
+                      Paid: <span className="font-medium text-slate-700">{formatRoundedCurrency(paidBefore)}</span>
                       {' • '}
-                      Outstanding: <span className="font-semibold text-rose-600">{formatCurrency(outstandingBefore)}</span>
+                      Outstanding: <span className="font-semibold text-rose-600">{formatRoundedCurrency(outstandingBefore)}</span>
                     </p>
                   ) : null}
                 </div>
@@ -746,6 +796,7 @@ const SupplierPaymentPage: React.FC = () => {
                       <input
                         type="text"
                         inputMode="numeric"
+                        disabled={viewing}
                         className="w-full rounded-full border border-slate-200 px-3 py-1.5"
                         value={toNumericAmount(field.value) > 0 ? formatAmountInputText(field.value) : ''}
                         onBlur={field.onBlur}
@@ -762,7 +813,7 @@ const SupplierPaymentPage: React.FC = () => {
                     <p className="mt-1 text-[11px] text-slate-600">
                       Outstanding after this payment:{' '}
                       <span className="font-semibold text-emerald-700">
-                        {formatCurrency(outstandingAfter)}
+                        {formatRoundedCurrency(outstandingAfter)}
                       </span>
                     </p>
                   ) : null}
@@ -770,7 +821,7 @@ const SupplierPaymentPage: React.FC = () => {
                     <p className="mt-1 text-[11px] text-slate-600">
                       Outstanding after this payment:{' '}
                       <span className="font-semibold text-emerald-700">
-                        {formatCurrency(cumulativeOutstandingAfter)}
+                        {formatRoundedCurrency(cumulativeOutstandingAfter)}
                       </span>
                     </p>
                   ) : null}
@@ -779,7 +830,7 @@ const SupplierPaymentPage: React.FC = () => {
 
               <div>
                 <label className="mb-1 block text-[11px] font-medium text-slate-700">Remarks</label>
-                <input className="w-full rounded-full border border-slate-200 px-3 py-1.5" {...register('remarks')} />
+                <input disabled={viewing} className="w-full rounded-full border border-slate-200 px-3 py-1.5" {...register('remarks')} />
               </div>
 
               <div>
@@ -793,7 +844,7 @@ const SupplierPaymentPage: React.FC = () => {
                   className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-2"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <button type="button" onClick={() => attachmentInputRef.current?.click()} className="rounded-full bg-slate-200 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-300">Choose files</button>
+                    <button disabled={viewing} type="button" onClick={() => attachmentInputRef.current?.click()} className="rounded-full bg-slate-200 px-3 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-300">Choose files</button>
                     <span className="text-[10px] text-slate-500">JPG, PNG, PDF</span>
                   </div>
                   {attachments.length > 0 ? (
@@ -820,22 +871,20 @@ const SupplierPaymentPage: React.FC = () => {
                           >
                             View
                           </button>
-                          <button type="button" onClick={() => setAttachments((current) => current.filter((_, fileIndex) => fileIndex !== index))} className="ml-2 text-rose-600 hover:text-rose-700">Delete</button>
+                          {!viewing ? <button type="button" onClick={() => setAttachments((current) => current.filter((_, fileIndex) => fileIndex !== index))} className="ml-2 text-rose-600 hover:text-rose-700">Delete</button> : null}
                         </div>
                       ))}
                     </div>
                   ) : null}
-                  <input ref={attachmentInputRef} type="file" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" className="hidden" onChange={(event) => handleAttachmentSelection(event.target.files)} />
+                  <input disabled={viewing} ref={attachmentInputRef} type="file" multiple accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf" className="hidden" onChange={(event) => handleAttachmentSelection(event.target.files)} />
                 </div>
               </div>
 
               <div className="mt-3 flex justify-end border-t border-slate-100 pt-3 text-xs">
-                <button
+                {!viewing ? <button
                   type="submit"
                   className="rounded-full bg-[#2E7D32] px-4 py-1.5 font-semibold text-white shadow-sm hover:bg-[#256427]"
-                >
-                  Save
-                </button>
+                >Save</button> : null}
               </div>
             </form>
           </div>

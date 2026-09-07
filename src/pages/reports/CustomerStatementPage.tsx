@@ -37,8 +37,6 @@ interface CustomerReceiptStatementRow {
   created_at?: string
 }
 
-const ALL_CUSTOMERS_VALUE = '__ALL_CUSTOMERS__'
-
 function statementDateValue(value: string): number {
   const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value ?? '')
   const normalized = ddmmyyyy ? `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}` : value
@@ -58,6 +56,11 @@ function escapeHtml(value: unknown): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
+}
+
+function formatStatementCurrency(value: number): string {
+  const amount = Number(value || 0)
+  return amount < 0 ? `(${formatCurrency(Math.abs(amount))})` : formatCurrency(amount)
 }
 
 /**
@@ -140,7 +143,7 @@ const CustomerStatementPage: React.FC = () => {
   const rows = useMemo<CustomerStatementRow[]>(() => {
     if (!customerId) return []
     const salesRows = sales
-      .filter((sale) => (customerId === ALL_CUSTOMERS_VALUE || sale.customerId === customerId) && sale.approved === true)
+      .filter((sale) => sale.customerId === customerId && sale.approved === true)
       .map((s) => ({
         date: s.invoiceDate,
         voucher: s.directSaleNo ?? s.invoiceNo ?? s.id,
@@ -150,7 +153,7 @@ const CustomerStatementPage: React.FC = () => {
         receipt: 0,
       }))
     const receiptRows = receipts
-      .filter((receipt) => customerId === ALL_CUSTOMERS_VALUE || receipt.customer_id === customerId)
+      .filter((receipt) => receipt.customer_id === customerId)
       .map((receipt) => ({
         date: receipt.receipt_date,
         voucher: receipt.receipt_no,
@@ -179,8 +182,8 @@ const CustomerStatementPage: React.FC = () => {
     return combined.reduce<CustomerStatementRow[]>((statementRows, row, index) => {
       const previousRunningBalance = statementRows.at(-1)?.balance ?? 0
       const balance = index === 0
-        ? Number(row.sales || 0) || Number(row.receipt || 0)
-        : Math.max(0, previousRunningBalance + Number(row.sales || 0) - Number(row.receipt || 0))
+        ? Number(row.sales || 0) - Number(row.receipt || 0)
+        : previousRunningBalance + Number(row.sales || 0) - Number(row.receipt || 0)
       statementRows.push({ ...row, balance })
       return statementRows
     }, [])
@@ -191,7 +194,7 @@ const CustomerStatementPage: React.FC = () => {
   const closingBalance = rows.length ? rows[rows.length - 1].balance : 0
 
   const customer = customerOptions.find((c) => c.id === customerId)
-  const selectedCustomerLabel = customerId === ALL_CUSTOMERS_VALUE ? 'All Customers' : customer?.name ?? ''
+  const selectedCustomerLabel = customer?.name ?? ''
   const statementColumns = [
     { key: 'date', label: 'Date' },
     { key: 'voucher', label: 'Voucher' },
@@ -204,9 +207,9 @@ const CustomerStatementPage: React.FC = () => {
 
   const getStatementValue = (row: CustomerStatementRow, key: string): string => {
     if (key === 'date') return formatDate(row.date)
-    if (key === 'sales') return row.sales ? formatCurrency(row.sales) : ''
-    if (key === 'receipt') return row.receipt ? formatCurrency(row.receipt) : ''
-    if (key === 'balance') return formatCurrency(row.balance)
+    if (key === 'sales') return row.sales ? formatStatementCurrency(row.sales) : ''
+    if (key === 'receipt') return row.receipt ? formatStatementCurrency(row.receipt) : ''
+    if (key === 'balance') return formatStatementCurrency(row.balance)
     return row.voucher
   }
 
@@ -271,7 +274,6 @@ const CustomerStatementPage: React.FC = () => {
           onChange={(e) => setCustomerId(e.target.value)}
           className="min-w-[200px] rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs"
         >
-          <option value={ALL_CUSTOMERS_VALUE}>All Customers</option>
           <option value="">Select customer</option>
           {customerOptions.map((c) => (
             <option key={c.id} value={c.id}>
@@ -316,7 +318,7 @@ const CustomerStatementPage: React.FC = () => {
             <tr>
               {visibleColumns.map((column) => (
                 <td key={column.key} className="px-3 py-2">
-                  {column.key === 'date' ? 'Totals' : column.key === 'sales' ? formatCurrency(totalSales) : column.key === 'receipt' ? formatCurrency(totalReceipt) : column.key === 'balance' ? formatCurrency(closingBalance) : ''}
+                  {column.key === 'date' ? 'Totals' : column.key === 'sales' ? formatStatementCurrency(totalSales) : column.key === 'receipt' ? formatStatementCurrency(totalReceipt) : column.key === 'balance' ? formatStatementCurrency(closingBalance) : ''}
                 </td>
               ))}
             </tr>

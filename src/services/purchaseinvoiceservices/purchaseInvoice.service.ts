@@ -11,6 +11,7 @@ export interface PurchaseInvoiceLineDTO {
   itemId: string;
   quantityTons: number;
   discount: number;
+  piecesPercentage?: number;
   actualQuantity: number;
   purchaseCost: number;
   purchaseAmount: number;

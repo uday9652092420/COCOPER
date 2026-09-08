@@ -10,6 +10,24 @@ import {
   PurchaseInvoiceUpdateDTO,
 } from "./purchaseInvoice.types.js";
 
+let purchaseInvoiceSchemaReady: Promise<void> | null = null;
+
+async function ensurePurchaseInvoiceSchema(): Promise<void> {
+  if (!purchaseInvoiceSchemaReady) {
+    purchaseInvoiceSchemaReady = pool
+      .query(
+        `ALTER TABLE purchase_invoice_items
+         ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0`
+      )
+      .then(() => undefined)
+      .catch((error) => {
+        purchaseInvoiceSchemaReady = null;
+        throw error;
+      });
+  }
+  await purchaseInvoiceSchemaReady;
+}
+
 const PI_SELECT = `
   SELECT
     pi.id,
@@ -36,6 +54,7 @@ const PI_SELECT = `
           'itemId', pii.item_id,
           'quantityTons', pii.quantity_tons,
           'discount', pii.discount,
+          'piecesPercentage', pii.pieces_percentage,
           'actualQuantity', pii.actual_quantity,
           'purchaseCost', pii.purchase_cost,
           'purchaseAmount', pii.purchase_amount
@@ -50,6 +69,7 @@ const PI_SELECT = `
 export async function listPurchaseInvoicesRepo(
   organizationId?: string | null
 ): Promise<PurchaseInvoiceRow[]> {
+  await ensurePurchaseInvoiceSchema();
   const params: string[] = [];
   let where = "";
   if (organizationId) {
@@ -67,6 +87,7 @@ export async function getPurchaseInvoiceByIdRepo(
   id: string,
   organizationId?: string | null
 ): Promise<PurchaseInvoiceRow | null> {
+  await ensurePurchaseInvoiceSchema();
   const params: string[] = [id]
   let where = "WHERE pi.id = $1"
   if (organizationId) {
@@ -83,6 +104,7 @@ export async function getPurchaseInvoiceByIdRepo(
 export async function createPurchaseInvoiceRepo(
   payload: PurchaseInvoiceCreateDTO
 ): Promise<PurchaseInvoiceRow> {
+  await ensurePurchaseInvoiceSchema();
   const id = payload.id || `PINV-${Date.now()}`;
   const client = await pool.connect();
   try {
@@ -115,14 +137,15 @@ export async function createPurchaseInvoiceRepo(
     for (const [i, l] of (payload.lines || []).entries()) {
       await client.query(
         `INSERT INTO purchase_invoice_items
-          (id, purchase_invoice_id, item_id, quantity_tons, discount, actual_quantity, purchase_cost, purchase_amount)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+          (id, purchase_invoice_id, item_id, quantity_tons, discount, pieces_percentage, actual_quantity, purchase_cost, purchase_amount)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [
           `PIL-${Date.now()}-${i}`,
           id,
           l.itemId,
           l.quantityTons ?? 0,
           l.discount ?? 0,
+          l.piecesPercentage ?? 0,
           l.actualQuantity ?? 0,
           l.purchaseCost ?? 0,
           l.purchaseAmount ?? 0,
@@ -152,6 +175,7 @@ export async function updatePurchaseInvoiceRepo(
   payload: PurchaseInvoiceUpdateDTO,
   organizationId?: string | null
 ): Promise<PurchaseInvoiceRow> {
+  await ensurePurchaseInvoiceSchema();
   const currentInvoice = await getPurchaseInvoiceByIdRepo(id, organizationId ?? null);
   if (!currentInvoice) {
     throw new Error("Purchase invoice not found");
@@ -215,14 +239,15 @@ export async function updatePurchaseInvoiceRepo(
       for (const [i, l] of payload.lines.entries()) {
         await client.query(
           `INSERT INTO purchase_invoice_items
-            (id, purchase_invoice_id, item_id, quantity_tons, discount, actual_quantity, purchase_cost, purchase_amount)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+            (id, purchase_invoice_id, item_id, quantity_tons, discount, pieces_percentage, actual_quantity, purchase_cost, purchase_amount)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
           [
             `PIL-${Date.now()}-${i}`,
             id,
             l.itemId,
             l.quantityTons ?? 0,
             l.discount ?? 0,
+            l.piecesPercentage ?? 0,
             l.actualQuantity ?? 0,
             l.purchaseCost ?? 0,
             l.purchaseAmount ?? 0,

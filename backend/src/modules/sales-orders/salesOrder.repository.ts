@@ -10,6 +10,24 @@ import {
   SalesOrderUpdateDTO,
 } from "./salesOrder.types.js";
 
+let salesOrderSchemaReady: Promise<void> | null = null;
+
+async function ensureSalesOrderSchema(): Promise<void> {
+  if (!salesOrderSchemaReady) {
+    salesOrderSchemaReady = pool
+      .query(
+        `ALTER TABLE sales_order_items
+         ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0`
+      )
+      .then(() => undefined)
+      .catch((error) => {
+        salesOrderSchemaReady = null;
+        throw error;
+      });
+  }
+  await salesOrderSchemaReady;
+}
+
 const SO_SELECT = `
   SELECT
     so.id,
@@ -39,6 +57,7 @@ const SO_SELECT = `
           'itemId', soi.item_id,
           'quantity', soi.quantity,
           'discount', soi.discount,
+          'piecesPercentage', soi.pieces_percentage,
           'actualQuantity', soi.actual_quantity,
           'saleCost', soi.sale_cost,
           'saleAmount', soi.sale_amount,
@@ -54,6 +73,7 @@ const SO_SELECT = `
 export async function listSalesOrdersRepo(
   organizationId?: string | null
 ): Promise<SalesOrderRow[]> {
+  await ensureSalesOrderSchema();
   const params: string[] = [];
   let where = "";
   if (organizationId) {
@@ -70,6 +90,7 @@ export async function listSalesOrdersRepo(
 export async function getSalesOrderByIdRepo(
   id: string
 ): Promise<SalesOrderRow | null> {
+  await ensureSalesOrderSchema();
   const { rows } = await pool.query(
     `${SO_SELECT} WHERE so.id = $1 GROUP BY so.id`,
     [id]
@@ -80,6 +101,7 @@ export async function getSalesOrderByIdRepo(
 export async function createSalesOrderRepo(
   payload: SalesOrderCreateDTO
 ): Promise<SalesOrderRow> {
+  await ensureSalesOrderSchema();
   const id = payload.id || `SO-${Date.now()}`;
   const client = await pool.connect();
   try {
@@ -105,14 +127,15 @@ export async function createSalesOrderRepo(
     for (const [i, l] of (payload.lines || []).entries()) {
       await client.query(
         `INSERT INTO sales_order_items
-          (id, sales_order_id, item_id, quantity, discount, actual_quantity, sale_cost, sale_amount, amount)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          (id, sales_order_id, item_id, quantity, discount, pieces_percentage, actual_quantity, sale_cost, sale_amount, amount)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           `SOL-${Date.now()}-${i}`,
           id,
           l.itemId,
           l.quantity ?? 0,
           l.discount ?? 0,
+          l.piecesPercentage ?? 0,
           l.actualQuantity ?? 0,
           l.saleCost ?? 0,
           l.saleAmount ?? 0,
@@ -135,6 +158,7 @@ export async function updateSalesOrderRepo(
   id: string,
   payload: SalesOrderUpdateDTO
 ): Promise<SalesOrderRow> {
+  await ensureSalesOrderSchema();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -171,14 +195,15 @@ export async function updateSalesOrderRepo(
       for (const [i, l] of payload.lines.entries()) {
         await client.query(
           `INSERT INTO sales_order_items
-            (id, sales_order_id, item_id, quantity, discount, actual_quantity, sale_cost, sale_amount, amount)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            (id, sales_order_id, item_id, quantity, discount, pieces_percentage, actual_quantity, sale_cost, sale_amount, amount)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
           [
             `SOL-${Date.now()}-${i}`,
             id,
             l.itemId,
             l.quantity ?? 0,
             l.discount ?? 0,
+            l.piecesPercentage ?? 0,
             l.actualQuantity ?? 0,
             l.saleCost ?? 0,
             l.saleAmount ?? 0,

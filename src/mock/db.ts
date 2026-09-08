@@ -96,6 +96,7 @@ export interface PurchaseOrderLine {
   itemId: string
   quantity: number
   discount: number
+  piecesPercentage?: number
   actualQuantity?: number
   purchaseCost: number
   purchaseAmount?: number
@@ -128,6 +129,7 @@ export interface PurchaseInvoiceLine {
   itemId: string
   quantityTons: number
   discount: number
+  piecesPercentage?: number
   actualQuantity?: number
   purchaseCost: number
   purchaseAmount: number
@@ -162,7 +164,7 @@ export interface PurchaseInvoice {
   organizationId?: string | null
   status?: 'Draft' | 'Approved'
   supplierPaymentReceiptStatus?: boolean
-  mode?: 'tonage' | 'lessing'
+  mode?: 'tonage' | 'tonagePercentage' | 'lessing'
   loadingCost?: number
   marketCess?: number
   bagsAndSticks?: number
@@ -192,6 +194,7 @@ export interface DirectSalesLine {
   itemId: string
   quantity: number
   discount: number
+  piecesPercentage?: number
   actualQuantity?: number
   salesPrice: number
   salesAmount: number
@@ -211,7 +214,7 @@ export interface DirectSales {
   invoiceDate: string
   /** Optional linked sales order number for reference */
   salesOrderNo?: string
-  mode?: 'tonage' | 'lessing'
+  mode?: 'tonage' | 'tonagePercentage' | 'lessing'
   lines: DirectSalesLine[]
   gunnyBags?: {
     bagTypeId: string

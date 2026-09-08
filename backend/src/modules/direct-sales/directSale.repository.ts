@@ -1,5 +1,20 @@
 import { pool } from '../../config/db.js'
 
+let directSaleSchemaReady: Promise<void> | null = null
+
+async function ensureDirectSaleSchema(): Promise<void> {
+  if (!directSaleSchemaReady) {
+    directSaleSchemaReady = pool
+      .query('ALTER TABLE direct_sale_items ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0')
+      .then(() => undefined)
+      .catch((error) => {
+        directSaleSchemaReady = null
+        throw error
+      })
+  }
+  await directSaleSchemaReady
+}
+
 type SalePayload = {
   id?: string
   directSaleNo?: string
@@ -11,11 +26,12 @@ type SalePayload = {
   mode?: string
   invoiceTotal?: number
   charges?: { gunnyBags?: number; transportation?: number; loadingCharges?: number }
-  lines?: Array<{ id?: string; itemId: string; quantity: number; discount: number; actualQuantity?: number; salesPrice: number; salesAmount: number }>
+  lines?: Array<{ id?: string; itemId: string; quantity: number; discount: number; piecesPercentage?: number; actualQuantity?: number; salesPrice: number; salesAmount: number }>
   gunnyBags?: Array<{ bagTypeId: string; bagBharthi?: string; bharthiTypeId?: string; quantity: number; rate: number; amount: number }>
 }
 
 export async function listDirectSales(organizationId?: string | null) {
+  await ensureDirectSaleSchema()
   const params: string[] = []
   const where = organizationId
     ? (params.push(organizationId), 'WHERE ds.organization_id = $1')
@@ -59,6 +75,7 @@ export async function listDirectSales(organizationId?: string | null) {
              'itemId', dsi.item_id,
              'quantity', dsi.qty,
              'discount', dsi.discount,
+             'piecesPercentage', dsi.pieces_percentage,
              'actualQuantity', dsi.actual_quantity,
              'salesPrice', dsi.rate,
              'salesAmount', dsi.amount
@@ -95,6 +112,7 @@ function parseDate(value: string): string {
 }
 
 export async function createDirectSale(payload: SalePayload) {
+  await ensureDirectSaleSchema()
   if (!payload.organizationId || !payload.branchId) throw new Error('Organization and branch are required')
   if (!payload.customerId || !payload.lines?.length) throw new Error('Customer and at least one item line are required')
 
@@ -190,9 +208,9 @@ export async function createDirectSale(payload: SalePayload) {
         if (itemStockUpdate.rowCount !== 1) throw new Error(`Insufficient total stock for item ${item.rows[0].code}`)
       }
       await client.query(
-        `INSERT INTO direct_sale_items (id, direct_sale_id, item_id, qty, discount, actual_quantity, rate, amount)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [line.id || `DSL-${Date.now()}-${index}`, id, line.itemId, line.quantity, line.discount, actualQuantity, line.salesPrice, line.salesAmount]
+        `INSERT INTO direct_sale_items (id, direct_sale_id, item_id, qty, discount, pieces_percentage, actual_quantity, rate, amount)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [line.id || `DSL-${Date.now()}-${index}`, id, line.itemId, line.quantity, line.discount, line.piecesPercentage ?? 0, actualQuantity, line.salesPrice, line.salesAmount]
       )
     }
 

@@ -8,6 +8,7 @@ export interface PurchaseOrderItem {
   itemId: string
   quantity: number
   discount: number
+  piecesPercentage?: number
   actualQuantity: number
   purchaseCost: number
   purchaseAmount: number

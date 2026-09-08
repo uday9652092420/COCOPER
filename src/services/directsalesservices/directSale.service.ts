@@ -2,6 +2,8 @@ import { API } from '../../config/api'
 import { getOrgHeader } from '../../utils/apiHeaders'
 import type { DirectSales } from '../../mock/db'
 
+export type DirectSaleMode = 'tonage' | 'tonagePercentage' | 'lessing'
+
 export async function getDirectSales(): Promise<DirectSales[]> {
   const response = await fetch(`${API}/direct-sales`, { headers: getOrgHeader() })
   if (!response.ok) throw new Error('Failed to load direct sales')

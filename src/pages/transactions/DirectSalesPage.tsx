@@ -58,6 +58,7 @@ interface DirectSalesFormValues extends FieldValues {
     itemId: string
     quantity: number
     discount: number
+    piecesPercentage: number
     actualQuantity: number
     salesPrice: number
     salesAmount: number
@@ -155,7 +156,7 @@ const DirectSalesModal: React.FC<{
         branchId: '',
         salesOrderNo: '',
         invoiceDate: todayDDMMYYYY(),
-        lines: [{ itemId: '', quantity: 0, discount: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 }],
+        lines: [{ itemId: '', quantity: 0, discount: 0, piecesPercentage: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 }],
         gunnyBags: [{ bagTypeId: '', quantity: 0, rate: 0, amount: 0 }],
         loadingCharges: 0,
       } as DirectSalesFormValues),
@@ -183,6 +184,7 @@ const DirectSalesModal: React.FC<{
    * @description Mode for actual quantity calculation. 'tonage' => (q/(1000+discount))*1000, 'lessing' => q-discount
    */
   const [mode, setMode] = useState<'tonage' | 'lessing'>('tonage')
+  const [piecesMode, setPiecesMode] = useState(false)
 
   useEffect(() => {
     // reset when modal opens or existing changes
@@ -199,6 +201,7 @@ const DirectSalesModal: React.FC<{
                 itemId: l.itemId,
                 quantity: l.quantity,
                 discount: l.discount ?? 0,
+                piecesPercentage: l.piecesPercentage ?? 0,
                 actualQuantity: l.salesAmount && l.salesPrice ? Number((l.salesAmount / l.salesPrice).toFixed(6)) : 0,
                 salesPrice: l.salesPrice ?? 0,
                 salesAmount: l.salesAmount ?? 0,
@@ -207,6 +210,7 @@ const DirectSalesModal: React.FC<{
                   itemId: '',
                   quantity: 0,
                   discount: 0,
+                  piecesPercentage: 0,
                   actualQuantity: 0,
                   salesPrice: 0,
                   salesAmount: 0,
@@ -230,12 +234,13 @@ const DirectSalesModal: React.FC<{
             branchId: '',
             salesOrderNo: '',
             invoiceDate: todayDDMMYYYY(),
-            lines: [{ itemId: '', quantity: 0, discount: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 }],
+            lines: [{ itemId: '', quantity: 0, discount: 0, piecesPercentage: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 }],
             gunnyBags: [{ bagTypeId: '', bagBharthi: '', quantity: 0, rate: 0, amount: 0 }],
             loadingCharges: 0,
           }
     )
     setMode(existing?.mode === 'lessing' ? 'lessing' : 'tonage')
+    setPiecesMode(existing?.mode === 'tonagePercentage' || existing?.lines?.some((line) => Number(line.piecesPercentage ?? 0) > 0) || false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing, open])
 
@@ -245,12 +250,19 @@ const DirectSalesModal: React.FC<{
     setValue('salesOrderNo', salesOrderNo)
     if (!order) return
     setValue('customerId', order.customerId)
-    setMode(order.mode === 'lessing' ? 'lessing' : 'tonage')
+    const orderMode = order.mode === 'lessing'
+      ? 'lessing'
+      : order.mode === 'tonagePercentage'
+        ? 'tonagePercentage'
+        : 'tonage'
+    setMode(orderMode === 'lessing' ? 'lessing' : 'tonage')
+    setPiecesMode(orderMode === 'tonagePercentage' || order.lines.some((line) => Number(line.piecesPercentage ?? 0) > 0))
     setValue('invoiceDate', order.date ? order.date.split('-').reverse().join('/') : todayDDMMYYYY())
     linesField.replace(order.lines.map((line) => ({
       itemId: line.itemId,
       quantity: line.quantity,
       discount: line.discount,
+      piecesPercentage: line.piecesPercentage ?? 0,
       actualQuantity: line.actualQuantity,
       salesPrice: line.saleCost,
       salesAmount: line.saleAmount,
@@ -274,14 +286,20 @@ const DirectSalesModal: React.FC<{
    * - Lessing: actualQuantity = (quantity - discount)
    * SalesAmount = actualQuantity * salesPrice
    */
-  const recalcLine = (index: number, modeOverride: 'tonage' | 'lessing' = mode) => {
+  const recalcLine = (index: number, modeOverride: 'tonage' | 'lessing' = mode, piecesModeOverride?: boolean) => {
     const line = (watch('lines') ?? [])[index]
     if (!line) return
     const quantity = Number(line.quantity) || 0
-    const discount = Number(line.discount) || 0
+    const piecesPercentage = Number(line.piecesPercentage) || 0
+    const activePiecesMode = piecesModeOverride ?? piecesMode
+    const discount = activePiecesMode
+      ? (quantity * Math.min(Math.max(piecesPercentage, 0), 100)) / 100
+      : Number(line.discount) || 0
 
     let actualQuantity = 0
-    if (modeOverride === 'tonage') {
+    if (modeOverride === 'tonage' && activePiecesMode) {
+      actualQuantity = quantity - discount
+    } else if (modeOverride === 'tonage') {
       const denom = 1000 + discount
       const safeDenom = denom === 0 ? 1 : denom
       actualQuantity = (quantity * 1000) / safeDenom
@@ -292,6 +310,9 @@ const DirectSalesModal: React.FC<{
     const salesPrice = Number(line.salesPrice) || 0
     const salesAmount = actualQuantity * salesPrice
 
+    if (activePiecesMode) {
+      setValue(`lines.${index}.discount`, Number.isFinite(discount) ? Number(discount.toFixed(6)) : 0)
+    }
     setValue(`lines.${index}.actualQuantity`, Number.isFinite(actualQuantity) ? Number(actualQuantity.toFixed(6)) : 0)
     setValue(`lines.${index}.salesAmount`, Number.isFinite(salesAmount) ? Number(salesAmount.toFixed(2)) : 0)
   }
@@ -333,6 +354,7 @@ const DirectSalesModal: React.FC<{
       itemId: l.itemId,
       quantity: Number(l.quantity),
       discount: Number(l.discount),
+      piecesPercentage: piecesMode ? Number(l.piecesPercentage) || 0 : 0,
       actualQuantity: Number(l.actualQuantity),
       salesPrice: Number(l.salesPrice),
       salesAmount: Number(l.salesAmount),
@@ -467,10 +489,13 @@ const DirectSalesModal: React.FC<{
             </div>
           </div>
 
-          {!selectedSalesOrderNo && <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 text-[11px]">
+          {!selectedSalesOrderNo && <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[11px]">
             <span className="font-semibold text-slate-700">Quantity Mode</span>
-            <label className="inline-flex items-center gap-2"><input type="radio" name="ds-mode" disabled={isReadOnly} checked={mode === 'tonage'} onChange={() => { if (isReadOnly) return; setMode('tonage'); linesField.fields.forEach((_, idx) => recalcLine(idx, 'tonage')) }} /><span>Tonnage</span></label>
-            <label className="inline-flex items-center gap-2"><input type="radio" name="ds-mode" disabled={isReadOnly} checked={mode === 'lessing'} onChange={() => { if (isReadOnly) return; setMode('lessing'); linesField.fields.forEach((_, idx) => recalcLine(idx, 'lessing')) }} /><span>Lessing</span></label>
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2">
+              <label className="inline-flex items-center gap-2"><input type="radio" name="ds-mode" disabled={isReadOnly} checked={mode === 'tonage'} onChange={() => { if (isReadOnly) return; setMode('tonage'); linesField.fields.forEach((_, idx) => recalcLine(idx, 'tonage')) }} /><span>Tonnage</span></label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="ds-mode" disabled={isReadOnly} checked={mode === 'lessing'} onChange={() => { if (isReadOnly) return; setMode('lessing'); linesField.fields.forEach((_, idx) => recalcLine(idx, 'lessing')) }} /><span>Lessing</span></label>
+            </div>
+            {mode !== 'lessing' && <label className="inline-flex items-center gap-2"><input type="checkbox" name="ds-pieces-mode" disabled={isReadOnly} checked={piecesMode} onChange={(event) => { if (isReadOnly) return; const nextPiecesMode = event.target.checked; setPiecesMode(nextPiecesMode); linesField.fields.forEach((_, idx) => recalcLine(idx, mode, nextPiecesMode)) }} /><span>Pieces %</span></label>}
           </div>}
 
           <div className="mt-2 space-y-2">
@@ -478,7 +503,7 @@ const DirectSalesModal: React.FC<{
               <p className="text-[11px] font-medium text-slate-700">Sales Details</p>
               {!selectedSalesOrderNo && !isReadOnly && <button
                 type="button"
-                onClick={() => linesField.append({ itemId: '', quantity: 0, discount: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 })}
+                onClick={() => linesField.append({ itemId: '', quantity: 0, discount: 0, piecesPercentage: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 })}
                 className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
               >
                 Add Line
@@ -490,6 +515,7 @@ const DirectSalesModal: React.FC<{
                   <tr>
                     <th className="px-3 py-2">Item</th>
                     <th className="px-3 py-2">{mode === 'tonage' ? 'Quantity (Tons)' : 'Quantity (Pieces)'}</th>
+                    {piecesMode && <th className="px-3 py-2">Pieces %</th>}
                     <th className="px-3 py-2">{mode === 'tonage' ? 'Discount (Kgs)' : 'Discount (Pieces)'}</th>
                     <th className="px-3 py-2">Actual Quantity</th>
                     <th className="px-3 py-2">Sales Price</th>
@@ -527,16 +553,17 @@ const DirectSalesModal: React.FC<{
                           })}
                         />
                       </td>
+                      {piecesMode ? (
+                        <>
+                          <td className="px-3 py-1.5">
+                            <input type="number" min="0" max="100" step="any" disabled={Boolean(selectedSalesOrderNo) || isApproved} className="w-16 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100" {...register(`lines.${index}.piecesPercentage` as const, { valueAsNumber: true, onChange: () => recalcLine(index) })} />
+                          </td>
+                        </>
+                      ) : (
+                        null
+                      )}
                       <td className="px-3 py-1.5">
-                        <input
-                          type="number"
-                          disabled={Boolean(selectedSalesOrderNo) || isApproved}
-                          className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
-                          {...register(`lines.${index}.discount` as const, {
-                            valueAsNumber: true,
-                            onChange: () => recalcLine(index),
-                          })}
-                        />
+                        <input type="number" readOnly={piecesMode} disabled={Boolean(selectedSalesOrderNo) || isApproved} className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100" {...register(`lines.${index}.discount` as const, { valueAsNumber: true, onChange: () => recalcLine(index) })} />
                       </td>
 
                       {/* Actual Quantity */}

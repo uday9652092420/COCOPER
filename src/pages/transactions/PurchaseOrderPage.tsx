@@ -105,6 +105,7 @@ interface SalesOrder {
     itemId: string
     quantity: number
     discount: number
+    piecesPercentage?: number
     actualQuantity: number
     saleCost: number
     saleAmount: number
@@ -127,6 +128,7 @@ interface PurchaseOrderFormValues extends FieldValues {
     itemId: string
     quantity?: string
     discount?: string
+    piecesPercentage?: string
     actualQuantity?: number
     purchaseCost?: string
     purchaseAmount?: number
@@ -146,6 +148,7 @@ interface SalesOrderFormValues extends FieldValues {
     itemId: string
     quantity?: string
     discount?: string
+    piecesPercentage?: string
     actualQuantity?: number
     saleCost?: string
     saleAmount?: number
@@ -212,6 +215,7 @@ const PurchaseOrderModal: React.FC<{
             itemId: l.itemId ?? '',
             quantity: String(roundValue(Number(l.quantity ?? 0), 0) || ''),
             discount: String(roundValue(Number(l.discount ?? 0), 0) || ''),
+            piecesPercentage: String(roundValue(Number(l.piecesPercentage ?? (existing.mode === 'tonagePercentage' ? l.discount : 0)), 0) || ''),
             actualQuantity: roundValue(Number(l.actualQuantity ?? 0), 0),
             purchaseCost: l.purchaseCost !== undefined ? String(l.purchaseCost) : '',
             purchaseAmount: roundValue(Number(l.purchaseAmount ?? 0), 2),
@@ -221,6 +225,7 @@ const PurchaseOrderModal: React.FC<{
               itemId: '',
               quantity: '',
               discount: '',
+              piecesPercentage: '',
               actualQuantity: 0,
               purchaseCost: '',
               purchaseAmount: 0,
@@ -237,7 +242,7 @@ const PurchaseOrderModal: React.FC<{
       branchId: '',
       warehouseId: '',
       remarks: '',
-      lines: [{ itemId: '', quantity: '', discount: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0, amount: 0 }],
+      lines: [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0, amount: 0 }],
     }
   }
 
@@ -302,11 +307,12 @@ const PurchaseOrderModal: React.FC<{
     if (!line) return
     const quantity = Number(line.quantity ?? 0) || 0
     const discount = Number(line.discount ?? 0) || 0
+    const piecesPercentage = Number(line.piecesPercentage ?? 0) || 0
     const activeMode = modeOverride ?? mode
 
     let actualQuantity = 0
     if (activeMode === 'tonagePercentage') {
-      actualQuantity = quantity - (quantity * Math.min(Math.max(discount, 0), 100)) / 100
+      actualQuantity = quantity - (quantity * Math.min(Math.max(piecesPercentage, 0), 100)) / 100
     } else if (activeMode === 'tonage') {
       const denom = 1000 + discount
       const safeDenom = denom === 0 ? 1 : denom
@@ -333,8 +339,8 @@ const PurchaseOrderModal: React.FC<{
     if (!line) return
     const quantityNum = Number(line.quantity ?? 0) || 0
     if (mode === 'tonagePercentage') {
-      const percentage = Math.min(Math.max(Number(line.discount ?? 0) || 0, 0), 100)
-      setValue(`lines.${index}.discount`, percentage === 0 ? '' : String(percentage))
+      const percentage = Math.min(Math.max(Number(line.piecesPercentage ?? 0) || 0, 0), 100)
+      setValue(`lines.${index}.piecesPercentage`, percentage === 0 ? '' : String(percentage))
     }
     // recalcLine already syncs actualQuantity/purchaseAmount (auto).
     recalcLine(index)
@@ -371,6 +377,7 @@ const PurchaseOrderModal: React.FC<{
     const sanitizedLines: PurchaseOrderLine[] = (values.lines || []).map((l, idx) => {
       const quantity = Number(l.quantity) || 0
       const discount = Number(l.discount) || 0
+      const piecesPercentage = Number(l.piecesPercentage) || 0
       const actualQuantity = Number(l.actualQuantity) || 0
       const purchaseCost = (Number(l.purchaseCost) || 0)
       const purchaseAmount = (Number(l.purchaseAmount) || 0)
@@ -379,6 +386,7 @@ const PurchaseOrderModal: React.FC<{
         itemId: l.itemId,
         quantity,
         discount,
+        piecesPercentage: mode === 'tonagePercentage' ? piecesPercentage : 0,
         actualQuantity: roundValue(actualQuantity, 0),
         purchaseCost: Number(purchaseCost.toFixed(2)),
         purchaseAmount: Number(purchaseAmount.toFixed(2)),
@@ -420,6 +428,7 @@ const PurchaseOrderModal: React.FC<{
             itemId: l.itemId,
             quantity: String(l.quantity ?? ''),
             discount: String(l.discount ?? ''),
+            piecesPercentage: String(l.piecesPercentage ?? ''),
             actualQuantity: l.actualQuantity ?? 0,
             saleCost: String(l.saleCost ?? ''),
             saleAmount: l.saleAmount ?? l.amount ?? 0,
@@ -438,6 +447,7 @@ const PurchaseOrderModal: React.FC<{
             itemId: l.itemId ?? '',
             quantity: String(l.quantity ?? ''),
             discount: String(l.discount ?? ''),
+            piecesPercentage: String(l.piecesPercentage ?? ''),
             actualQuantity: l.actualQuantity ?? 0,
             saleCost: l.purchaseCost !== undefined ? String(l.purchaseCost) : '',
             saleAmount: l.purchaseAmount ?? l.amount ?? 0,
@@ -450,7 +460,7 @@ const PurchaseOrderModal: React.FC<{
       date: todayDDMMYYYY(),
       customerId: '',
       remarks: '',
-      lines: [{ itemId: '', quantity: '', discount: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
+      lines: [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
     }
   }
 
@@ -489,10 +499,13 @@ const PurchaseOrderModal: React.FC<{
     if (!line) return
     const quantity = Number(line.quantity ?? 0) || 0
     const discount = Number(line.discount ?? 0) || 0
+    const piecesPercentage = Number(line.piecesPercentage ?? 0) || 0
     const activeMode = modeOverride ?? salesMode
 
     let actualQuantity = 0
-    if (activeMode === 'tonage') {
+    if (activeMode === 'tonagePercentage') {
+      actualQuantity = quantity - (quantity * Math.min(Math.max(piecesPercentage, 0), 100)) / 100
+    } else if (activeMode === 'tonage') {
       const denom = 1000 + discount
       const safeDenom = denom === 0 ? 1 : denom
       actualQuantity = (quantity * 1000) / safeDenom
@@ -536,6 +549,7 @@ const PurchaseOrderModal: React.FC<{
     const sanitized = (values.lines || []).map((l, idx) => {
       const quantity = Number(l.quantity) || 0
       const discount = Number(l.discount) || 0
+      const piecesPercentage = Number(l.piecesPercentage) || 0
       const actualQuantity = Number(l.actualQuantity) || 0
       const saleCost = Number(l.saleCost) || 0
       const saleAmount = Number(l.saleAmount) || 0
@@ -544,6 +558,7 @@ const PurchaseOrderModal: React.FC<{
         itemId: l.itemId,
         quantity,
         discount,
+        piecesPercentage: salesMode === 'tonagePercentage' ? piecesPercentage : 0,
         actualQuantity: Number(actualQuantity.toFixed(6)),
         saleCost: Number(saleCost.toFixed(2)),
         saleAmount: Number(saleAmount.toFixed(2)),
@@ -589,7 +604,7 @@ const PurchaseOrderModal: React.FC<{
   const isSalesLocked = salesOrder?.status === 'Approved'
   const isPurchaseLocked = existing?.status === 'Approved' || !!salesOrder || convertOpen
   // Sales order conversion mode (tonage/lessing).
-  const [salesMode, setSalesMode] = useState<'tonage' | 'lessing'>(existing?.mode === 'lessing' ? 'lessing' : 'tonage')
+  const [salesMode, setSalesMode] = useState<'tonage' | 'tonagePercentage' | 'lessing'>(existing?.mode ?? 'tonage')
 
   const printSalesOrder = (order: SalesOrder) => {
     const win = window.open('', '_blank', 'width=900,height=700')
@@ -624,7 +639,7 @@ const PurchaseOrderModal: React.FC<{
 
   useEffect(() => {
     // Reset sales form whenever modal opens or existing changes (but keep conversion collapsed)
-    setSalesMode(existing?.mode === 'lessing' ? 'lessing' : 'tonage')
+    setSalesMode(existing?.mode ?? 'tonage')
     resetS(buildSalesInitial())
     setConvertOpen(Boolean(salesOrder))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -645,18 +660,19 @@ const PurchaseOrderModal: React.FC<{
       const itemId = l.itemId ?? ''
       const quantity = l.quantity ?? ''
       const discount = l.discount ?? ''
+      const piecesPercentage = l.piecesPercentage ?? ''
       const actualQuantity = Number((l as any)?.actualQuantity) || 0
       const saleCostVal = String((l as any)?.purchaseCost ?? '')
       const saleAmountVal = Number((l as any)?.purchaseAmount) || 0
-      return { itemId, quantity, discount, actualQuantity, saleCost: saleCostVal, saleAmount: saleAmountVal, amount: saleAmountVal }
+      return { itemId, quantity, discount, piecesPercentage, actualQuantity, saleCost: saleCostVal, saleAmount: saleAmountVal, amount: saleAmountVal }
     })
-    setSalesMode(existing?.mode === 'lessing' ? 'lessing' : 'tonage')
+    setSalesMode(existing?.mode ?? 'tonage')
     resetS({
       soNumber: generateSONumber(),
       date: todayDDMMYYYY(),
       customerId: '',
       remarks: `Converted from ${existing.poNumber}`,
-      lines: mapped.length ? mapped : [{ itemId: '', quantity: '', discount: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
+      lines: mapped.length ? mapped : [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
     })
     setConvertOpen(true)
   }
@@ -667,7 +683,7 @@ const PurchaseOrderModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-40 flex items-end md:items-center justify-center bg-black/40 px-3 py-4 touch-pan-y">
-      <div className={`w-full max-w-4xl md:rounded-3xl rounded-t-3xl bg-white shadow-2xl md:max-h-[85vh] max-h-[94vh] flex flex-col overflow-hidden`}>
+      <div className={`w-full max-w-5xl md:rounded-3xl rounded-t-3xl bg-white shadow-2xl md:max-h-[85vh] max-h-[94vh] flex flex-col overflow-hidden`}>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
           <h2 className="text-sm font-semibold text-slate-900">{existing ? 'Edit Purchase Order' : 'New Purchase Order'}</h2>
@@ -687,7 +703,7 @@ const PurchaseOrderModal: React.FC<{
             </div>
 
           <div className="grid gap-3 md:grid-cols-4">
-            <div className="max-w-[220px]">
+            <div className="max-w-[200px]">
               <label className="mb-1 block text-[11px] font-medium text-slate-700">
                 PO Number <span className="text-rose-500">*</span>
               </label>
@@ -695,7 +711,7 @@ const PurchaseOrderModal: React.FC<{
               {errors.poNumber ? <p className="mt-1 text-[10px] text-rose-500">Required</p> : null}
             </div>
 
-            <div className="max-w-[220px]">
+            <div className="max-w-[200px]">
               <label className="mb-1 block text-[11px] font-medium text-slate-700">
                 Date <span className="text-rose-500">*</span>
               </label>
@@ -725,7 +741,7 @@ const PurchaseOrderModal: React.FC<{
               {errors.date ? <p className="mt-1 text-[10px] text-rose-500">Required</p> : null}
             </div>
 
-            <div className="max-w-[220px]">
+            <div className="max-w-[200px]">
               <label className="mb-1 block text-[11px] font-medium text-slate-700">
                 Branch
               </label>
@@ -739,7 +755,7 @@ const PurchaseOrderModal: React.FC<{
               </select>
             </div>
 
-            <div className="max-w-[220px]">
+            <div className="max-w-[200px]">
               <label className="mb-1 block text-[11px] font-medium text-slate-700">
                 Supplier <span className="text-rose-500">*</span>
               </label>
@@ -818,6 +834,7 @@ const PurchaseOrderModal: React.FC<{
                       itemId: '',
                       quantity: '',
                       discount: '',
+                      piecesPercentage: '',
                       actualQuantity: 0,
                       purchaseCost: '',
                       purchaseAmount: 0,
@@ -837,7 +854,7 @@ const PurchaseOrderModal: React.FC<{
               <table className="min-w-full text-left text-[11px] rounded-2xl border border-slate-100">
                 <thead className="bg-slate-50 text-slate-500">
                   <tr>
-                    <th className="px-3 py-2">Item</th>
+                    <th className="min-w-[220px] px-3 py-2">Item</th>
                     <th className="px-3 py-2">{quantityColumnLabel}</th>
                     <th className="px-3 py-2">{discountLabel}</th>
                     {mode === 'tonagePercentage' && <th className="px-3 py-2">{discountColumnLabel}</th>}
@@ -851,8 +868,8 @@ const PurchaseOrderModal: React.FC<{
                   {fields.map((field, index) => {
                     return (
                       <tr key={field.id} className="border-t border-slate-100">
-                        <td className="px-3 py-1.5">
-                          <select disabled={isPurchaseLocked} className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:bg-slate-100" {...register(`lines.${index}.itemId` as const, { required: true })}>
+                        <td className="min-w-[220px] px-3 py-1.5">
+                          <select disabled={isPurchaseLocked} className="w-[210px] rounded-full border border-slate-200 px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:bg-slate-100" {...register(`lines.${index}.itemId` as const, { required: true })}>
                             <option value="">Select item</option>
                             {items.map((it) => (
                               <option key={it.id} value={it.id}>
@@ -882,7 +899,7 @@ const PurchaseOrderModal: React.FC<{
                             inputMode="decimal"
                             disabled={isPurchaseLocked}
                             className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-slate-100"
-                            {...register(`lines.${index}.discount` as const, {
+                            {...register(`lines.${index}.${mode === 'tonagePercentage' ? 'piecesPercentage' : 'discount'}` as const, {
                               onChange: () => recalcLine(index),
                             })}
                           />
@@ -893,7 +910,7 @@ const PurchaseOrderModal: React.FC<{
                             <input
                               type="text"
                               readOnly
-                              value={roundValue((Number(watchedLines[index]?.quantity) || 0) * (Number(watchedLines[index]?.discount) || 0) / 100, 0)}
+                              value={roundValue((Number(watchedLines[index]?.quantity) || 0) * (Number(watchedLines[index]?.piecesPercentage) || 0) / 100, 0)}
                               className="w-20 rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
                               aria-label={`Discount pieces for line ${index + 1}`}
                             />
@@ -995,7 +1012,7 @@ const PurchaseOrderModal: React.FC<{
                           type="text"
                           inputMode="decimal"
                           className="w-full rounded-full border border-slate-200 px-3 py-1"
-                          {...register(`lines.${index}.discount` as const, {
+                          {...register(`lines.${index}.${mode === 'tonagePercentage' ? 'piecesPercentage' : 'discount'}` as const, {
                             onChange: () => recalcLine(index),
                           })}
                         />
@@ -1006,7 +1023,7 @@ const PurchaseOrderModal: React.FC<{
                           <input
                             type="text"
                             readOnly
-                            value={roundValue((Number(watchedLines[index]?.quantity) || 0) * (Number(watchedLines[index]?.discount) || 0) / 100, 0)}
+                            value={roundValue((Number(watchedLines[index]?.quantity) || 0) * (Number(watchedLines[index]?.piecesPercentage) || 0) / 100, 0)}
                             className="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1"
                             aria-label={`Discount pieces for line ${index + 1}`}
                           />
@@ -1165,6 +1182,7 @@ const PurchaseOrderModal: React.FC<{
                         itemId: '',
                         quantity: '',
                         discount: '',
+                        piecesPercentage: '',
                         actualQuantity: 0,
                         saleCost: '',
                         saleAmount: 0,
@@ -1183,7 +1201,8 @@ const PurchaseOrderModal: React.FC<{
                       <tr>
                         <th className="px-3 py-2">Item</th>
                         <th className="px-3 py-2">{salesMode === 'tonage' ? 'Quantity (Tons)' : 'Quantity (Pieces)'}</th>
-                        <th className="px-3 py-2">{salesMode === 'tonage' ? 'Discount (Kgs)' : 'Discount (Pieces)'}</th>
+                        {salesMode === 'tonagePercentage' ? <th className="px-3 py-2">Pieces %</th> : null}
+                        <th className="px-3 py-2">{salesMode === 'tonagePercentage' ? 'Discount (Pieces)' : salesMode === 'tonage' ? 'Discount (Kgs)' : 'Discount (Pieces)'}</th>
                         <th className="px-3 py-2">Actual Quantity</th>
                         <th className="px-3 py-2">Sale Cost</th>
                         <th className="px-3 py-2">Sale Amount</th>
@@ -1194,13 +1213,13 @@ const PurchaseOrderModal: React.FC<{
                       {salesFields.map((field, index) => {
                         return (
                           <tr key={field.id} className="border-t border-slate-100">
-                            <td className="px-3 py-1.5">
+                            <td className="min-w-[150px] px-3 py-1.5">
                               <select
                                 aria-disabled="true"
                                 tabIndex={-1}
                                 onMouseDown={(event) => event.preventDefault()}
                                 onKeyDown={(event) => event.preventDefault()}
-                                className="pointer-events-none w-full rounded-full border border-slate-200 bg-[#e8f4c8] px-2 py-1 text-[11px]"
+                                className="pointer-events-none w-[145px] rounded-full border border-slate-200 bg-[#e8f4c8] px-2 py-1 text-[11px]"
                                 {...registerS(`lines.${index}.itemId` as const, { required: true })}
                               >
                                 <option value="">Select item</option>
@@ -1213,26 +1232,40 @@ const PurchaseOrderModal: React.FC<{
                             </td>
 
                             <td className="px-3 py-1.5">
-                              <input type="text" inputMode="decimal" disabled className="w-24 rounded-full border border-slate-200 bg-[#e8f4c8] px-2 py-1" {...registerS(`lines.${index}.quantity` as const)} />
+                              <input type="text" inputMode="decimal" disabled className="w-20 rounded-full border border-slate-200 bg-[#e8f4c8] px-2 py-1" {...registerS(`lines.${index}.quantity` as const)} />
                             </td>
 
-                            <td className="px-3 py-1.5">
-                              <input type="text" inputMode="decimal" disabled={isSalesLocked} className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.discount` as const, { onChange: () => recalcSalesLine(index) })} />
-                            </td>
+                            {salesMode === 'tonagePercentage' ? (
+                              <>
+                                <td className="px-3 py-1.5">
+                                  <input type="text" inputMode="decimal" disabled={isSalesLocked} className="w-16 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.piecesPercentage` as const, { onChange: () => recalcSalesLine(index) })} />
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  <div className="w-16 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                                    {Math.round((Number(watchedSalesLines?.[index]?.quantity) || 0) * (Number(watchedSalesLines?.[index]?.piecesPercentage) || 0) / 100)}
+                                  </div>
+                                  <input type="hidden" {...registerS(`lines.${index}.discount` as const)} />
+                                </td>
+                              </>
+                            ) : (
+                              <td className="px-3 py-1.5">
+                                <input type="text" inputMode="decimal" disabled={isSalesLocked} className="w-16 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.discount` as const, { onChange: () => recalcSalesLine(index) })} />
+                              </td>
+                            )}
 
                             <td className="px-3 py-1.5">
-                              <div className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                              <div className="w-24 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
                                 {Math.round(Number(watchedSalesLines?.[index]?.actualQuantity ?? 0))}
                               </div>
                               <input type="hidden" {...registerS(`lines.${index}.actualQuantity` as const)} />
                             </td>
 
                             <td className="px-3 py-1.5">
-                              <input type="text" inputMode="decimal" disabled={isSalesLocked} className="w-24 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.saleCost` as const, { onChange: () => recalcSalesLine(index) })} onBlur={() => syncSalesLineOnBlur(index)} />
+                              <input type="text" inputMode="decimal" disabled={isSalesLocked} className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.saleCost` as const, { onChange: () => recalcSalesLine(index) })} onBlur={() => syncSalesLineOnBlur(index)} />
                             </td>
 
                             <td className="px-3 py-1.5">
-                              <div className="w-28 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                              <div className="w-24 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
                                 {formatAmount(Number(watchedSalesLines?.[index]?.saleAmount ?? 0))}
                               </div>
                             </td>
@@ -1554,8 +1587,10 @@ const PurchaseOrderPage: React.FC = () => {
     try {
       setLoading(true)
       setRecords((await getPurchaseOrders()) as unknown as PurchaseOrder[])
-    } catch {
+    } catch (error) {
+      console.error('Failed to load purchase orders.', error)
       setRecords([])
+      toast.error('Unable to load purchase orders. Check the database schema and API server.')
     } finally {
       setLoading(false)
     }
@@ -1591,7 +1626,7 @@ const PurchaseOrderPage: React.FC = () => {
 
     return () => unsubscribe()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [selectedOrganizationId])
 
   const currentOrg = organizations.find((o) => o.id === selectedOrganizationId) ?? null
 
@@ -1625,7 +1660,7 @@ const PurchaseOrderPage: React.FC = () => {
   // Organization-wise: only show the selected organization's purchase orders.
   const orgScopedRecords = useMemo(() => {
     if (!selectedOrganizationId) return records
-    return records.filter((po) => po.organizationId === selectedOrganizationId)
+    return records.filter((po) => !po.organizationId || po.organizationId === selectedOrganizationId)
   }, [records, selectedOrganizationId])
 
   const filtered = useMemo(
@@ -1672,6 +1707,7 @@ const PurchaseOrderPage: React.FC = () => {
           itemId: l.itemId,
           quantity: l.quantity,
           discount: l.discount,
+          piecesPercentage: l.piecesPercentage ?? 0,
           actualQuantity: l.actualQuantity ?? 0,
           purchaseCost: l.purchaseCost,
           purchaseAmount: l.purchaseAmount ?? 0,

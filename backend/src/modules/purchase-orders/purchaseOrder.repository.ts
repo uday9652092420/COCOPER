@@ -11,6 +11,24 @@ import {
   PurchaseOrderUpdateDTO,
 } from "./purchaseOrder.types.js";
 
+let purchaseOrderSchemaReady: Promise<void> | null = null;
+
+async function ensurePurchaseOrderSchema(): Promise<void> {
+  if (!purchaseOrderSchemaReady) {
+    purchaseOrderSchemaReady = pool
+      .query(
+        `ALTER TABLE purchase_order_items
+         ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0`
+      )
+      .then(() => undefined)
+      .catch((error) => {
+        purchaseOrderSchemaReady = null;
+        throw error;
+      });
+  }
+  await purchaseOrderSchemaReady;
+}
+
 const PO_SELECT = `
   SELECT
     po.id,
@@ -31,6 +49,7 @@ const PO_SELECT = `
           'itemId', poi.item_id,
           'quantity', poi.quantity,
           'discount', poi.discount,
+          'piecesPercentage', poi.pieces_percentage,
           'actualQuantity', poi.actual_quantity,
           'purchaseCost', poi.purchase_cost,
           'purchaseAmount', poi.purchase_amount,
@@ -110,6 +129,7 @@ async function updateItemStockForPurchaseOrder(
 export async function listPurchaseOrdersRepo(
   organizationId?: string | null
 ): Promise<PurchaseOrderRow[]> {
+  await ensurePurchaseOrderSchema();
   const params: string[] = [];
   let where = "";
   if (organizationId) {
@@ -126,6 +146,7 @@ export async function listPurchaseOrdersRepo(
 export async function getPurchaseOrderByIdRepo(
   id: string
 ): Promise<PurchaseOrderRow | null> {
+  await ensurePurchaseOrderSchema();
   const { rows } = await pool.query(
     `${PO_SELECT} WHERE po.id = $1 GROUP BY po.id`,
     [id]
@@ -136,6 +157,7 @@ export async function getPurchaseOrderByIdRepo(
 export async function createPurchaseOrderRepo(
   payload: PurchaseOrderCreateDTO
 ): Promise<PurchaseOrderRow> {
+  await ensurePurchaseOrderSchema();
   const id = payload.id || `PO-${Date.now()}`;
   const client = await pool.connect();
   try {
@@ -160,14 +182,15 @@ export async function createPurchaseOrderRepo(
     for (const [i, l] of (payload.lines || []).entries()) {
       await client.query(
         `INSERT INTO purchase_order_items
-          (id, purchase_order_id, item_id, quantity, discount, actual_quantity, purchase_cost, purchase_amount, amount, rate)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          (id, purchase_order_id, item_id, quantity, discount, pieces_percentage, actual_quantity, purchase_cost, purchase_amount, amount, rate)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
         [
           `POL-${Date.now()}-${i}`,
           id,
           l.itemId,
           l.quantity ?? 0,
           l.discount ?? 0,
+          l.piecesPercentage ?? 0,
           l.actualQuantity ?? 0,
           l.purchaseCost ?? 0,
           l.purchaseAmount ?? 0,
@@ -199,6 +222,7 @@ export async function updatePurchaseOrderRepo(
   id: string,
   payload: PurchaseOrderUpdateDTO
 ): Promise<PurchaseOrderRow> {
+  await ensurePurchaseOrderSchema();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -239,14 +263,15 @@ export async function updatePurchaseOrderRepo(
       for (const [i, l] of payload.lines.entries()) {
         await client.query(
           `INSERT INTO purchase_order_items
-            (id, purchase_order_id, item_id, quantity, discount, actual_quantity, purchase_cost, purchase_amount, amount, rate)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+            (id, purchase_order_id, item_id, quantity, discount, pieces_percentage, actual_quantity, purchase_cost, purchase_amount, amount, rate)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [
             `POL-${Date.now()}-${i}`,
             id,
             l.itemId,
             l.quantity ?? 0,
             l.discount ?? 0,
+            l.piecesPercentage ?? 0,
             l.actualQuantity ?? 0,
             l.purchaseCost ?? 0,
             l.purchaseAmount ?? 0,

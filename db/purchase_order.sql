@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
   item_code TEXT,
   item_name TEXT,
   qty NUMERIC DEFAULT 0,
+  pieces_percentage NUMERIC DEFAULT 0,
   rate NUMERIC DEFAULT 0,
   amount NUMERIC DEFAULT 0,
   created_at DATE DEFAULT CURRENT_DATE

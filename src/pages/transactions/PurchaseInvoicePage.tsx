@@ -92,6 +92,7 @@ interface PurchaseInvoiceFormValues extends FieldValues {
     itemId: string
     quantity?: string
     discount?: string
+    piecesPercentage?: string
     actualQuantity?: number
     purchaseCost?: string
     purchaseAmount?: number
@@ -130,7 +131,8 @@ const PurchaseInvoiceModal: React.FC<{
    * 'tonage'  => actualQuantity = (quantity * 1000) / (discount + 1000)
    * 'lessing' => actualQuantity = (quantity - discount)
    */
-  const [mode, setMode] = useState<'tonage' | 'lessing'>(existing?.mode ?? 'tonage')
+  const [mode, setMode] = useState<'tonage' | 'lessing'>(existing?.mode === 'lessing' ? 'lessing' : 'tonage')
+  const [piecesMode, setPiecesMode] = useState(false)
 
   /**
    * @description Build initial/default form values with string fields for editable inputs.
@@ -148,12 +150,13 @@ const PurchaseInvoiceModal: React.FC<{
             itemId: l.itemId ?? '',
             quantity: String(l.quantityTons ?? ''),
             discount: String(l.discount ?? ''),
+            piecesPercentage: String(l.piecesPercentage ?? ''),
             actualQuantity: Math.round(Number(l.actualQuantity ?? 0)),
             purchaseCost: l.purchaseCost !== undefined ? String(l.purchaseCost) : '',
             purchaseAmount: l.purchaseAmount ?? 0,
             locked: Boolean(existing.purchaseOrderId),
           })) ?? [
-            { itemId: '', quantity: '', discount: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0 },
+            { itemId: '', quantity: '', discount: '', piecesPercentage: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0 },
           ],
         loadingCost: Number(existing.loadingCost) || 0,
         marketCess: Number(existing.marketCess) || 0,
@@ -167,7 +170,7 @@ const PurchaseInvoiceModal: React.FC<{
       purchaseOrderId: '',
       invoiceNo: generatePINumber(),
       invoiceDate: todayDDMMYYYY(),
-      lines: [{ itemId: '', quantity: '', discount: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0 }],
+      lines: [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0 }],
       loadingCost: 0,
       marketCess: 0,
       bagsAndSticks: 0,
@@ -191,7 +194,8 @@ const PurchaseInvoiceModal: React.FC<{
 
   useEffect(() => {
     // Reset form whenever modal opens or existing changes
-    setMode(existing?.mode ?? 'tonage')
+    setMode(existing?.mode === 'lessing' ? 'lessing' : 'tonage')
+    setPiecesMode(existing?.mode === 'tonagePercentage' || existing?.lines?.some((line) => Number(line.piecesPercentage ?? 0) > 0) || false)
     reset(buildInitial())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existing, open])
@@ -211,10 +215,12 @@ const PurchaseInvoiceModal: React.FC<{
     setValue('supplierId', order.supplierId)
     setValue('invoiceDate', toDDMMYYYY(order.date) || todayDDMMYYYY())
     setMode(order.mode === 'lessing' ? 'lessing' : 'tonage')
+    setPiecesMode(order.mode === 'tonagePercentage' || order.lines.some((line) => Number(line.piecesPercentage ?? 0) > 0))
     linesField.replace(order.lines.map((line) => ({
       itemId: line.itemId,
       quantity: String(line.quantity ?? ''),
       discount: String(line.discount ?? ''),
+      piecesPercentage: String(line.piecesPercentage ?? ''),
       actualQuantity: line.actualQuantity ?? 0,
       purchaseCost: String(line.purchaseCost ?? ''),
       purchaseAmount: line.purchaseAmount ?? line.amount ?? 0,
@@ -227,26 +233,36 @@ const PurchaseInvoiceModal: React.FC<{
    * Purchase Cost is USER INPUT — never overwritten here.
    * Purchase Amount = Purchase Cost × Actual Quantity.
    */
-  const recalcLine = (index: number, modeOverride?: 'tonage' | 'lessing') => {
+  const recalcLine = (index: number, modeOverride?: 'tonage' | 'lessing', piecesModeOverride?: boolean) => {
     const line = (getValues('lines') ?? [])[index] || (linesField.fields[index] as any)
     if (!line) return
     const quantity = Number(line.quantity ?? 0) || 0
     const discount = Number(line.discount ?? 0) || 0
+    const piecesPercentage = Number(line.piecesPercentage ?? 0) || 0
     const activeMode = modeOverride ?? mode
+    const activePiecesMode = piecesModeOverride ?? piecesMode
+    const calculatedDiscount = activePiecesMode
+      ? (quantity * Math.min(Math.max(piecesPercentage, 0), 100)) / 100
+      : discount
 
     let actualQuantity = 0
-    if (activeMode === 'tonage') {
-      const denom = 1000 + discount
+    if (activeMode === 'tonage' && activePiecesMode) {
+      actualQuantity = quantity - calculatedDiscount
+    } else if (activeMode === 'tonage') {
+      const denom = 1000 + calculatedDiscount
       const safeDenom = denom === 0 ? 1 : denom
       actualQuantity = (quantity * 1000) / safeDenom
     } else {
-      actualQuantity = quantity - discount
+      actualQuantity = quantity - calculatedDiscount
     }
 
     const roundedActualQuantity = Number.isFinite(actualQuantity) ? Math.round(actualQuantity) : 0
     const purchaseCost = Number(line.purchaseCost ?? 0) || 0
     const purchaseAmount = purchaseCost * roundedActualQuantity
 
+    if (activePiecesMode) {
+      setValue(`lines.${index}.discount`, Number.isFinite(calculatedDiscount) ? String(Number(calculatedDiscount.toFixed(6))) : '')
+    }
     setValue(`lines.${index}.actualQuantity`, roundedActualQuantity)
     setValue(`lines.${index}.purchaseAmount`, Number.isFinite(purchaseAmount) ? Number(purchaseAmount.toFixed(2)) : 0)
   }
@@ -258,6 +274,10 @@ const PurchaseInvoiceModal: React.FC<{
     const line = (getValues('lines') ?? [])[index] || (linesField.fields[index] as any)
     if (!line) return
     const q = Number(line.quantity ?? 0) || 0
+    if (piecesMode) {
+      const percentage = Math.min(Math.max(Number(line.piecesPercentage ?? 0) || 0, 0), 100)
+      setValue(`lines.${index}.piecesPercentage`, percentage === 0 ? '' : String(percentage))
+    }
     recalcLine(index)
     setValue(`lines.${index}.quantity`, q === 0 ? '' : String(q))
   }
@@ -296,6 +316,7 @@ const PurchaseInvoiceModal: React.FC<{
       itemId: l.itemId,
       quantityTons: Number(l.quantity) || 0,
       discount: Number(l.discount) || 0,
+      piecesPercentage: piecesMode ? Number(l.piecesPercentage) || 0 : 0,
       actualQuantity: Number(l.actualQuantity) || 0,
       purchaseCost: Number(l.purchaseCost) || 0,
       purchaseAmount: Number(l.purchaseAmount) || 0,
@@ -406,33 +427,51 @@ const PurchaseInvoiceModal: React.FC<{
             </div>
             <div>
               <label className="mb-1 block text-[11px] font-medium text-slate-700">Quantity Mode</label>
-              <div className="flex h-[34px] items-center gap-3 rounded-full border border-slate-200 px-3 text-[11px]">
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="mode"
-                    disabled={isApproved}
-                    checked={mode === 'tonage'}
-                    onChange={() => {
-                      setMode('tonage')
-                      ;(linesField.fields || []).forEach((_, idx) => recalcLine(idx, 'tonage'))
-                    }}
-                  />
-                  <span>Tonnage</span>
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="mode"
-                    disabled={isApproved}
-                    checked={mode === 'lessing'}
-                    onChange={() => {
-                      setMode('lessing')
-                      ;(linesField.fields || []).forEach((_, idx) => recalcLine(idx, 'lessing'))
-                    }}
-                  />
-                  <span>Lessing</span>
-                </label>
+              <div className="flex h-[34px] items-center gap-3 text-[11px]">
+                <div className="flex h-full items-center gap-3 rounded-full border border-slate-200 px-3">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="mode"
+                      disabled={isApproved}
+                      checked={mode === 'tonage'}
+                      onChange={() => {
+                        setMode('tonage')
+                        ;(linesField.fields || []).forEach((_, idx) => recalcLine(idx, 'tonage'))
+                      }}
+                    />
+                    <span>Tonnage</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="mode"
+                      disabled={isApproved}
+                      checked={mode === 'lessing'}
+                      onChange={() => {
+                        setMode('lessing')
+                        ;(linesField.fields || []).forEach((_, idx) => recalcLine(idx, 'lessing'))
+                      }}
+                    />
+                    <span>Lessing</span>
+                  </label>
+                </div>
+                {mode !== 'lessing' ? (
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      name="pieces-mode"
+                      disabled={isApproved}
+                      checked={piecesMode}
+                      onChange={(event) => {
+                        const nextPiecesMode = event.target.checked
+                        setPiecesMode(nextPiecesMode)
+                        ;(linesField.fields || []).forEach((_, idx) => recalcLine(idx, mode, nextPiecesMode))
+                      }}
+                    />
+                    <span>Pieces %</span>
+                  </label>
+                ) : null}
               </div>
             </div>
           </div>
@@ -447,6 +486,7 @@ const PurchaseInvoiceModal: React.FC<{
                     itemId: '',
                     quantity: '',
                     discount: '',
+                    piecesPercentage: '',
                     actualQuantity: 0,
                     purchaseCost: '',
                     purchaseAmount: 0,
@@ -464,6 +504,7 @@ const PurchaseInvoiceModal: React.FC<{
                   <tr>
                     <th className="px-3 py-2">Item</th>
                     <th className="px-3 py-2">{mode === 'tonage' ? 'Quantity (Tons)' : 'Quantity (Pieces)'}</th>
+                    {piecesMode ? <th className="px-3 py-2">Pieces %</th> : null}
                     <th className="px-3 py-2">{mode === 'tonage' ? 'Discount (Kgs)' : 'Discount (Pieces)'}</th>
                     <th className="px-3 py-2">Actual Quantity</th>
                     <th className="px-3 py-2">Purchase Cost</th>
@@ -496,15 +537,29 @@ const PurchaseInvoiceModal: React.FC<{
                           onBlur={() => syncLineOnBlur(index)}
                         />
                       </td>
+                      {piecesMode ? (
+                        <>
+                          <td className="px-3 py-1.5">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              disabled={isApproved}
+                              className="w-16 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
+                              {...register(`lines.${index}.piecesPercentage` as const, { onChange: () => recalcLine(index) })}
+                            />
+                          </td>
+                        </>
+                      ) : (
+                        null
+                      )}
                       <td className="px-3 py-1.5">
                         <input
                           type="text"
                           inputMode="decimal"
+                          readOnly={piecesMode}
                           disabled={isApproved}
                           className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
-                          {...register(`lines.${index}.discount` as const, {
-                            onChange: () => recalcLine(index),
-                          })}
+                          {...register(`lines.${index}.discount` as const, { onChange: () => recalcLine(index) })}
                         />
                       </td>
                       <td className="px-3 py-1.5">
@@ -919,6 +974,7 @@ const PurchaseInvoicePage: React.FC = () => {
           itemId: l.itemId,
           quantityTons: l.quantityTons,
           discount: l.discount,
+          piecesPercentage: l.piecesPercentage ?? 0,
           actualQuantity: l.actualQuantity ?? 0,
           purchaseCost: l.purchaseCost,
           purchaseAmount: l.purchaseAmount,

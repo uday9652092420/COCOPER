@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS direct_sale_items (
   item_name TEXT,
   qty NUMERIC DEFAULT 0,
   discount NUMERIC DEFAULT 0,
+  pieces_percentage NUMERIC DEFAULT 0,
   actual_quantity NUMERIC DEFAULT 0,
   rate NUMERIC DEFAULT 0,
   amount NUMERIC DEFAULT 0,
@@ -81,6 +82,8 @@ CREATE TABLE IF NOT EXISTS direct_sale_gunny_bags (
 );
 
 ALTER TABLE direct_sale_gunny_bags ADD COLUMN IF NOT EXISTS bag_bharthi TEXT;
+
+ALTER TABLE direct_sale_items ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0;
 
 -- Sample seed data: one sale with two items
 INSERT INTO direct_sales (id, invoice_no, customer_id, customer_name, sale_date, total_amount, payment_mode, reference_no, remarks, status, created_at)

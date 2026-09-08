@@ -15,6 +15,7 @@ export interface PurchaseInvoiceItem {
 
 export interface PurchaseInvoiceRow {
   id: string
+  createdAt?: string
   invoiceNo: string
   organizationId: string | null
   supplierId: string

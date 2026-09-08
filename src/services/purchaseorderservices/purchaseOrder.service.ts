@@ -29,7 +29,7 @@ export interface PurchaseOrderDTO {
   remarks: string;
   status: string;
   purchaseOrderInvoiceStatus?: boolean;
-  mode: string;
+  mode: 'tonage' | 'tonagePercentage' | 'lessing' | string;
   lines: PurchaseOrderLineDTO[];
 }
 
@@ -44,7 +44,7 @@ export interface PurchaseOrderPayload {
   remarks?: string;
   status?: string;
   purchaseOrderInvoiceStatus?: boolean;
-  mode?: string;
+  mode?: 'tonage' | 'tonagePercentage' | 'lessing' | string;
   lines: PurchaseOrderLineDTO[];
 }
 

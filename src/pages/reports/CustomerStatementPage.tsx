@@ -1,6 +1,6 @@
 /**
  * @file CustomerStatementPage.tsx
- * @description Customer statement report showing sales and running balance (no receipts in mock).
+ * @description Customer statement report showing organization-scoped sales and receipts.
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
@@ -35,7 +35,10 @@ interface CustomerReceiptStatementRow {
   amount: number
   invoice_no?: string | null
   created_at?: string
+  organization_id?: string | null
 }
+
+const STATEMENT_PAGE_SIZE = 15
 
 function statementDateValue(value: string): number {
   const ddmmyyyy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value ?? '')
@@ -73,8 +76,8 @@ const CustomerStatementPage: React.FC = () => {
   const [customerId, setCustomerId] = useState('')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
   const [refreshToken, setRefreshToken] = useState(0)
-  const [columnChooserOpen, setColumnChooserOpen] = useState(false)
   const [sales, setSales] = useState<Array<{
     id: string
     directSaleNo?: string
@@ -84,6 +87,7 @@ const CustomerStatementPage: React.FC = () => {
     invoiceTotal: number
     approved?: boolean
     createdAt?: string
+    organizationId?: string | null
   }>>([])
   const [receipts, setReceipts] = useState<CustomerReceiptStatementRow[]>([])
 
@@ -111,13 +115,19 @@ const CustomerStatementPage: React.FC = () => {
   useEffect(() => {
     const loadStatementData = async () => {
       try {
+        if (!selectedOrganizationId) {
+          setSales([])
+          setReceipts([])
+          return
+        }
+
         const [salesResponse, receiptsResponse] = await Promise.all([
           getDirectSales(),
           fetch(`${API}/customer-receipts`, { headers: getOrgHeader() }),
         ])
         if (!receiptsResponse.ok) throw new Error('Unable to load customer receipts.')
         const receiptPayload = await receiptsResponse.json()
-        setSales(salesResponse.map((sale) => ({
+        setSales(salesResponse.filter((sale) => sale.organizationId === selectedOrganizationId).map((sale) => ({
           id: sale.id,
           directSaleNo: sale.directSaleNo,
           invoiceNo: (sale as any).invoice_no,
@@ -126,8 +136,13 @@ const CustomerStatementPage: React.FC = () => {
           invoiceTotal: Number(sale.invoiceTotal ?? 0),
           approved: sale.approved,
           createdAt: (sale as typeof sale & { createdAt?: string }).createdAt,
+          organizationId: sale.organizationId,
         })))
-        setReceipts(Array.isArray(receiptPayload.data) ? receiptPayload.data : [])
+        setReceipts(
+          Array.isArray(receiptPayload.data)
+            ? receiptPayload.data.filter((receipt: CustomerReceiptStatementRow) => receipt.organization_id === selectedOrganizationId)
+            : []
+        )
       } catch (error) {
         console.error(error)
         setSales([])
@@ -171,12 +186,12 @@ const CustomerStatementPage: React.FC = () => {
         return date >= from && date <= to
       })
       .sort((a, b) => {
-        const dateDifference = statementDateValue(b.date) - statementDateValue(a.date)
+        const dateDifference = statementDateValue(a.date) - statementDateValue(b.date)
         if (dateDifference !== 0) return dateDifference
-        const timestampDifference = transactionTimestamp(b.createdAt) - transactionTimestamp(a.createdAt)
+        const timestampDifference = transactionTimestamp(a.createdAt) - transactionTimestamp(b.createdAt)
         if (timestampDifference !== 0) return timestampDifference
         if (a.transactionType !== b.transactionType) return a.transactionType === 'receipt' ? -1 : 1
-        return b.voucher.localeCompare(a.voucher, undefined, { numeric: true })
+        return a.voucher.localeCompare(b.voucher, undefined, { numeric: true })
       })
 
     return combined.reduce<CustomerStatementRow[]>((statementRows, row, index) => {
@@ -188,6 +203,17 @@ const CustomerStatementPage: React.FC = () => {
       return statementRows
     }, [])
   }, [customerId, fromDate, receipts, sales, toDate])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [customerId, fromDate, toDate])
+
+  const totalPages = Math.ceil(rows.length / STATEMENT_PAGE_SIZE)
+  const safeCurrentPage = Math.min(currentPage, Math.max(totalPages, 1))
+  const paginatedRows = rows.slice(
+    (safeCurrentPage - 1) * STATEMENT_PAGE_SIZE,
+    safeCurrentPage * STATEMENT_PAGE_SIZE,
+  )
 
   const totalSales = rows.reduce((sum, r) => sum + r.sales, 0)
   const totalReceipt = rows.reduce((sum, r) => sum + r.receipt, 0)
@@ -202,8 +228,7 @@ const CustomerStatementPage: React.FC = () => {
     { key: 'receipt', label: 'Receipt' },
     { key: 'balance', label: 'Running Balance' },
   ]
-  const [visibleColumnKeys, setVisibleColumnKeys] = useState(statementColumns.map((column) => column.key))
-  const visibleColumns = statementColumns.filter((column) => visibleColumnKeys.includes(column.key))
+  const visibleColumns = statementColumns
 
   const getStatementValue = (row: CustomerStatementRow, key: string): string => {
     if (key === 'date') return formatDate(row.date)
@@ -250,23 +275,11 @@ const CustomerStatementPage: React.FC = () => {
       <PageHeader title="Customer Statement" breadcrumb={['Reports', 'Customer Statement']} />
       <Toolbar
         title="Customer Statement"
-        onColumnChooser={() => setColumnChooserOpen((open) => !open)}
         onRefresh={() => { setRefreshToken((value) => value + 1); toast.success('Customer statement refreshed.') }}
         onExportExcel={exportStatementToExcel}
         onExportPdf={() => printStatement(true)}
         onPrint={() => printStatement(false)}
       />
-      {columnChooserOpen ? (
-        <div className="mb-3 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-sm">
-          <span className="font-medium text-slate-700">Show columns:</span>
-          {statementColumns.map((column) => (
-            <label key={column.key} className="inline-flex items-center gap-1.5 text-slate-600">
-              <input type="checkbox" checked={visibleColumnKeys.includes(column.key)} disabled={visibleColumnKeys.length === 1 && visibleColumnKeys.includes(column.key)} onChange={() => setVisibleColumnKeys((keys) => keys.includes(column.key) ? keys.filter((key) => key !== column.key) : [...keys, column.key])} />
-              {column.label}
-            </label>
-          ))}
-        </div>
-      ) : null}
       <div className="mb-3 flex flex-wrap items-center gap-3 text-xs">
         <label className="text-[11px] font-medium text-slate-700">Customer</label>
         <select
@@ -297,7 +310,6 @@ const CustomerStatementPage: React.FC = () => {
           onChange={(event) => setToDate(event.target.value)}
           className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs"
         />
-        {customer ? <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] text-emerald-800">Type: {customer.type}</span> : null}
       </div>
 
       <div className="overflow-x-auto rounded-3xl border border-slate-100 bg-white/80 p-3 shadow-sm">
@@ -308,7 +320,7 @@ const CustomerStatementPage: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
-            {rows.map((row, idx) => (
+            {paginatedRows.map((row, idx) => (
               <tr key={`${row.voucher}-${idx}`}>
                 {visibleColumns.map((column) => <td key={column.key} className="px-3 py-1.5">{getStatementValue(row, column.key)}</td>)}
               </tr>
@@ -324,6 +336,37 @@ const CustomerStatementPage: React.FC = () => {
             </tr>
           </tfoot>
         </table>
+        {totalPages > 1 ? (
+          <div className="flex items-center justify-center gap-1 border-t border-slate-100 px-3 py-3 text-xs">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(page - 1, 1))}
+              disabled={safeCurrentPage === 1}
+              className="rounded-md px-3 py-1.5 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Previous
+            </button>
+            {Array.from({ length: totalPages }, (_, index) => index + 1).map((page) => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => setCurrentPage(page)}
+                aria-current={safeCurrentPage === page ? 'page' : undefined}
+                className={`min-w-8 rounded-md px-2 py-1.5 ${safeCurrentPage === page ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+              >
+                {page}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.min(page + 1, totalPages))}
+              disabled={safeCurrentPage === totalPages}
+              className="rounded-md px-3 py-1.5 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Next
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   )

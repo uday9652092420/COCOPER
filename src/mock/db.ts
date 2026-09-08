@@ -116,7 +116,7 @@ export interface PurchaseOrder {
   remarks: string
   status: 'Draft' | 'Approved'
   organizationId?: string | null
-  mode?: 'tonage' | 'lessing'
+  mode?: 'tonage' | 'tonagePercentage' | 'lessing'
   lines: PurchaseOrderLine[]
 }
 

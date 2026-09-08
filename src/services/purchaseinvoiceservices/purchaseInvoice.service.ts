@@ -18,6 +18,7 @@ export interface PurchaseInvoiceLineDTO {
 
 export interface PurchaseInvoiceDTO {
   id: string;
+  createdAt?: string;
   invoiceNo: string;
   organizationId?: string | null;
   supplierId: string;

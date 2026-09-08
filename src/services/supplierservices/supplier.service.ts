@@ -38,6 +38,8 @@ export interface SupplierResponse {
 
   opening_balance: number;
 
+  organization_id?: string | null;
+
   status:
     | "Active"
     | "Inactive";

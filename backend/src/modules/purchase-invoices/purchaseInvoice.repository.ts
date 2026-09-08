@@ -13,6 +13,7 @@ import {
 const PI_SELECT = `
   SELECT
     pi.id,
+    TO_CHAR(pi.created_at, 'YYYY-MM-DD HH24:MI:SS') AS "createdAt",
     pi.invoice_no AS "invoiceNo",
     pi.organization_id AS "organizationId",
     pi.supplier_id AS "supplierId",

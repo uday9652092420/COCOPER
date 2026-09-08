@@ -99,7 +99,7 @@ interface SalesOrder {
   sourcePOId: string
   poNumber: string
   organizationId: string | null
-  mode?: 'tonage' | 'lessing'
+  mode?: 'tonage' | 'tonagePercentage' | 'lessing'
   status?: 'Draft' | 'Approved'
   lines: {
     itemId: string
@@ -186,7 +186,7 @@ const PurchaseOrderModal: React.FC<{
    * 'tonage'  => actualQuantity = (quantity * 1000) / (discount + 1000)
    * 'lessing' => actualQuantity = (quantity - discount)
    */
-  const [mode, setMode] = useState<'tonage' | 'lessing'>(existing?.mode ?? 'tonage')
+  const [mode, setMode] = useState<'tonage' | 'tonagePercentage' | 'lessing'>(existing?.mode ?? 'tonage')
 
   /**
    * @description Render only ONE line-items view at a time (desktop table or
@@ -254,7 +254,13 @@ const PurchaseOrderModal: React.FC<{
 
   const purchaseDateValue = watch('date') ?? ''
   const purchaseDatePickerRef = useRef<HTMLInputElement>(null)
-  const quantityColumnLabel = mode === 'tonage' ? 'Quantity (Tons)' : 'Quantity (Pieces)'
+  const quantityColumnLabel = mode === 'lessing' ? 'Quantity (Pieces)' : 'Quantity (Tons)'
+  const discountLabel = mode === 'tonagePercentage'
+    ? 'Pieces %'
+    : mode === 'tonage'
+      ? 'Discount (Kgs)'
+      : 'Discount (Pieces)'
+  const discountColumnLabel = mode === 'tonagePercentage' ? 'Discount (Pieces)' : discountLabel
 
   /**
    * Targeted form-state subscription (only poNumber/date). Subscribing to the
@@ -289,7 +295,7 @@ const PurchaseOrderModal: React.FC<{
    * Purchase Cost is USER INPUT (editable) — never overwritten here.
    * Purchase Amount = Purchase Cost × Actual Quantity (auto).
    */
-  const recalcLine = (index: number, modeOverride?: 'tonage' | 'lessing') => {
+  const recalcLine = (index: number, modeOverride?: 'tonage' | 'tonagePercentage' | 'lessing') => {
     // Read LIVE values from the react-hook-form store (not the render-time snapshot),
     // so the formula always uses the just-typed quantity/discount/purchaseCost.
     const line = (watch('lines') ?? [])[index] || (fields[index] as any)
@@ -299,7 +305,9 @@ const PurchaseOrderModal: React.FC<{
     const activeMode = modeOverride ?? mode
 
     let actualQuantity = 0
-    if (activeMode === 'tonage') {
+    if (activeMode === 'tonagePercentage') {
+      actualQuantity = quantity - (quantity * Math.min(Math.max(discount, 0), 100)) / 100
+    } else if (activeMode === 'tonage') {
       const denom = 1000 + discount
       const safeDenom = denom === 0 ? 1 : denom
       actualQuantity = (quantity * 1000) / safeDenom
@@ -324,6 +332,10 @@ const PurchaseOrderModal: React.FC<{
     const line = (watch('lines') ?? [])[index] || (fields[index] as any)
     if (!line) return
     const quantityNum = Number(line.quantity ?? 0) || 0
+    if (mode === 'tonagePercentage') {
+      const percentage = Math.min(Math.max(Number(line.discount ?? 0) || 0, 0), 100)
+      setValue(`lines.${index}.discount`, percentage === 0 ? '' : String(percentage))
+    }
     // recalcLine already syncs actualQuantity/purchaseAmount (auto).
     recalcLine(index)
     setValue(`lines.${index}.quantity`, quantityNum === 0 ? '' : String(quantityNum))
@@ -577,8 +589,7 @@ const PurchaseOrderModal: React.FC<{
   const isSalesLocked = salesOrder?.status === 'Approved'
   const isPurchaseLocked = existing?.status === 'Approved' || !!salesOrder || convertOpen
   // Sales order conversion mode (tonage/lessing).
-  const [salesMode, setSalesMode] = useState<'tonage' | 'lessing'>(existing?.mode ?? 'tonage')
-  const discountLabel = mode === 'tonage' ? 'Discount (Kgs)' : 'Discount (Pieces)'
+  const [salesMode, setSalesMode] = useState<'tonage' | 'lessing'>(existing?.mode === 'lessing' ? 'lessing' : 'tonage')
 
   const printSalesOrder = (order: SalesOrder) => {
     const win = window.open('', '_blank', 'width=900,height=700')
@@ -613,7 +624,7 @@ const PurchaseOrderModal: React.FC<{
 
   useEffect(() => {
     // Reset sales form whenever modal opens or existing changes (but keep conversion collapsed)
-    setSalesMode(existing?.mode ?? 'tonage')
+    setSalesMode(existing?.mode === 'lessing' ? 'lessing' : 'tonage')
     resetS(buildSalesInitial())
     setConvertOpen(Boolean(salesOrder))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -639,7 +650,7 @@ const PurchaseOrderModal: React.FC<{
       const saleAmountVal = Number((l as any)?.purchaseAmount) || 0
       return { itemId, quantity, discount, actualQuantity, saleCost: saleCostVal, saleAmount: saleAmountVal, amount: saleAmountVal }
     })
-    setSalesMode(existing?.mode ?? 'tonage')
+    setSalesMode(existing?.mode === 'lessing' ? 'lessing' : 'tonage')
     resetS({
       soNumber: generateSONumber(),
       date: todayDDMMYYYY(),
@@ -750,7 +761,7 @@ const PurchaseOrderModal: React.FC<{
               <input
                 type="radio"
                 name="po-mode"
-                checked={mode === 'tonage'}
+                checked={mode !== 'lessing'}
                 disabled={isPurchaseLocked}
                 onChange={() => {
                   setMode('tonage')
@@ -772,6 +783,21 @@ const PurchaseOrderModal: React.FC<{
               />
               <span>Lessing</span>
             </label>
+            {mode !== 'lessing' && (
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={mode === 'tonagePercentage'}
+                  disabled={isPurchaseLocked}
+                  onChange={(event) => {
+                    const nextMode = event.target.checked ? 'tonagePercentage' : 'tonage'
+                    setMode(nextMode)
+                    ;(fields || []).forEach((_, idx) => recalcLine(idx, nextMode))
+                  }}
+                />
+                <span>Pieces %</span>
+              </label>
+            )}
           </div>
 
           <div className="mt-3">
@@ -814,6 +840,7 @@ const PurchaseOrderModal: React.FC<{
                     <th className="px-3 py-2">Item</th>
                     <th className="px-3 py-2">{quantityColumnLabel}</th>
                     <th className="px-3 py-2">{discountLabel}</th>
+                    {mode === 'tonagePercentage' && <th className="px-3 py-2">{discountColumnLabel}</th>}
                     <th className="px-3 py-2">Actual Quantity</th>
                     <th className="px-3 py-2">Purchase Cost</th>
                     <th className="px-3 py-2">Purchase Amount</th>
@@ -836,9 +863,10 @@ const PurchaseOrderModal: React.FC<{
                         </td>
 
                         <td className="px-3 py-1.5">
-                          <input
+                            <input
                             type="text"
                             inputMode="decimal"
+                              max={mode === 'tonagePercentage' ? 100 : undefined}
                             disabled={isPurchaseLocked}
                             className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-slate-100"
                             {...register(`lines.${index}.quantity` as const, {
@@ -859,6 +887,18 @@ const PurchaseOrderModal: React.FC<{
                             })}
                           />
                         </td>
+
+                        {mode === 'tonagePercentage' && (
+                          <td className="px-3 py-1.5">
+                            <input
+                              type="text"
+                              readOnly
+                              value={roundValue((Number(watchedLines[index]?.quantity) || 0) * (Number(watchedLines[index]?.discount) || 0) / 100, 0)}
+                              className="w-20 rounded-full border border-slate-200 bg-slate-50 px-2 py-1"
+                              aria-label={`Discount pieces for line ${index + 1}`}
+                            />
+                          </td>
+                        )}
 
                         <td className="px-3 py-1.5">
                           <input
@@ -936,9 +976,10 @@ const PurchaseOrderModal: React.FC<{
 
                     <div>
                       <label className="mb-1 block text-[11px] font-medium text-slate-700">{quantityColumnLabel}</label>
-                      <input
+                          <input
                         type="text"
                         inputMode="decimal"
+                            max={mode === 'tonagePercentage' ? 100 : undefined}
                         className="w-full rounded-full border border-slate-200 px-3 py-1"
                         {...register(`lines.${index}.quantity` as const, {
                           onChange: () => recalcLine(index),
@@ -959,6 +1000,21 @@ const PurchaseOrderModal: React.FC<{
                           })}
                         />
                       </div>
+                      {mode === 'tonagePercentage' && (
+                        <div>
+                          <label className="mb-1 block text-[11px] font-medium text-slate-700">{discountColumnLabel}</label>
+                          <input
+                            type="text"
+                            readOnly
+                            value={roundValue((Number(watchedLines[index]?.quantity) || 0) * (Number(watchedLines[index]?.discount) || 0) / 100, 0)}
+                            className="w-full rounded-full border border-slate-200 bg-slate-50 px-3 py-1"
+                            aria-label={`Discount pieces for line ${index + 1}`}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-2 gap-2">
                       <div>
                         <label className="mb-1 block text-[11px] font-medium text-slate-700">Actual Quantity</label>
                         <input

@@ -91,7 +91,6 @@ const reportItems: NavItem[] = [
   { to: '/reports/customer-statement', label: 'Customer Statement', icon: <BarChart3 className="h-4 w-4" />, module: 'customer-statement' },
   { to: '/reports/labour-attendance', label: 'Labour Attendance', icon: <FileText className="h-4 w-4" />, module: 'labour-attendance-report' },
   { to: '/reports/pending-dispatch', label: 'Pending Dispatch', icon: <ClipboardList className="h-4 w-4" />, module: 'pending-dispatch' },
-  { to: '/reports/outstanding', label: 'Outstanding', icon: <BarChart3 className="h-4 w-4" />, module: 'outstanding' },
 ]
 
 /**

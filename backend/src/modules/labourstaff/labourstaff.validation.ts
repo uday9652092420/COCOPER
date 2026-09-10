@@ -42,7 +42,9 @@ export const createLabourSchema = z.object({
 
   overtime_7p_10p: z.coerce.number().min(0),
 
-  loading_amount: z.coerce.number().min(0),
+  loading_10_tons_amount: z.coerce.number().min(0),
+
+  loading_20_tons_amount: z.coerce.number().min(0),
 
   status: statusEnum,
 

@@ -38,7 +38,8 @@ export async function listLabourStaffRepository(organizationId?: string | null):
       overtime_7_8,
       overtime_7p_9p,
       overtime_7p_10p,
-      loading_amount,
+      loading_10_tons_amount,
+      loading_20_tons_amount,
       status,
       organization_id,
       created_at
@@ -74,7 +75,8 @@ export async function getLabourStaffRepository(
       overtime_7_8,
       overtime_7p_9p,
       overtime_7p_10p,
-      loading_amount,
+      loading_10_tons_amount,
+      loading_20_tons_amount,
       status,
       organization_id,
       created_at
@@ -128,7 +130,8 @@ export async function createLabourStaffRepository(
       overtime_7_8,
       overtime_7p_9p,
       overtime_7p_10p,
-      loading_amount,
+      loading_10_tons_amount,
+      loading_20_tons_amount,
       status,
       organization_id
     )
@@ -137,7 +140,7 @@ export async function createLabourStaffRepository(
       gen_random_uuid()::text,
       $1,$2,$3,$4,$5,$6,
       $7,$8,$9,$10,$11,
-      $12,$13,$14
+      $12,$13,$14,$15
     )
     RETURNING *
     `,
@@ -153,7 +156,8 @@ export async function createLabourStaffRepository(
       payload.overtime_7_8,
       payload.overtime_7p_9p,
       payload.overtime_7p_10p,
-      payload.loading_amount,
+      payload.loading_10_tons_amount,
+      payload.loading_20_tons_amount,
       payload.status,
       payload.organization_id ?? null,
     ]
@@ -185,9 +189,10 @@ export async function updateLabourStaffRepository(
       overtime_7_8 = $9,
       overtime_7p_9p = $10,
       overtime_7p_10p = $11,
-      loading_amount = $12,
-      status = $13
-    WHERE id = $14 AND organization_id = $15
+      loading_10_tons_amount = $12,
+      loading_20_tons_amount = $13,
+      status = $14
+    WHERE id = $15 AND organization_id = $16
     RETURNING *
     `,
     [
@@ -202,7 +207,8 @@ export async function updateLabourStaffRepository(
       payload.overtime_7_8,
       payload.overtime_7p_9p,
       payload.overtime_7p_10p,
-      payload.loading_amount,
+      payload.loading_10_tons_amount,
+      payload.loading_20_tons_amount,
       payload.status,
       id,
       organizationId,

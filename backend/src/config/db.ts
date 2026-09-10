@@ -17,6 +17,23 @@ export async function initializeDatabase(): Promise<void> {
   // Only verify database connection
   await pool.query("SELECT 1");
 
+  // Keep existing Labour Staff databases compatible with the split loading amounts.
+  await pool.query(`
+    ALTER TABLE labours
+      ADD COLUMN IF NOT EXISTS loading_10_tons_amount NUMERIC DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS loading_20_tons_amount NUMERIC DEFAULT 0
+  `);
+  try {
+    await pool.query(`
+      UPDATE labours
+      SET loading_10_tons_amount = COALESCE(loading_amount, 0)
+      WHERE loading_amount IS NOT NULL
+    `);
+  } catch {
+    // The legacy column is absent on fresh installations.
+  }
+  await pool.query("ALTER TABLE labours DROP COLUMN IF EXISTS loading_amount");
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS customers (
       id TEXT PRIMARY KEY,

@@ -36,7 +36,8 @@ import { Eye, EyeOff, X } from "lucide-react";
 export interface FormFieldConfig {
   name: string;
   label: string;
-  type: "text" | "password" | "textarea" | "number" | "select";
+  type: "text" | "password" | "textarea" | "number" | "select" | "time";
+  section?: string;
   required?: boolean;
   readOnly?: boolean;
   options?: {
@@ -212,10 +213,10 @@ export const MasterFormModal = <
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-xl">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">
-          <h2 className="text-sm font-semibold text-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-100 px-2.5 py-2">
+          <h2 className="text-xs font-semibold text-slate-900">
             {title}
           </h2>
 
@@ -231,11 +232,22 @@ export const MasterFormModal = <
         {/* Form */}
         <form
           onSubmit={handleSubmit(submit)}
-          className="grid grid-rows-[auto_1fr_auto] gap-2 px-3 py-3"
+          className="grid grid-rows-[auto_1fr_auto] gap-1 px-2.5 py-1.5"
         >
           {/* Standard Fields */}
-          <div className="grid gap-2 md:grid-cols-2">
-            {fields.map((field) => (
+          <div className="space-y-2">
+            {Object.entries(
+              fields.reduce<Record<string, FormFieldConfig[]>>((groups, field) => {
+                const group = field.section ?? "__default";
+                (groups[group] ??= []).push(field);
+                return groups;
+              }, {})
+            ).map(([section, sectionFields]) => (
+              <div key={section} className={section === "__default" || section === "__status" ? "contents" : "space-y-1.5"}>
+                {section !== "__default" && section !== "__status" ? <h3 className="text-xs font-semibold text-slate-800">{section}</h3> : null}
+                <div className={section === "__default" || section === "__status" ? "w-full" : "rounded-lg border border-slate-200 p-1.5"}>
+                <div className={section === "__status" ? "w-full" : "grid w-full gap-1.5 md:grid-cols-2"}>
+                {sectionFields.map((field) => (
               <div
                 key={field.name}
                 className="text-xs"
@@ -253,9 +265,9 @@ export const MasterFormModal = <
                 {/* Textarea */}
                 {field.type === "textarea" ? (
                   <textarea
-                    rows={3}
+                    rows={2}
                     readOnly={field.readOnly}
-                    className={`w-full rounded-2xl border border-slate-200 px-3 py-2 text-xs text-slate-800
+                    className={`w-full rounded-2xl border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800
                     focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]
                     ${
                       field.readOnly
@@ -273,7 +285,7 @@ export const MasterFormModal = <
                   /* Select */
                   <select
                     disabled={field.readOnly}
-                    className={`w-full rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-800
+                    className={`w-full rounded-full border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800
                     focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]
                     ${
                       field.readOnly
@@ -305,7 +317,7 @@ export const MasterFormModal = <
                     <input
                       type={visiblePasswords[field.name] ? "text" : "password"}
                       readOnly={field.readOnly}
-                      className={`w-full rounded-full border border-slate-200 px-3 py-2 pr-9 text-xs text-slate-800
+                      className={`w-full rounded-full border border-slate-200 px-2.5 py-1.5 pr-9 text-xs text-slate-800
                       focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]
                       ${field.readOnly ? "cursor-not-allowed bg-slate-100" : ""}`}
                       {...register(field.name as Path<TValues>, { required: field.required })}
@@ -327,7 +339,7 @@ export const MasterFormModal = <
                   <input
                     type={field.type}
                     readOnly={field.readOnly}
-                    className={`w-full rounded-full border border-slate-200 px-3 py-2 text-xs text-slate-800
+                    className={`w-full rounded-full border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800
                     focus:border-[#2E7D32] focus:outline-none focus:ring-1 focus:ring-[#2E7D32]
                     ${
                       field.readOnly
@@ -353,6 +365,10 @@ export const MasterFormModal = <
                 )}
               </div>
             ))}
+                </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/*
@@ -365,13 +381,13 @@ export const MasterFormModal = <
             customSection are completely unaffected.
           */}
           {customSection && (
-            <div className="mt-1">
+            <div className="mt-0.5">
               {customSection}
             </div>
           )}
 
           {/* Footer */}
-          <div className="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs">
+          <div className="flex items-center justify-between border-t border-slate-100 pt-2 text-xs">
             {/* Reset */}
             <button
               type="button"

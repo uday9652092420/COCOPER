@@ -16,6 +16,8 @@ import MasterFormModal, {
 import { ConfirmDialog } from "../../components/common/ConfirmDialog";
 import { formatDate } from "../../utils/format";
 import { usePermissions } from "../../hooks/usePermissions";
+import { useAuthStore } from "../../store/authStore";
+import { onScopeChange } from "../../utils/scopeEvents";
 
 function escapeHtml(value: unknown): string {
   return String(value ?? "")
@@ -24,6 +26,20 @@ function escapeHtml(value: unknown): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function formatLabourTime(value?: string): string {
+  if (!value) return "";
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(value.trim());
+  if (!match) return value;
+
+  const hour = Number(match[1]);
+  const minute = match[2];
+  if (hour > 23) return value;
+
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minute} ${suffix}`;
 }
 
 import {
@@ -51,13 +67,15 @@ interface LabourFormValues {
   overtime_7p_9p: number;
   overtime_7p_10p: number;
 
-  loadingAmount: number;
+  loading10TonsAmount: number;
+  loading20TonsAmount: number;
 
   status: "Active" | "Inactive";
 }
 
 const LabourMasterPage: React.FC = () => {
   const { can } = usePermissions();
+  const { selectedOrganizationId } = useAuthStore();
   const [records, setRecords] = useState<LabourResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -75,8 +93,9 @@ const LabourMasterPage: React.FC = () => {
    * Load Data
    */
   useEffect(() => {
-    loadLabours();
-  }, []);
+    void loadLabours();
+    return onScopeChange(() => { void loadLabours(); });
+  }, [selectedOrganizationId]);
 
   /**
    * Load Labour List
@@ -87,7 +106,9 @@ const LabourMasterPage: React.FC = () => {
 
       const response = await getLabours();
 
-      setRecords(response);
+      setRecords(selectedOrganizationId
+        ? response.filter((row) => row.organization_id === selectedOrganizationId)
+        : response);
     } catch (error: any) {
       toast.error(error.message ?? "Failed to load labour staff");
     } finally {
@@ -135,17 +156,8 @@ const LabourMasterPage: React.FC = () => {
     },
 
     {
-      key: "in_out",
-      label: "In / Out",
-      render: (row: LabourResponse) =>
-        `${row.in_time ?? ""} - ${row.out_time ?? ""}`,
-    },
-
-    {
-      key: "loading_amount",
-      label: "Loading",
-      render: (row: LabourResponse) =>
-        Number(row.loading_amount).toLocaleString(),
+      key: "address",
+      label: "Address",
     },
 
     {
@@ -164,40 +176,6 @@ const LabourMasterPage: React.FC = () => {
       ),
     },
 
-    {
-      key: "created_at",
-      label: "Created",
-      render: (row: LabourResponse) =>
-        formatDate(row.created_at),
-    },
-
-    {
-  key: "actions",
-  label: "Actions",
-  render: (row: LabourResponse) => (
-    <div className="flex items-center gap-2">
-      {can("labour", "edit") ? (
-        <button
-          type="button"
-          onClick={() => openEdit(row)}
-          className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
-        >
-          Edit
-        </button>
-      ) : null}
-
-      {can("labour", "delete") ? (
-        <button
-          type="button"
-          onClick={() => setConfirmDelete(row)}
-          className="rounded-full bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
-        >
-          Delete
-        </button>
-      ) : null}
-    </div>
-  ),
-},
   ];
     /**
    * Form Fields
@@ -238,14 +216,14 @@ const LabourMasterPage: React.FC = () => {
     {
       name: "inTime",
       label: "In Time",
-      type: "text",
+      type: "time",
       required: true,
     },
 
     {
       name: "outTime",
       label: "Out Time",
-      type: "text",
+      type: "time",
       required: true,
     },
 
@@ -253,48 +231,63 @@ const LabourMasterPage: React.FC = () => {
       name: "overtime_5_8",
       label: "5AM - 8AM",
       type: "number",
+      section: "Overtime Loading Charges Amount",
     },
 
     {
       name: "overtime_6_8",
       label: "6AM - 8AM",
       type: "number",
+      section: "Overtime Loading Charges Amount",
     },
 
     {
       name: "overtime_7_8",
       label: "7AM - 8AM",
       type: "number",
+      section: "Overtime Loading Charges Amount",
     },
 
     {
       name: "overtime_7p_9p",
       label: "7PM - 9PM",
       type: "number",
+      section: "Overtime Loading Charges Amount",
     },
 
     {
       name: "overtime_7p_10p",
       label: "7PM - 10PM",
       type: "number",
+      section: "Overtime Loading Charges Amount",
     },
 
     {
-      name: "loadingAmount",
-      label: "Loading Amount",
+      name: "loading10TonsAmount",
+      label: "Loading 10 Tons Amount",
       type: "number",
+      section: "Overtime Loading Charges Amount",
+    },
+
+    {
+      name: "loading20TonsAmount",
+      label: "Loading 20 Tons Amount",
+      type: "number",
+      section: "Overtime Loading Charges Amount",
     },
 
     {
       name: "status",
       label: "Status",
       type: "select",
+      section: "__status",
       required: true,
       options: [
         { label: "Active", value: "Active" },
         { label: "Inactive", value: "Inactive" },
       ],
     },
+
   ];
 
   /**
@@ -337,7 +330,8 @@ const LabourMasterPage: React.FC = () => {
         overtime_7p_9p: Number(values.overtime_7p_9p),
         overtime_7p_10p: Number(values.overtime_7p_10p),
 
-        loading_amount: Number(values.loadingAmount),
+        loading_10_tons_amount: Number(values.loading10TonsAmount),
+        loading_20_tons_amount: Number(values.loading20TonsAmount),
 
         status: values.status,
       };
@@ -356,6 +350,8 @@ const LabourMasterPage: React.FC = () => {
 
       if (resetAfter) {
         setEditing(null);
+        setModalOpen(true);
+        toast.success("Ready for a new labour.");
 
         return;
       }
@@ -389,16 +385,14 @@ const LabourMasterPage: React.FC = () => {
     name: row.labour_name,
     gender: row.gender,
     contact: row.contact_number ?? "-",
-    inOut: `${row.in_time ?? ""} - ${row.out_time ?? ""}`,
-    loading: Number(row.loading_amount ?? 0).toLocaleString(),
+    address: row.address ?? "-",
     status: row.status,
-    created: formatDate(row.created_at),
   }));
 
   const exportLabourToExcel = () => {
     const rows = getLabourListRows();
-    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.gender)}</td><td>${escapeHtml(row.contact)}</td><td>${escapeHtml(row.inOut)}</td><td>${escapeHtml(row.loading)}</td><td>${escapeHtml(row.status)}</td><td>${escapeHtml(row.created)}</td></tr>`).join("");
-    const workbook = `<html><head><meta charset="UTF-8"></head><body><table border="1"><thead><tr><th>Labour Name</th><th>Gender</th><th>Contact</th><th>In / Out</th><th>Loading</th><th>Status</th><th>Created</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`;
+    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.gender)}</td><td>${escapeHtml(row.contact)}</td><td>${escapeHtml(row.address)}</td><td>${escapeHtml(row.status)}</td></tr>`).join("");
+    const workbook = `<html><head><meta charset="UTF-8"></head><body><table border="1"><thead><tr><th>Labour Name</th><th>Gender</th><th>Contact Number</th><th>Address</th><th>Status</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`;
     const url = URL.createObjectURL(new Blob([workbook], { type: "application/vnd.ms-excel" }));
     const link = document.createElement("a");
     link.href = url;
@@ -419,8 +413,8 @@ const LabourMasterPage: React.FC = () => {
       toast.error("Popup blocked. Please allow popups and try again.");
       return;
     }
-    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.gender)}</td><td>${escapeHtml(row.contact)}</td><td>${escapeHtml(row.inOut)}</td><td class="right">${escapeHtml(row.loading)}</td><td>${escapeHtml(row.status)}</td><td>${escapeHtml(row.created)}</td></tr>`).join("");
-    win.document.write(`<!DOCTYPE html><html><head><title>${asPdf ? "Labour Staff PDF" : "Labour Staff"}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#172033}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#e2e8f0}.right{text-align:right}</style></head><body><h1>Labour Staff</h1><p>Generated on ${escapeHtml(formatDate(new Date().toISOString()))}</p><table><thead><tr><th>Labour Name</th><th>Gender</th><th>Contact</th><th>In / Out</th><th class="right">Loading</th><th>Status</th><th>Created</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`);
+    const tableRows = rows.map((row) => `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.gender)}</td><td>${escapeHtml(row.contact)}</td><td>${escapeHtml(row.address)}</td><td>${escapeHtml(row.status)}</td></tr>`).join("");
+    win.document.write(`<!DOCTYPE html><html><head><title>${asPdf ? "Labour Staff PDF" : "Labour Staff"}</title><style>body{font-family:Arial,sans-serif;margin:24px;color:#172033}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#e2e8f0}</style></head><body><h1>Labour Staff</h1><p>Generated on ${escapeHtml(formatDate(new Date().toISOString()))}</p><table><thead><tr><th>Labour Name</th><th>Gender</th><th>Contact Number</th><th>Address</th><th>Status</th></tr></thead><tbody>${tableRows}</tbody></table></body></html>`);
     win.document.close();
     win.focus();
     setTimeout(() => win.print(), 300);
@@ -457,10 +451,8 @@ const LabourMasterPage: React.FC = () => {
           columns={columns}
           loading={loading}
           getRowId={(row) => row.id}
-          onView={(row) => openEdit(row)}
           onEdit={(row) => openEdit(row)}
           onDelete={(row) => setConfirmDelete(row)}
-          onPrint={() => printLabourList(false)}
         />
 
         <MasterFormModal<LabourFormValues>
@@ -485,7 +477,8 @@ const LabourMasterPage: React.FC = () => {
                   overtime_7p_9p: editing.overtime_7p_9p,
                   overtime_7p_10p: editing.overtime_7p_10p,
 
-                  loadingAmount: editing.loading_amount,
+                  loading10TonsAmount: editing.loading_10_tons_amount,
+                  loading20TonsAmount: editing.loading_20_tons_amount,
 
                   status: editing.status,
                 }
@@ -505,7 +498,8 @@ const LabourMasterPage: React.FC = () => {
                   overtime_7p_9p: 0,
                   overtime_7p_10p: 0,
 
-                  loadingAmount: 0,
+                  loading10TonsAmount: 0,
+                  loading20TonsAmount: 0,
 
                   status: "Active",
                 }

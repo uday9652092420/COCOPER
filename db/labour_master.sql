@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS labours (
   overtime_7_8 NUMERIC DEFAULT 0,
   overtime_7p_9p NUMERIC DEFAULT 0,
   overtime_7p_10p NUMERIC DEFAULT 0,
-  loading_amount NUMERIC DEFAULT 0,
+  loading_10_tons_amount NUMERIC DEFAULT 0,
+  loading_20_tons_amount NUMERIC DEFAULT 0,
   status labour_status DEFAULT 'Active',
   organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
   created_at DATE DEFAULT CURRENT_DATE
@@ -54,16 +55,16 @@ CREATE INDEX IF NOT EXISTS idx_labours_contact ON labours(contact_number);
 CREATE INDEX IF NOT EXISTS idx_labours_organization ON labours(organization_id);
 
 -- Sample seed data
-INSERT INTO labours (id, labour_name, gender, contact_number, address, in_time, out_time, overtime_5_8, overtime_6_8, overtime_7_8, overtime_7p_9p, overtime_7p_10p, loading_amount, status, created_at) VALUES
-('LABS1', 'Ram Kumar', 'Male', '980000001', 'No 1, Worker Lane', '09:00', '18:00', 120, 90, 60, 150, 200, 400, 'Active', CURRENT_DATE - INTERVAL '10 days')
+INSERT INTO labours (id, labour_name, gender, contact_number, address, in_time, out_time, overtime_5_8, overtime_6_8, overtime_7_8, overtime_7p_9p, overtime_7p_10p, loading_10_tons_amount, loading_20_tons_amount, status, created_at) VALUES
+('LABS1', 'Ram Kumar', 'Male', '980000001', 'No 1, Worker Lane', '09:00', '18:00', 120, 90, 60, 150, 200, 400, 0, 'Active', CURRENT_DATE - INTERVAL '10 days')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO labours (id, labour_name, gender, contact_number, address, in_time, out_time, overtime_5_8, overtime_6_8, overtime_7_8, overtime_7p_9p, overtime_7p_10p, loading_amount, status, created_at) VALUES
-('LABS2', 'Sita Devi', 'Female', '980000002', 'No 2, Worker Lane', '08:30', '17:30', 80, 60, 40, 100, 120, 350, 'Active', CURRENT_DATE - INTERVAL '20 days')
+INSERT INTO labours (id, labour_name, gender, contact_number, address, in_time, out_time, overtime_5_8, overtime_6_8, overtime_7_8, overtime_7p_9p, overtime_7p_10p, loading_10_tons_amount, loading_20_tons_amount, status, created_at) VALUES
+('LABS2', 'Sita Devi', 'Female', '980000002', 'No 2, Worker Lane', '08:30', '17:30', 80, 60, 40, 100, 120, 350, 0, 'Active', CURRENT_DATE - INTERVAL '20 days')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO labours (id, labour_name, gender, contact_number, address, in_time, out_time, overtime_5_8, overtime_6_8, overtime_7_8, overtime_7p_9p, overtime_7p_10p, loading_amount, status, created_at) VALUES
-('LABS3', 'Raju', 'Male', '980000003', 'No 3, Worker Lane', '09:00', '18:00', 50, 40, 30, 60, 80, 200, 'Inactive', CURRENT_DATE - INTERVAL '40 days')
+INSERT INTO labours (id, labour_name, gender, contact_number, address, in_time, out_time, overtime_5_8, overtime_6_8, overtime_7_8, overtime_7p_9p, overtime_7p_10p, loading_10_tons_amount, loading_20_tons_amount, status, created_at) VALUES
+('LABS3', 'Raju', 'Male', '980000003', 'No 3, Worker Lane', '09:00', '18:00', 50, 40, 30, 60, 80, 200, 0, 'Inactive', CURRENT_DATE - INTERVAL '40 days')
 ON CONFLICT (id) DO NOTHING;
 
 COMMIT;

@@ -34,9 +34,12 @@ export interface LabourResponse {
 
   overtime_7p_10p: number;
 
-  loading_amount: number;
+  loading_10_tons_amount: number;
+  loading_20_tons_amount: number;
 
   status: "Active" | "Inactive";
+
+  organization_id?: string | null;
 
   created_at: string;
 }
@@ -68,7 +71,8 @@ export async function createLabour(
 
     overtime_7p_10p: number;
 
-    loading_amount: number;
+    loading_10_tons_amount: number;
+    loading_20_tons_amount: number;
 
     status: "Active" | "Inactive";
   }
@@ -124,7 +128,8 @@ export async function getLabour(
 ): Promise<LabourResponse> {
 
   const response = await fetch(
-    `${API}/labour-staff/${id}`
+    `${API}/labour-staff/${id}`,
+    { headers: getOrgHeader() }
   );
 
   const data = await response.json();
@@ -164,7 +169,8 @@ export async function updateLabour(
 
     overtime_7p_10p: number;
 
-    loading_amount: number;
+    loading_10_tons_amount: number;
+    loading_20_tons_amount: number;
 
     status: "Active" | "Inactive";
   }
@@ -177,6 +183,7 @@ export async function updateLabour(
 
       headers: {
         "Content-Type": "application/json",
+        ...getOrgHeader(),
       },
 
       body: JSON.stringify(payload),
@@ -203,6 +210,7 @@ export async function deleteLabour(
     `${API}/labour-staff/${id}`,
     {
       method: "DELETE",
+      headers: getOrgHeader(),
     }
   );
 

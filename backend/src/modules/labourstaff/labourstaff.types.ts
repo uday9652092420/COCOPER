@@ -34,7 +34,8 @@ export interface LabourStaff {
   overtime_7p_9p: number;
   overtime_7p_10p: number;
 
-  loading_amount: number;
+  loading_10_tons_amount: number;
+  loading_20_tons_amount: number;
 
   status: LabourStatus;
 
@@ -63,7 +64,8 @@ export interface CreateLabourRequest {
   overtime_7p_9p: number;
   overtime_7p_10p: number;
 
-  loading_amount: number;
+  loading_10_tons_amount: number;
+  loading_20_tons_amount: number;
 
   status: LabourStatus;
 
@@ -90,7 +92,8 @@ export interface UpdateLabourRequest {
   overtime_7p_9p?: number;
   overtime_7p_10p?: number;
 
-  loading_amount?: number;
+  loading_10_tons_amount?: number;
+  loading_20_tons_amount?: number;
 
   status?: LabourStatus;
 }

@@ -19,6 +19,7 @@ import purchaseInvoiceRoutes from "../modules/purchase-invoices/purchaseInvoice.
 import salesOrderRoutes from "../modules/sales-orders/salesOrder.routes.js";
 import directSaleRoutes from "../modules/direct-sales/directSale.routes.js";
 import supplierPaymentRoutes from "../modules/supplier-payments/supplierPayment.routes.js";
+import labourAttendanceRoutes from "../modules/labour-attendance/labourAttendance.routes.js";
 
 const router = Router();
 
@@ -76,4 +77,5 @@ router.use(
 );
 router.use("/direct-sales", directSaleRoutes);
 router.use("/supplier-payments", supplierPaymentRoutes);
+router.use("/labour-attendance", labourAttendanceRoutes);
 export default router;

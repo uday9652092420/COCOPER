@@ -1,16 +1,23 @@
 /**
  * @file LabourAttendancePage.tsx
  * @description Labour attendance entry and listing. Main grid lists attendance records showing
- *              Morning OT, Evening OT, Loading Charges and Total Amount. Bulk modal lists all labour
+ *              Morning OT, Evening OT, loading amounts and Total Amount. Bulk modal lists all labour
  *              staff from master and allows editing OT values and adding new (non-staff / temporary)
  *              labour names. Record-level Edit modal edits OT breakdown and recomputes totals.
  */
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { useForm, useFieldArray, type FieldValues } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
 import { toast } from 'sonner'
-import { labourAttendances as dbAttendance, type LabourAttendance } from '../../mock/db'
-import { labors, type LabourStaff } from '../../mock/labors'
+import { getLabours, type LabourResponse } from '../../services/labourstaffservices/labour.service'
+import {
+  createLabourAttendances,
+  deleteLabourAttendance,
+  getLabourAttendances,
+  updateLabourAttendance,
+  type LabourAttendancePayload,
+  type LabourAttendanceResponse,
+} from '../../services/labourattendance.service'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Toolbar } from '../../components/common/Toolbar'
 import { SearchFilterPanel } from '../../components/common/SearchFilterPanel'
@@ -30,7 +37,8 @@ interface BulkEntryRow {
   tempName?: string
   morningOt: number
   eveningOt: number
-  loadingCharges: number
+  loading10TonsAmount: number
+  loading20TonsAmount: number
   otRate: number
 }
 
@@ -47,11 +55,33 @@ interface BulkEntryForm {
  * @interface ExtendedAttendance
  * @description Local extension of LabourAttendance to keep per-row OT breakdown for editing/display.
  */
-interface ExtendedAttendance extends LabourAttendance {
+interface ExtendedAttendance {
+  id: string
+  labour_id: string | null
+  labourName: string
+  type: 'Regular' | 'Temporary'
+  attendanceDate: string
+  shift: 'Morning' | 'Evening' | 'Night' | 'Both'
+  inTime: string
+  outTime: string
+  hours: number
+  otHours: number
+  otRate: number
+  totalOtAmount: number
   morningOt: number
   eveningOt: number
-  loadingCharges: number
-  otRate: number
+  loading10TonsAmount: number
+  loading20TonsAmount: number
+}
+
+const todayDDMMYYYY = (): string => {
+  const date = new Date()
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
+}
+
+const toISODate = (value: string): string => {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : value
 }
 
 /**
@@ -62,6 +92,7 @@ interface ExtendedAttendance extends LabourAttendance {
  */
 const LabourAttendancePage: React.FC = () => {
   const [records, setRecords] = useState<ExtendedAttendance[]>([])
+  const [labours, setLabours] = useState<LabourResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -74,20 +105,40 @@ const LabourAttendancePage: React.FC = () => {
   // Default OT rate applied for calculation (can be adjusted per row)
   const DEFAULT_OT_RATE = 150
 
-  useEffect(() => {
-    const id = setTimeout(() => {
-      // Map DB attendance to extended shape with default zeros for breakdown fields
-      const prepared = dbAttendance.map((r) => ({
-        ...r,
-        morningOt: (r as any).morningOt ?? 0,
-        eveningOt: (r as any).eveningOt ?? 0,
-        loadingCharges: (r as any).loadingCharges ?? 0,
-        otRate: (r as any).otRate ?? DEFAULT_OT_RATE,
-      })) as ExtendedAttendance[]
-      setRecords(prepared)
+  const mapAttendance = (row: LabourAttendanceResponse): ExtendedAttendance => ({
+    id: row.id,
+    labour_id: row.labour_id,
+    labourName: row.labour_name,
+    type: row.type,
+    attendanceDate: row.attendance_date,
+    shift: row.shift,
+    inTime: row.in_time,
+    outTime: row.out_time,
+    hours: Number(row.hours || 0),
+    otHours: Number(row.ot_hours || 0),
+    otRate: Number(row.ot_rate || DEFAULT_OT_RATE),
+    totalOtAmount: Number(row.total_ot_amount || 0),
+    morningOt: Number(row.morning_ot || 0),
+    eveningOt: Number(row.evening_ot || 0),
+    loading10TonsAmount: Number(row.loading_10_tons_amount || 0),
+    loading20TonsAmount: Number(row.loading_20_tons_amount || 0),
+  })
+
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      const [labourRows, attendanceRows] = await Promise.all([getLabours(), getLabourAttendances()])
+      setLabours(labourRows)
+      setRecords(attendanceRows.map(mapAttendance))
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to load labour staff and payments.')
+    } finally {
       setLoading(false)
-    }, 300)
-    return () => clearTimeout(id)
+    }
+  }
+
+  useEffect(() => {
+    void loadData()
   }, [])
 
   const filtered = useMemo(
@@ -111,9 +162,14 @@ const LabourAttendancePage: React.FC = () => {
     { key: 'morningOt', label: 'Morning OT (hrs)', render: (r) => String(r.morningOt) },
     { key: 'eveningOt', label: 'Evening OT (hrs)', render: (r) => String(r.eveningOt) },
     {
-      key: 'loadingCharges',
-      label: 'Loading Charges',
-      render: (r) => formatCurrency(Number(r.loadingCharges || 0)),
+      key: 'loading10TonsAmount',
+      label: 'Loading 10 Tons Amount',
+      render: (r) => formatCurrency(Number(r.loading10TonsAmount || 0)),
+    },
+    {
+      key: 'loading20TonsAmount',
+      label: 'Loading 20 Tons Amount',
+      render: (r) => formatCurrency(Number(r.loading20TonsAmount || 0)),
     },
     {
       key: 'totalOtAmount',
@@ -124,13 +180,14 @@ const LabourAttendancePage: React.FC = () => {
 
   /**
    * @function computeRowTotal
-   * @description Compute row total = (morningOt + eveningOt) * otRate + loadingCharges
+  * @description Compute row total = (morningOt + eveningOt) * otRate + both loading amounts
    */
   const computeRowTotal = (r: BulkEntryRow | ExtendedAttendance) => {
     const otHours = Number((r as any).morningOt || 0) + Number((r as any).eveningOt || 0)
     const otRate = Number((r as any).otRate || DEFAULT_OT_RATE)
-    const loading = Number((r as any).loadingCharges || 0)
-    return otHours * otRate + loading
+    const loading10Tons = Number((r as any).loading10TonsAmount || 0)
+    const loading20Tons = Number((r as any).loading20TonsAmount || 0)
+    return otHours * otRate + loading10Tons + loading20Tons
   }
 
   const monthlyOtTotal = useMemo(() => records.reduce((sum, r) => sum + Number(r.totalOtAmount || 0), 0), [records])
@@ -140,16 +197,29 @@ const LabourAttendancePage: React.FC = () => {
    */
   const { register, control, handleSubmit, reset, watch } = useForm<BulkEntryForm>({
     defaultValues: {
-      attendanceDate: new Date().toISOString().slice(0, 10),
-      rows: labors.map((l) => ({
-        isTemporary: false,
-        masterId: l.id,
-        tempName: '',
-        morningOt: 0,
-        eveningOt: 0,
-        loadingCharges: l.loadingAmount || 0,
-        otRate: DEFAULT_OT_RATE,
-      })),
+      attendanceDate: todayDDMMYYYY(),
+      rows: [
+        ...labours.map((l) => ({
+          isTemporary: false,
+          masterId: l.id,
+          tempName: l.labour_name,
+          morningOt: 0,
+          eveningOt: 0,
+          loading10TonsAmount: l.loading_10_tons_amount || 0,
+          loading20TonsAmount: l.loading_20_tons_amount || 0,
+          otRate: DEFAULT_OT_RATE,
+        })),
+        {
+          isTemporary: true,
+          masterId: undefined,
+          tempName: '',
+          morningOt: 0,
+          eveningOt: 0,
+          loading10TonsAmount: 0,
+          loading20TonsAmount: 0,
+          otRate: DEFAULT_OT_RATE,
+        },
+      ],
     },
   })
 
@@ -159,7 +229,6 @@ const LabourAttendancePage: React.FC = () => {
   })
 
   const watchedRows = watch('rows') || []
-  const attendanceDate = watch('attendanceDate')
 
   /**
    * @function openAddBulk
@@ -167,16 +236,29 @@ const LabourAttendancePage: React.FC = () => {
    */
   const openAddBulk = () => {
     reset({
-      attendanceDate: new Date().toISOString().slice(0, 10),
-      rows: labors.map((l) => ({
-        isTemporary: false,
-        masterId: l.id,
-        tempName: '',
-        morningOt: 0,
-        eveningOt: 0,
-        loadingCharges: l.loadingAmount || 0,
-        otRate: DEFAULT_OT_RATE,
-      })),
+      attendanceDate: todayDDMMYYYY(),
+      rows: [
+        ...labours.map((l) => ({
+          isTemporary: false,
+          masterId: l.id,
+          tempName: l.labour_name,
+          morningOt: 0,
+          eveningOt: 0,
+          loading10TonsAmount: l.loading_10_tons_amount || 0,
+          loading20TonsAmount: l.loading_20_tons_amount || 0,
+          otRate: DEFAULT_OT_RATE,
+        })),
+        {
+          isTemporary: true,
+          masterId: undefined,
+          tempName: '',
+          morningOt: 0,
+          eveningOt: 0,
+          loading10TonsAmount: 0,
+          loading20TonsAmount: 0,
+          otRate: DEFAULT_OT_RATE,
+        },
+      ],
     })
     setModalOpen(true)
   }
@@ -192,7 +274,8 @@ const LabourAttendancePage: React.FC = () => {
       tempName: '',
       morningOt: 0,
       eveningOt: 0,
-      loadingCharges: 0,
+      loading10TonsAmount: 0,
+      loading20TonsAmount: 0,
       otRate: DEFAULT_OT_RATE,
     })
   }
@@ -202,48 +285,45 @@ const LabourAttendancePage: React.FC = () => {
    * @description Transform bulk rows into LabourAttendance records and add them to the list.
    *              Supports both master-selected rows and temporary (non-staff) rows.
    */
-  const onSubmitBulk = (values: BulkEntryForm) => {
-    const newRecords: ExtendedAttendance[] = (values.rows || [])
+  const onSubmitBulk = async (values: BulkEntryForm) => {
+    const payloads: LabourAttendancePayload[] = (values.rows || [])
       .map((row) => {
-        // resolve labour name: prefer tempName if marked temporary, else use selected master
-        let name = ''
-        if (row.isTemporary) {
-          name = (row.tempName || '').trim()
-        } else {
-          const master = labors.find((l) => l.id === row.masterId)
-          name = master ? master.labourName : (row.tempName || '').trim()
-        }
+        const master = labours.find((labour) => labour.id === row.masterId)
+        const name = row.isTemporary ? (row.tempName || '').trim() : master?.labour_name || ''
         if (!name) return null
 
         const morning = Number(row.morningOt || 0)
         const evening = Number(row.eveningOt || 0)
         const otHours = morning + evening
         const otRate = Number(row.otRate || DEFAULT_OT_RATE)
-        const loading = Number(row.loadingCharges || 0)
-        const totalOtAmount = otHours * otRate + loading
-        const record: ExtendedAttendance = {
-          id: `LABATT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          labourName: name,
-          type: 'Regular',
-          attendanceDate: values.attendanceDate,
+        const loading10Tons = Number(row.loading10TonsAmount || 0)
+        const loading20Tons = Number(row.loading20TonsAmount || 0)
+        return {
+          labour_id: row.isTemporary ? null : row.masterId,
+          labour_name: name,
+          type: row.isTemporary ? 'Temporary' : 'Regular',
           shift: otHours > 0 ? 'Both' : 'Morning',
-          inTime: '09:00',
-          outTime: '18:00',
+          attendance_date: toISODate(values.attendanceDate),
+          in_time: '09:00',
+          out_time: '18:00',
           hours: 9,
-          otHours,
-          otRate,
-          totalOtAmount,
-          morningOt: morning,
-          eveningOt: evening,
-          loadingCharges: loading,
+          morning_ot: morning,
+          evening_ot: evening,
+          ot_rate: otRate,
+          loading_10_tons_amount: loading10Tons,
+          loading_20_tons_amount: loading20Tons,
         }
-        return record
       })
-      .filter(Boolean) as ExtendedAttendance[]
+      .filter(Boolean) as LabourAttendancePayload[]
 
-    setRecords((prev) => [...newRecords, ...prev])
-    toast.success(`Saved ${newRecords.length} attendance records.`)
-    setModalOpen(false)
+    try {
+      const created = await createLabourAttendances(payloads)
+      setRecords((prev) => [...created.map(mapAttendance), ...prev])
+      toast.success(`Saved ${created.length} attendance records to the database.`)
+      setModalOpen(false)
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to save labour payments.')
+    }
   }
 
   /**
@@ -259,11 +339,16 @@ const LabourAttendancePage: React.FC = () => {
    * @function handleDelete
    * @description Delete selected attendance record.
    */
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!confirmDelete) return
-    setRecords((prev) => prev.filter((r) => r.id !== confirmDelete.id))
-    toast.success('Labour attendance deleted.')
-    setConfirmDelete(null)
+    try {
+      await deleteLabourAttendance(confirmDelete.id)
+      setRecords((prev) => prev.filter((r) => r.id !== confirmDelete.id))
+      toast.success('Labour attendance deleted.')
+      setConfirmDelete(null)
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to delete labour attendance.')
+    }
   }
 
   /**
@@ -291,7 +376,8 @@ const LabourAttendancePage: React.FC = () => {
         totalOtAmount: 0,
         morningOt: 0,
         eveningOt: 0,
-        loadingCharges: 0,
+        loading10TonsAmount: 0,
+        loading20TonsAmount: 0,
       })
     }
   }, [editing, resetEdit])
@@ -300,49 +386,121 @@ const LabourAttendancePage: React.FC = () => {
    * @function onSubmitEdit
    * @description Update a single attendance record from the edit modal.
    */
-  const onSubmitEdit = (values: ExtendedAttendance) => {
+  const onSubmitEdit = async (values: ExtendedAttendance) => {
     const morning = Number(values.morningOt || 0)
     const evening = Number(values.eveningOt || 0)
     const otRate = Number(values.otRate || DEFAULT_OT_RATE)
-    const loading = Number(values.loadingCharges || 0)
+    const loading10Tons = Number(values.loading10TonsAmount || 0)
+    const loading20Tons = Number(values.loading20TonsAmount || 0)
     const otHours = morning + evening
-    const total = otHours * otRate + loading
-
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.id === values.id
-          ? {
-              ...r,
-              labourName: values.labourName,
-              attendanceDate: values.attendanceDate,
-              morningOt: morning,
-              eveningOt: evening,
-              loadingCharges: loading,
-              otRate,
-              otHours,
-              totalOtAmount: total,
-            }
-          : r
-      )
-    )
-
-    toast.success('Payment updated.')
-    setEditModalOpen(false)
-    setEditing(null)
+    try {
+      const updated = await updateLabourAttendance(values.id, {
+        labour_id: values.labour_id,
+        labour_name: values.labourName,
+        type: values.type,
+        attendance_date: values.attendanceDate,
+        shift: values.shift,
+        in_time: values.inTime,
+        out_time: values.outTime,
+        hours: values.hours,
+        morning_ot: morning,
+        evening_ot: evening,
+        ot_rate: otRate,
+        loading_10_tons_amount: loading10Tons,
+        loading_20_tons_amount: loading20Tons,
+      })
+      setRecords((prev) => prev.map((record) => record.id === values.id ? mapAttendance(updated) : record))
+      toast.success('Payment updated in the database.')
+      setEditModalOpen(false)
+      setEditing(null)
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to update labour payment.')
+    }
   }
 
   const watchedEdit = watchEdit()
+
+  const exportRows = filtered.map((row) => ({
+    date: formatDate(row.attendanceDate),
+    labourName: row.labourName,
+    type: row.type,
+    shift: row.shift,
+    morningOt: row.morningOt,
+    eveningOt: row.eveningOt,
+    loading10: row.loading10TonsAmount,
+    loading20: row.loading20TonsAmount,
+    total: row.totalOtAmount,
+  }))
+
+  const escapeHtml = (value: unknown) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+
+  const exportToExcel = () => {
+    if (!exportRows.length) {
+      toast.info('No labour payments to export.')
+      return
+    }
+
+    const body = exportRows.map((row) => `<tr>
+      <td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.labourName)}</td>
+      <td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.shift)}</td>
+      <td>${escapeHtml(row.morningOt)}</td><td>${escapeHtml(row.eveningOt)}</td>
+      <td>${escapeHtml(formatCurrency(row.loading10))}</td><td>${escapeHtml(formatCurrency(row.loading20))}</td>
+      <td>${escapeHtml(formatCurrency(row.total))}</td>
+    </tr>`).join('')
+    const workbook = `<html><head><meta charset="UTF-8"></head><body><table border="1">
+      <thead><tr><th>Date</th><th>Labour Name</th><th>Type</th><th>Shift</th><th>Morning OT (hrs)</th><th>Evening OT (hrs)</th><th>Loading 10 Tons Amount</th><th>Loading 20 Tons Amount</th><th>Total Amount</th></tr></thead>
+      <tbody>${body}</tbody></table></body></html>`
+    const url = URL.createObjectURL(new Blob([workbook], { type: 'application/vnd.ms-excel' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'labour-payments.xls'
+    link.click()
+    URL.revokeObjectURL(url)
+    toast.success('Labour payments exported to Excel.')
+  }
+
+  const printPayments = (asPdf = false) => {
+    if (!exportRows.length) {
+      toast.info('No labour payments to print.')
+      return
+    }
+    const win = window.open('', '_blank', 'width=1200,height=800')
+    if (!win) {
+      toast.error('Popup blocked. Please allow popups to print or save PDF.')
+      return
+    }
+    const body = exportRows.map((row) => `<tr>
+      <td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.labourName)}</td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.shift)}</td>
+      <td>${escapeHtml(row.morningOt)}</td><td>${escapeHtml(row.eveningOt)}</td><td>${escapeHtml(formatCurrency(row.loading10))}</td>
+      <td>${escapeHtml(formatCurrency(row.loading20))}</td><td>${escapeHtml(formatCurrency(row.total))}</td>
+    </tr>`).join('')
+    win.document.write(`<!doctype html><html><head><title>${asPdf ? 'Labour Payments PDF' : 'Labour Payments'}</title>
+      <style>body{font-family:Arial,sans-serif;margin:24px;color:#172033}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#e2e8f0}</style>
+      </head><body><h1>Labour Payments</h1><p>Generated on ${escapeHtml(formatDate(new Date().toISOString()))}</p>
+      <table><thead><tr><th>Date</th><th>Labour Name</th><th>Type</th><th>Shift</th><th>Morning OT (hrs)</th><th>Evening OT (hrs)</th><th>Loading 10 Tons Amount</th><th>Loading 20 Tons Amount</th><th>Total Amount</th></tr></thead><tbody>${body}</tbody></table></body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 300)
+    toast.success(asPdf ? 'Labour payment PDF is ready to save.' : 'Labour payments sent to print.')
+  }
 
   return (
     <div>
       <PageHeader title="Labour Payment" breadcrumb={['Transactions', 'Labour Payment']} />
       <Toolbar
         onAddNew={openAddBulk}
-        onExportExcel={() => toast.info('Exported labour attendance to Excel (mock).')}
-        onExportPdf={() => toast.info('Exported labour attendance to PDF (mock).')}
-        onPrint={() => toast.info('Sending labour attendance list to printer (mock).')}
-        onRefresh={() => toast.success('Labour attendance list refreshed.')}
-        onColumnChooser={() => toast.info('Column chooser not configurable in mock grid.')}
+        onExportExcel={exportToExcel}
+        onExportPdf={() => printPayments(true)}
+        onPrint={() => printPayments(false)}
+        onRefresh={() => {
+          void loadData()
+          toast.success('Labour payments refreshed.')
+        }}
       />
       <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by labour name or type..." />
 
@@ -366,12 +524,24 @@ const LabourAttendancePage: React.FC = () => {
           setModalOpen(false)
         }}
         title="Bulk Labour Payment Entry"
+        maxWidth="max-w-7xl"
+        maxHeight="95vh"
+        contentMaxHeight="84vh"
       >
         <form onSubmit={handleSubmit(onSubmitBulk)} className="space-y-3 text-xs">
           <div className="grid md:grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Attendance Date</label>
-              <input type="date" className="w-full rounded-full border border-slate-200 px-3 py-1.5" {...register('attendanceDate', { required: true })} />
+            <div className="max-w-[200px]">
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Attendance Date (DD/MM/YYYY)</label>
+              <input
+                type="text"
+                placeholder="DD/MM/YYYY"
+                maxLength={10}
+                className="w-full rounded-full border border-slate-200 px-3 py-1.5"
+                {...register('attendanceDate', {
+                  required: true,
+                  pattern: { value: /^\d{2}\/\d{2}\/\d{4}$/, message: 'Use DD/MM/YYYY' },
+                })}
+              />
             </div>
             <div className="flex items-end justify-end">
               <button type="button" onClick={addNewRow} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100">
@@ -388,7 +558,8 @@ const LabourAttendancePage: React.FC = () => {
                   <th className="px-3 py-2">Labour Name</th>
                   <th className="px-3 py-2">Morning OT (hrs)</th>
                   <th className="px-3 py-2">Evening OT (hrs)</th>
-                  <th className="px-3 py-2">Loading Charges</th>
+                  <th className="px-3 py-2">Loading 10 Tons Amount</th>
+                  <th className="px-3 py-2">Loading 20 Tons Amount</th>
                   <th className="px-3 py-2">OT Rate</th>
                   <th className="px-3 py-2">Total Amount</th>
                   <th className="px-3 py-2 text-right">Actions</th>
@@ -409,7 +580,7 @@ const LabourAttendancePage: React.FC = () => {
                               {...register(`rows.${index}.isTemporary` as const)}
                               defaultChecked={row.isTemporary}
                             />
-                            Temp
+                            Temporary
                           </label>
                         </div>
                       </td>
@@ -424,18 +595,13 @@ const LabourAttendancePage: React.FC = () => {
                             placeholder="Temporary Name"
                           />
                         ) : (
-                          <select
-                            className="w-full rounded-full border border-slate-200 px-2 py-1 text-[11px]"
-                            {...register(`rows.${index}.masterId` as const)}
-                            defaultValue={row?.masterId}
-                          >
-                            <option value="">Select labour</option>
-                            {labors.map((l) => (
-                              <option key={l.id} value={l.id}>
-                                {l.labourName}
-                              </option>
-                            ))}
-                          </select>
+                          <input
+                            type="text"
+                            readOnly
+                            className="w-full rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-slate-700"
+                            value={row?.tempName || labours.find((labour) => labour.id === row?.masterId)?.labour_name || ''}
+                            aria-label="Labour name"
+                          />
                         )}
                       </td>
 
@@ -444,7 +610,7 @@ const LabourAttendancePage: React.FC = () => {
                           type="number"
                           step="0.5"
                           min="0"
-                          className="w-20 rounded-full border border-slate-200 px-2 py-1"
+                          className="w-24 rounded-full border border-slate-200 px-2 py-1"
                           {...register(`rows.${index}.morningOt` as const, { valueAsNumber: true })}
                           defaultValue={row?.morningOt ?? 0}
                         />
@@ -454,7 +620,7 @@ const LabourAttendancePage: React.FC = () => {
                           type="number"
                           step="0.5"
                           min="0"
-                          className="w-20 rounded-full border border-slate-200 px-2 py-1"
+                          className="w-24 rounded-full border border-slate-200 px-2 py-1"
                           {...register(`rows.${index}.eveningOt` as const, { valueAsNumber: true })}
                           defaultValue={row?.eveningOt ?? 0}
                         />
@@ -463,26 +629,37 @@ const LabourAttendancePage: React.FC = () => {
                         <input
                           type="number"
                           min="0"
-                          className="w-28 rounded-full border border-slate-200 px-2 py-1"
-                          {...register(`rows.${index}.loadingCharges` as const, { valueAsNumber: true })}
-                          defaultValue={row?.loadingCharges ?? 0}
+                            className="w-32 rounded-full border border-slate-200 px-2 py-1"
+                            readOnly={!row?.isTemporary}
+                            {...register(`rows.${index}.loading10TonsAmount` as const, { valueAsNumber: true })}
+                            defaultValue={row?.loading10TonsAmount ?? 0}
                         />
                       </td>
                       <td className="px-3 py-1.5">
                         <input
                           type="number"
                           min="0"
-                          className="w-24 rounded-full border border-slate-200 px-2 py-1"
-                          {...register(`rows.${index}.otRate` as const, { valueAsNumber: true })}
-                          defaultValue={row?.otRate ?? DEFAULT_OT_RATE}
+                            className="w-28 rounded-full border border-slate-200 px-2 py-1"
+                            readOnly={!row?.isTemporary}
+                            {...register(`rows.${index}.loading20TonsAmount` as const, { valueAsNumber: true })}
+                            defaultValue={row?.loading20TonsAmount ?? 0}
+                          />
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <input
+                            type="number"
+                            min="0"
+                            className="w-28 rounded-full border border-slate-200 px-2 py-1"
+                            {...register(`rows.${index}.otRate` as const, { valueAsNumber: true })}
+                            defaultValue={row?.otRate ?? DEFAULT_OT_RATE}
                         />
                       </td>
                       <td className="px-3 py-1.5">
-                        <div className="w-28 rounded-full border border-slate-200 px-2 py-1 bg-slate-50 text-right">{formatCurrency(total)}</div>
+                        <div className="w-32 rounded-full border border-slate-200 px-2 py-1 bg-slate-50 text-right">{formatCurrency(total)}</div>
                       </td>
                       <td className="px-3 py-1.5 text-right">
                         <button type="button" onClick={() => rowsField.remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100">
-                          Remove
+                          Delete
                         </button>
                       </td>
                     </tr>
@@ -549,15 +726,23 @@ const LabourAttendancePage: React.FC = () => {
           </div>
 
           <div>
-            <label className="mb-1 block text-[11px] font-medium text-slate-700">Loading Charges</label>
-            <input type="number" min="0" className="w-full rounded-full border border-slate-200 px-3 py-1.5" {...registerEdit('loadingCharges', { valueAsNumber: true })} />
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-slate-700">Loading 10 Tons Amount</label>
+                <input type="number" min="0" className="w-full rounded-full border border-slate-200 px-3 py-1.5" {...registerEdit('loading10TonsAmount', { valueAsNumber: true })} />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-slate-700">Loading 20 Tons Amount</label>
+                <input type="number" min="0" className="w-full rounded-full border border-slate-200 px-3 py-1.5" {...registerEdit('loading20TonsAmount', { valueAsNumber: true })} />
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center justify-between border-t border-slate-100 pt-3">
             <div className="space-y-1 text-[11px] text-slate-600">
               <p>Computed OT Hours: {(Number(watchedEdit.morningOt || 0) + Number(watchedEdit.eveningOt || 0)).toFixed(2)}</p>
               <p>
-                Computed Total: {formatCurrency(((Number(watchedEdit.morningOt || 0) + Number(watchedEdit.eveningOt || 0)) * Number(watchedEdit.otRate || DEFAULT_OT_RATE)) + Number(watchedEdit.loadingCharges || 0))}
+                Computed Total: {formatCurrency(((Number(watchedEdit.morningOt || 0) + Number(watchedEdit.eveningOt || 0)) * Number(watchedEdit.otRate || DEFAULT_OT_RATE)) + Number(watchedEdit.loading10TonsAmount || 0) + Number(watchedEdit.loading20TonsAmount || 0))}
               </p>
             </div>
 

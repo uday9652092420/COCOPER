@@ -35,6 +35,45 @@ export async function initializeDatabase(): Promise<void> {
   await pool.query("ALTER TABLE labours DROP COLUMN IF EXISTS loading_amount");
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS labour_attendance (
+      id TEXT PRIMARY KEY,
+      labour_id TEXT,
+      labour_name TEXT NOT NULL DEFAULT '',
+      type TEXT NOT NULL DEFAULT 'Regular',
+      attendance_date DATE NOT NULL,
+      shift TEXT NOT NULL DEFAULT 'Morning',
+      in_time TEXT,
+      out_time TEXT,
+      hours NUMERIC NOT NULL DEFAULT 0,
+      morning_ot NUMERIC NOT NULL DEFAULT 0,
+      evening_ot NUMERIC NOT NULL DEFAULT 0,
+      ot_hours NUMERIC NOT NULL DEFAULT 0,
+      ot_rate NUMERIC NOT NULL DEFAULT 150,
+      loading_10_tons_amount NUMERIC NOT NULL DEFAULT 0,
+      loading_20_tons_amount NUMERIC NOT NULL DEFAULT 0,
+      total_ot_amount NUMERIC NOT NULL DEFAULT 0,
+      organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+      created_at DATE DEFAULT CURRENT_DATE
+    )
+  `);
+  await pool.query(`
+    ALTER TABLE labour_attendance
+      ALTER COLUMN labour_id DROP NOT NULL,
+      ADD COLUMN IF NOT EXISTS labour_name TEXT NOT NULL DEFAULT '',
+      ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'Regular',
+      ADD COLUMN IF NOT EXISTS shift TEXT NOT NULL DEFAULT 'Morning',
+      ADD COLUMN IF NOT EXISTS hours NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS morning_ot NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS evening_ot NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS ot_hours NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS ot_rate NUMERIC NOT NULL DEFAULT 150,
+      ADD COLUMN IF NOT EXISTS loading_10_tons_amount NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS loading_20_tons_amount NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS total_ot_amount NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS customers (
       id TEXT PRIMARY KEY,
       code TEXT NOT NULL,

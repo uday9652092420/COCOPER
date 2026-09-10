@@ -309,7 +309,7 @@ export interface LabourAttendance {
   labourName: string
   type: 'Regular' | 'Temporary'
   attendanceDate: string
-  shift: 'Morning' | 'Evening' | 'Night'
+  shift: 'Morning' | 'Evening' | 'Night' | 'Both'
   inTime: string
   outTime: string
   hours: number

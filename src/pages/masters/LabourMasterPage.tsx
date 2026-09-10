@@ -83,6 +83,7 @@ const LabourMasterPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [formInstance, setFormInstance] = useState(0);
 
   const [editing, setEditing] = useState<LabourResponse | null>(null);
 
@@ -295,6 +296,7 @@ const LabourMasterPage: React.FC = () => {
    */
   const openAdd = () => {
     setEditing(null);
+    setFormInstance((current) => current + 1);
     setModalOpen(true);
   };
 
@@ -350,6 +352,7 @@ const LabourMasterPage: React.FC = () => {
 
       if (resetAfter) {
         setEditing(null);
+        setFormInstance((current) => current + 1);
         setModalOpen(true);
         toast.success("Ready for a new labour.");
 
@@ -456,6 +459,7 @@ const LabourMasterPage: React.FC = () => {
         />
 
         <MasterFormModal<LabourFormValues>
+          key={formInstance}
           open={modalOpen}
           title={editing ? "Edit Labour" : "New Labour"}
           fields={fields}

@@ -13,8 +13,10 @@ import { getLabours, type LabourResponse } from '../../services/labourstaffservi
 import {
   createLabourAttendances,
   deleteLabourAttendance,
+  deleteLabourAttendanceGroup,
   getLabourAttendances,
   updateLabourAttendance,
+  updateLabourAttendanceGroupStatus,
   type LabourAttendancePayload,
   type LabourAttendanceResponse,
 } from '../../services/labourattendance.service'
@@ -23,8 +25,9 @@ import { Toolbar } from '../../components/common/Toolbar'
 import { SearchFilterPanel } from '../../components/common/SearchFilterPanel'
 import DataGrid, { type ColumnDef } from '../../components/common/DataGrid'
 import { ConfirmDialog } from '../../components/common/ConfirmDialog'
-import { formatCurrency, formatDate } from '../../utils/format'
+import { formatAmount, formatCurrency, formatDate } from '../../utils/format'
 import ResponsiveModal from '../../components/common/ResponsiveModal'
+import { CalendarDays } from 'lucide-react'
 
 /**
  * @interface BulkEntryRow
@@ -72,16 +75,31 @@ interface ExtendedAttendance {
   eveningOt: number
   loading10TonsAmount: number
   loading20TonsAmount: number
+  paymentGroupId: string
+  paymentStatus: 'Draft' | 'Approved'
+  paymentCreatedAt: string
 }
 
-const todayDDMMYYYY = (): string => {
+interface LabourPaymentSummary {
+  id: string
+  attendanceDate: string
+  totalAmount: number
+  records: ExtendedAttendance[]
+  status: 'Draft' | 'Approved'
+  latestCreatedAt: string
+}
+
+const todayISODate = (): string => {
   const date = new Date()
-  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-const toISODate = (value: string): string => {
-  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-  return match ? `${match[3]}-${match[2]}-${match[1]}` : value
+const createPaymentGroupId = (): string =>
+  `LP-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+
+const formatDDMMYYYY = (value: string): string => {
+  const [year, month, day] = value.slice(0, 10).split('-')
+  return year && month && day ? `${day}/${month}/${year}` : value
 }
 
 /**
@@ -97,6 +115,10 @@ const LabourAttendancePage: React.FC = () => {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<ExtendedAttendance | null>(null)
+  const [confirmDeleteSummary, setConfirmDeleteSummary] = useState<LabourPaymentSummary | null>(null)
+  const [bulkMode, setBulkMode] = useState<'create' | 'view' | 'edit'>('create')
+  const [activePaymentId, setActivePaymentId] = useState<string | null>(null)
+  const attendanceDateInputRef = React.useRef<HTMLInputElement | null>(null)
 
   // Edit modal
   const [editing, setEditing] = useState<ExtendedAttendance | null>(null)
@@ -122,6 +144,9 @@ const LabourAttendancePage: React.FC = () => {
     eveningOt: Number(row.evening_ot || 0),
     loading10TonsAmount: Number(row.loading_10_tons_amount || 0),
     loading20TonsAmount: Number(row.loading_20_tons_amount || 0),
+    paymentGroupId: row.payment_group_id || row.id,
+    paymentStatus: String(row.payment_status || 'Draft').toLowerCase() === 'approved' ? 'Approved' : 'Draft',
+    paymentCreatedAt: row.payment_created_at || row.created_at || '',
   })
 
   const loadData = async () => {
@@ -141,40 +166,49 @@ const LabourAttendancePage: React.FC = () => {
     void loadData()
   }, [])
 
+  const summaries = useMemo<LabourPaymentSummary[]>(() => {
+    const grouped = new Map<string, LabourPaymentSummary>()
+    records.forEach((record) => {
+      const existing = grouped.get(record.paymentGroupId)
+      if (existing) {
+        existing.records.push(record)
+        existing.totalAmount += record.totalOtAmount
+      } else {
+        grouped.set(record.paymentGroupId, {
+          id: record.paymentGroupId,
+          attendanceDate: record.attendanceDate,
+          totalAmount: record.totalOtAmount,
+          records: [record],
+          status: record.paymentStatus,
+          latestCreatedAt: record.paymentCreatedAt,
+        })
+      }
+    })
+    return Array.from(grouped.values()).sort((a, b) => {
+      const dateOrder = b.attendanceDate.localeCompare(a.attendanceDate)
+      return dateOrder || b.latestCreatedAt.localeCompare(a.latestCreatedAt)
+    })
+  }, [records])
+
   const filtered = useMemo(
-    () =>
-      records.filter((r) => {
-        const q = search.toLowerCase()
-        return !q || r.labourName.toLowerCase().includes(q) || r.type.toLowerCase().includes(q)
-      }),
-    [records, search]
+    () => summaries.filter((summary) => {
+      const q = search.toLowerCase()
+      return !q || summary.attendanceDate.includes(q) || summary.records.some((record) => record.labourName.toLowerCase().includes(q))
+    }),
+    [summaries, search]
   )
 
-  const columns: ColumnDef<ExtendedAttendance>[] = [
+  const columns: ColumnDef<LabourPaymentSummary>[] = [
     {
       key: 'attendanceDate',
       label: 'Date',
-      render: (row) => formatDate(row.attendanceDate),
+      render: (row) => formatDDMMYYYY(row.attendanceDate),
     },
-    { key: 'labourName', label: 'Labour Name' },
-    { key: 'type', label: 'Type' },
-    { key: 'shift', label: 'Shift' },
-    { key: 'morningOt', label: 'Morning OT (hrs)', render: (r) => String(r.morningOt) },
-    { key: 'eveningOt', label: 'Evening OT (hrs)', render: (r) => String(r.eveningOt) },
+    { key: 'status', label: 'Status' },
     {
-      key: 'loading10TonsAmount',
-      label: 'Loading 10 Tons Amount',
-      render: (r) => formatCurrency(Number(r.loading10TonsAmount || 0)),
-    },
-    {
-      key: 'loading20TonsAmount',
-      label: 'Loading 20 Tons Amount',
-      render: (r) => formatCurrency(Number(r.loading20TonsAmount || 0)),
-    },
-    {
-      key: 'totalOtAmount',
+      key: 'totalAmount',
       label: 'Total Amount',
-      render: (r) => formatCurrency(Number(r.totalOtAmount || 0)),
+      render: (row) => formatAmount(row.totalAmount),
     },
   ]
 
@@ -191,13 +225,14 @@ const LabourAttendancePage: React.FC = () => {
   }
 
   const monthlyOtTotal = useMemo(() => records.reduce((sum, r) => sum + Number(r.totalOtAmount || 0), 0), [records])
+  const totalLabourPayment = useMemo(() => summaries.reduce((sum, payment) => sum + payment.totalAmount, 0), [summaries])
 
   /**
    * BULK MODAL FORM: initialize with labour master entries
    */
   const { register, control, handleSubmit, reset, watch } = useForm<BulkEntryForm>({
     defaultValues: {
-      attendanceDate: todayDDMMYYYY(),
+      attendanceDate: todayISODate(),
       rows: [
         ...labours.map((l) => ({
           isTemporary: false,
@@ -229,14 +264,16 @@ const LabourAttendancePage: React.FC = () => {
   })
 
   const watchedRows = watch('rows') || []
+  const attendanceDateField = register('attendanceDate', { required: true })
 
   /**
    * @function openAddBulk
    * @description Prepare and open the bulk modal prefilled with labors from master.
    */
   const openAddBulk = () => {
+    setBulkMode('create')
     reset({
-      attendanceDate: todayDDMMYYYY(),
+      attendanceDate: todayISODate(),
       rows: [
         ...labours.map((l) => ({
           isTemporary: false,
@@ -259,6 +296,25 @@ const LabourAttendancePage: React.FC = () => {
           otRate: DEFAULT_OT_RATE,
         },
       ],
+    })
+    setModalOpen(true)
+  }
+
+  const openPaymentDetails = (payment: LabourPaymentSummary, mode: 'view' | 'edit') => {
+    setBulkMode(mode)
+    setActivePaymentId(payment.id)
+    reset({
+      attendanceDate: payment.attendanceDate,
+      rows: payment.records.map((record) => ({
+        isTemporary: record.type === 'Temporary',
+        masterId: record.labour_id || undefined,
+        tempName: record.labourName,
+        morningOt: record.morningOt,
+        eveningOt: record.eveningOt,
+        loading10TonsAmount: record.loading10TonsAmount,
+        loading20TonsAmount: record.loading20TonsAmount,
+        otRate: record.otRate,
+      })),
     })
     setModalOpen(true)
   }
@@ -303,7 +359,7 @@ const LabourAttendancePage: React.FC = () => {
           labour_name: name,
           type: row.isTemporary ? 'Temporary' : 'Regular',
           shift: otHours > 0 ? 'Both' : 'Morning',
-          attendance_date: toISODate(values.attendanceDate),
+          attendance_date: values.attendanceDate,
           in_time: '09:00',
           out_time: '18:00',
           hours: 9,
@@ -316,13 +372,50 @@ const LabourAttendancePage: React.FC = () => {
       })
       .filter(Boolean) as LabourAttendancePayload[]
 
+    if (!payloads.length) {
+      toast.error('Add at least one labour before saving.')
+      return
+    }
+
     try {
-      const created = await createLabourAttendances(payloads)
-      setRecords((prev) => [...created.map(mapAttendance), ...prev])
-      toast.success(`Saved ${created.length} attendance records to the database.`)
+      if (bulkMode === 'edit') {
+        const existing = summaries.find((summary) => summary.id === activePaymentId)
+        const updates = existing?.records || []
+        const updated = await Promise.all(payloads.map((payload, index) => updateLabourAttendance(updates[index].id, payload)))
+        setRecords((prev) => prev.map((record) => updated.find((item) => item.id === record.id) ? mapAttendance(updated.find((item) => item.id === record.id)!) : record))
+        toast.success('Labour payment updated in the database.')
+      } else {
+        const paymentGroupId = createPaymentGroupId()
+        const created = await createLabourAttendances(payloads.map((payload) => ({ ...payload, payment_group_id: paymentGroupId })))
+        setRecords((prev) => [...created.map(mapAttendance), ...prev])
+        toast.success(`Saved ${created.length} labour payment records to the database.`)
+      }
       setModalOpen(false)
     } catch (error: any) {
       toast.error(error?.message || 'Failed to save labour payments.')
+    }
+  }
+
+  const handleApprove = async (payment: LabourPaymentSummary) => {
+    try {
+      const updated = await updateLabourAttendanceGroupStatus(payment.id, 'Approved')
+      const updatedById = new Map(updated.map((row) => [row.id, mapAttendance(row)]))
+      setRecords((prev) => prev.map((record) => updatedById.get(record.id) || record))
+      toast.success('Labour payment approved.')
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to approve labour payment.')
+    }
+  }
+
+  const handleDeleteSummary = async () => {
+    if (!confirmDeleteSummary) return
+    try {
+      await deleteLabourAttendanceGroup(confirmDeleteSummary.id)
+      setRecords((prev) => prev.filter((record) => record.paymentGroupId !== confirmDeleteSummary.id))
+      toast.success('Labour payment deleted.')
+      setConfirmDeleteSummary(null)
+    } catch (error: any) {
+      toast.error(error?.message || 'Failed to delete labour payment.')
     }
   }
 
@@ -420,7 +513,7 @@ const LabourAttendancePage: React.FC = () => {
 
   const watchedEdit = watchEdit()
 
-  const exportRows = filtered.map((row) => ({
+  const exportRows = filtered.flatMap((summary) => summary.records.map((row) => ({
     date: formatDate(row.attendanceDate),
     labourName: row.labourName,
     type: row.type,
@@ -430,7 +523,7 @@ const LabourAttendancePage: React.FC = () => {
     loading10: row.loading10TonsAmount,
     loading20: row.loading20TonsAmount,
     total: row.totalOtAmount,
-  }))
+  })))
 
   const escapeHtml = (value: unknown) => String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -482,7 +575,8 @@ const LabourAttendancePage: React.FC = () => {
     win.document.write(`<!doctype html><html><head><title>${asPdf ? 'Labour Payments PDF' : 'Labour Payments'}</title>
       <style>body{font-family:Arial,sans-serif;margin:24px;color:#172033}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#e2e8f0}</style>
       </head><body><h1>Labour Payments</h1><p>Generated on ${escapeHtml(formatDate(new Date().toISOString()))}</p>
-      <table><thead><tr><th>Date</th><th>Labour Name</th><th>Type</th><th>Shift</th><th>Morning OT (hrs)</th><th>Evening OT (hrs)</th><th>Loading 10 Tons Amount</th><th>Loading 20 Tons Amount</th><th>Total Amount</th></tr></thead><tbody>${body}</tbody></table></body></html>`)
+      <table><thead><tr><th>Date</th><th>Labour Name</th><th>Type</th><th>Shift</th><th>Morning OT (hrs)</th><th>Evening OT (hrs)</th><th>Loading 10 Tons Amount</th><th>Loading 20 Tons Amount</th><th>Total Amount</th></tr></thead><tbody>${body}</tbody></table>
+      <p><strong>Total Labour Payment Amount: ${escapeHtml(formatAmount(totalLabourPayment))}</strong></p></body></html>`)
     win.document.close()
     win.focus()
     setTimeout(() => win.print(), 300)
@@ -504,17 +598,21 @@ const LabourAttendancePage: React.FC = () => {
       />
       <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by labour name or type..." />
 
-      <DataGrid<ExtendedAttendance>
+      <DataGrid<LabourPaymentSummary>
         data={filtered}
         columns={columns}
         getRowId={(row) => row.id}
         loading={loading}
-        onEdit={(row) => openEdit(row)}
-        onDelete={(row) => setConfirmDelete(row)}
+        onView={(row) => openPaymentDetails(row, 'view')}
+        onEdit={(row) => openPaymentDetails(row, 'edit')}
+        onApprove={(row) => void handleApprove(row)}
+        isRowApproved={(row) => row.status === 'Approved'}
+        onDelete={(row) => setConfirmDeleteSummary(row)}
       />
 
-      <div className="mt-3 rounded-3xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-[11px] text-emerald-800">
-        <span className="font-semibold">Total OT Payout:</span> {formatCurrency(monthlyOtTotal)}
+      <div className="mt-3 flex flex-wrap gap-x-8 gap-y-1 rounded-3xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-[11px] text-emerald-800">
+        <span><span className="font-semibold">Total OT Payout:</span> {formatCurrency(monthlyOtTotal)}</span>
+        <span><span className="font-semibold">Total Labour Payment:</span> {formatAmount(totalLabourPayment)}</span>
       </div>
 
       {/* Bulk modal: list all master labour names and allow adjustments and adding new (temporary) names */}
@@ -523,28 +621,50 @@ const LabourAttendancePage: React.FC = () => {
         onClose={() => {
           setModalOpen(false)
         }}
-        title="Bulk Labour Payment Entry"
+        title={bulkMode === 'view' ? 'View Labour Payment' : bulkMode === 'edit' ? 'Edit Labour Payment' : 'Bulk Labour Payment Entry'}
         maxWidth="max-w-7xl"
         maxHeight="95vh"
         contentMaxHeight="84vh"
       >
         <form onSubmit={handleSubmit(onSubmitBulk)} className="space-y-3 text-xs">
           <div className="grid md:grid-cols-2 gap-3">
-            <div className="max-w-[200px]">
-              <label className="mb-1 block text-[11px] font-medium text-slate-700">Attendance Date (DD/MM/YYYY)</label>
+            <div className="relative max-w-[240px]">
+              <label className="mb-1 block text-[11px] font-medium text-slate-700">Attendance Date</label>
+              <div className="flex items-center rounded-full border border-slate-200">
+                <div className="pointer-events-none flex-1 px-3 py-1.5 text-sm text-slate-800">
+                  {formatDDMMYYYY(watch('attendanceDate') || todayISODate())}
+                </div>
+                <button
+                  type="button"
+                  aria-label="Open attendance date calendar"
+                  title="Select attendance date"
+                  disabled={bulkMode === 'view'}
+                  onClick={() => {
+                    const input = attendanceDateInputRef.current
+                    if (!input) return
+                    if (input.showPicker) input.showPicker()
+                    else input.click()
+                  }}
+                  className="rounded-r-full px-3 py-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  <CalendarDays className="h-4 w-4" />
+                </button>
+              </div>
               <input
-                type="text"
-                placeholder="DD/MM/YYYY"
-                maxLength={10}
-                className="w-full rounded-full border border-slate-200 px-3 py-1.5"
-                {...register('attendanceDate', {
-                  required: true,
-                  pattern: { value: /^\d{2}\/\d{2}\/\d{4}$/, message: 'Use DD/MM/YYYY' },
-                })}
+                type="date"
+                aria-label="Select attendance date"
+                disabled={bulkMode === 'view'}
+                defaultValue={todayISODate()}
+                className="absolute bottom-0 left-0 h-0 w-0 opacity-0"
+                {...attendanceDateField}
+                ref={(element) => {
+                  attendanceDateInputRef.current = element
+                  attendanceDateField.ref(element)
+                }}
               />
             </div>
             <div className="flex items-end justify-end">
-              <button type="button" onClick={addNewRow} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100">
+              <button type="button" onClick={addNewRow} disabled={bulkMode === 'view'} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">
                 Add Temporary Name
               </button>
             </div>
@@ -577,6 +697,7 @@ const LabourAttendancePage: React.FC = () => {
                             <input
                               type="checkbox"
                               className="h-4 w-4 rounded border-slate-200"
+                              disabled={bulkMode === 'view'}
                               {...register(`rows.${index}.isTemporary` as const)}
                               defaultChecked={row.isTemporary}
                             />
@@ -592,6 +713,7 @@ const LabourAttendancePage: React.FC = () => {
                             type="text"
                             className="w-full rounded-full border border-slate-200 px-2 py-1"
                             {...register(`rows.${index}.tempName` as const)}
+                            disabled={bulkMode === 'view'}
                             placeholder="Temporary Name"
                           />
                         ) : (
@@ -611,6 +733,7 @@ const LabourAttendancePage: React.FC = () => {
                           step="0.5"
                           min="0"
                           className="w-24 rounded-full border border-slate-200 px-2 py-1"
+                          disabled={bulkMode === 'view'}
                           {...register(`rows.${index}.morningOt` as const, { valueAsNumber: true })}
                           defaultValue={row?.morningOt ?? 0}
                         />
@@ -621,6 +744,7 @@ const LabourAttendancePage: React.FC = () => {
                           step="0.5"
                           min="0"
                           className="w-24 rounded-full border border-slate-200 px-2 py-1"
+                          disabled={bulkMode === 'view'}
                           {...register(`rows.${index}.eveningOt` as const, { valueAsNumber: true })}
                           defaultValue={row?.eveningOt ?? 0}
                         />
@@ -631,6 +755,7 @@ const LabourAttendancePage: React.FC = () => {
                           min="0"
                             className="w-32 rounded-full border border-slate-200 px-2 py-1"
                             readOnly={!row?.isTemporary}
+                            disabled={bulkMode === 'view'}
                             {...register(`rows.${index}.loading10TonsAmount` as const, { valueAsNumber: true })}
                             defaultValue={row?.loading10TonsAmount ?? 0}
                         />
@@ -641,6 +766,7 @@ const LabourAttendancePage: React.FC = () => {
                           min="0"
                             className="w-28 rounded-full border border-slate-200 px-2 py-1"
                             readOnly={!row?.isTemporary}
+                            disabled={bulkMode === 'view'}
                             {...register(`rows.${index}.loading20TonsAmount` as const, { valueAsNumber: true })}
                             defaultValue={row?.loading20TonsAmount ?? 0}
                           />
@@ -650,6 +776,7 @@ const LabourAttendancePage: React.FC = () => {
                             type="number"
                             min="0"
                             className="w-28 rounded-full border border-slate-200 px-2 py-1"
+                            disabled={bulkMode === 'view'}
                             {...register(`rows.${index}.otRate` as const, { valueAsNumber: true })}
                             defaultValue={row?.otRate ?? DEFAULT_OT_RATE}
                         />
@@ -658,7 +785,7 @@ const LabourAttendancePage: React.FC = () => {
                         <div className="w-32 rounded-full border border-slate-200 px-2 py-1 bg-slate-50 text-right">{formatCurrency(total)}</div>
                       </td>
                       <td className="px-3 py-1.5 text-right">
-                        <button type="button" onClick={() => rowsField.remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100">
+                        <button type="button" onClick={() => rowsField.remove(index)} disabled={bulkMode === 'view'} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100 disabled:opacity-50">
                           Delete
                         </button>
                       </td>
@@ -671,9 +798,9 @@ const LabourAttendancePage: React.FC = () => {
 
           <div className="flex items-center justify-between border-t border-slate-100 pt-3">
             <div className="space-y-1 text-[11px] text-slate-600">
-              <p>Rows: {rowsField.fields.length}</p>
+              <p>Total Labours : {rowsField.fields.length}</p>
               <p>
-                Modal Total: {formatCurrency((watchedRows || []).reduce((s, r) => s + computeRowTotal(r), 0))}
+                Total Labour Amount = {formatCurrency((watchedRows || []).reduce((s, r) => s + computeRowTotal(r), 0))}
               </p>
             </div>
 
@@ -681,9 +808,11 @@ const LabourAttendancePage: React.FC = () => {
               <button type="button" onClick={() => { setModalOpen(false) }} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
                 Close
               </button>
-              <button type="submit" className="rounded-full bg-[#2E7D32] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#256427]">
-                Save All
-              </button>
+              {bulkMode !== 'view' ? (
+                <button type="submit" className="rounded-full bg-[#2E7D32] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#256427]">
+                  {bulkMode === 'edit' ? 'Save Changes' : 'Save All'}
+                </button>
+              ) : null}
             </div>
           </div>
         </form>
@@ -766,6 +895,15 @@ const LabourAttendancePage: React.FC = () => {
         cancelLabel="Cancel"
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(null)}
+      />
+      <ConfirmDialog
+        open={!!confirmDeleteSummary}
+        title="Delete labour payment?"
+        description={confirmDeleteSummary ? `Delete the labour payment for ${formatDDMMYYYY(confirmDeleteSummary.attendanceDate)}?` : ''}
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        onConfirm={handleDeleteSummary}
+        onCancel={() => setConfirmDeleteSummary(null)}
       />
     </div>
   )

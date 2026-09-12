@@ -17,6 +17,9 @@ export interface LabourAttendanceRecord {
   total_ot_amount: number;
   organization_id: string;
   created_at: string;
+  payment_group_id: string;
+  payment_status: "Draft" | "Approved";
+  payment_created_at: string;
 }
 
 export interface LabourAttendancePayload {
@@ -33,4 +36,5 @@ export interface LabourAttendancePayload {
   ot_rate?: number;
   loading_10_tons_amount?: number;
   loading_20_tons_amount?: number;
+  payment_group_id?: string;
 }

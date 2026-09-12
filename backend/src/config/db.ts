@@ -53,6 +53,9 @@ export async function initializeDatabase(): Promise<void> {
       loading_20_tons_amount NUMERIC NOT NULL DEFAULT 0,
       total_ot_amount NUMERIC NOT NULL DEFAULT 0,
       organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+      payment_group_id TEXT,
+      payment_status TEXT NOT NULL DEFAULT 'Draft',
+      payment_created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       created_at DATE DEFAULT CURRENT_DATE
     )
   `);
@@ -71,7 +74,14 @@ export async function initializeDatabase(): Promise<void> {
       ADD COLUMN IF NOT EXISTS loading_20_tons_amount NUMERIC NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS total_ot_amount NUMERIC NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE
+        ,ADD COLUMN IF NOT EXISTS payment_group_id TEXT
+        ,ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'Draft'
+        ,ADD COLUMN IF NOT EXISTS payment_created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   `);
+    await pool.query(`
+      ALTER TABLE labour_attendance
+        DROP CONSTRAINT IF EXISTS labour_attendance_labour_id_attendance_date_key
+    `);
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS customers (

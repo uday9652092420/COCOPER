@@ -4,6 +4,8 @@ import {
   deleteLabourAttendanceRepository,
   listLabourAttendanceRepository,
   updateLabourAttendanceRepository,
+  updateLabourAttendanceGroupStatusRepository,
+  deleteLabourAttendanceGroupRepository,
 } from "./labourAttendance.repository.js";
 import type { LabourAttendancePayload } from "./labourAttendance.types.js";
 
@@ -49,6 +51,25 @@ export async function updateLabourAttendanceHandler(req: Request<{ id: string }>
     res.json({ success: true, data: row });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update labour payment" });
+  }
+}
+
+export async function updateLabourAttendanceGroupStatusHandler(req: Request<{ groupId: string }>, res: Response) {
+  try {
+    const status = req.body?.status === "Approved" ? "Approved" : "Draft";
+    const rows = await updateLabourAttendanceGroupStatusRepository(req.params.groupId, requireOrganizationId(req), status);
+    res.json({ success: true, data: rows });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message || "Failed to update labour payment status" });
+  }
+}
+
+export async function deleteLabourAttendanceGroupHandler(req: Request<{ groupId: string }>, res: Response) {
+  try {
+    const deleted = await deleteLabourAttendanceGroupRepository(req.params.groupId, requireOrganizationId(req));
+    res.json({ success: true, data: deleted });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message || "Failed to delete labour payment" });
   }
 }
 

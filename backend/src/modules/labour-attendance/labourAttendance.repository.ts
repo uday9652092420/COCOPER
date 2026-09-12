@@ -6,7 +6,7 @@ const selectColumns = `
   labour_id,
   labour_name,
   type,
-  attendance_date,
+  TO_CHAR(attendance_date, 'YYYY-MM-DD') AS attendance_date,
   shift,
   in_time,
   out_time,
@@ -19,6 +19,9 @@ const selectColumns = `
   loading_20_tons_amount,
   total_ot_amount,
   organization_id,
+  payment_group_id,
+  payment_status,
+  payment_created_at,
   created_at
 `;
 
@@ -49,9 +52,10 @@ export async function createLabourAttendanceRepository(
       id, labour_id, labour_name, type, attendance_date, shift,
       in_time, out_time, hours, morning_ot, evening_ot, ot_hours, ot_rate,
       loading_10_tons_amount, loading_20_tons_amount, total_ot_amount, organization_id
+      , payment_group_id
     ) VALUES (
       gen_random_uuid()::text, $1, $2, $3, $4, $5,
-      $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+      $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
     ) RETURNING ${selectColumns}`,
     [
       payload.labour_id ?? null,
@@ -70,6 +74,7 @@ export async function createLabourAttendanceRepository(
       loading20,
       total,
       organizationId,
+      payload.payment_group_id ?? null,
     ]
   );
   return rows[0];
@@ -118,6 +123,26 @@ export async function updateLabourAttendanceRepository(
     ]
   );
   return rows[0] ?? null;
+}
+
+export async function updateLabourAttendanceGroupStatusRepository(groupId: string, organizationId: string, status: "Draft" | "Approved") {
+  const { rows } = await pool.query(
+    `UPDATE labour_attendance SET payment_status = $1
+     WHERE payment_group_id = $2 AND organization_id = $3
+     RETURNING ${selectColumns}`,
+    [status, groupId, organizationId]
+  );
+  return rows;
+}
+
+export async function deleteLabourAttendanceGroupRepository(groupId: string, organizationId: string) {
+  const result = await pool.query(
+    `DELETE FROM labour_attendance
+     WHERE organization_id = $2
+       AND (payment_group_id = $1 OR (payment_group_id IS NULL AND id = $1))`,
+    [groupId, organizationId]
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 export async function deleteLabourAttendanceRepository(id: string, organizationId: string) {

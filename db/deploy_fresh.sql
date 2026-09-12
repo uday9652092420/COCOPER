@@ -25,6 +25,7 @@
 \ir customer_master.sql
 \ir labour_master.sql
 \ir labour_attendance.sql
+\ir 18_labour_payment_batches.sql
 \ir bag_purchase.sql
 \ir direct_sales.sql
 \ir 06_transaction_tables.sql

@@ -20,6 +20,9 @@ export interface LabourAttendanceResponse {
   total_ot_amount: number;
   organization_id: string;
   created_at: string;
+  payment_group_id?: string | null;
+  payment_status?: 'Draft' | 'Approved';
+  payment_created_at?: string;
 }
 
 export interface LabourAttendancePayload {
@@ -36,6 +39,7 @@ export interface LabourAttendancePayload {
   ot_rate?: number;
   loading_10_tons_amount?: number;
   loading_20_tons_amount?: number;
+  payment_group_id?: string;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -64,3 +68,12 @@ export const updateLabourAttendance = (id: string, payload: LabourAttendancePayl
 
 export const deleteLabourAttendance = (id: string) =>
   request<void>(`/${id}`, { method: "DELETE" });
+
+export const updateLabourAttendanceGroupStatus = (groupId: string, status: 'Draft' | 'Approved') =>
+  request<LabourAttendanceResponse[]>(`/group/${groupId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+
+export const deleteLabourAttendanceGroup = (groupId: string) =>
+  request<boolean>(`/group/${groupId}`, { method: "DELETE" });

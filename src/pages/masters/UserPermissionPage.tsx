@@ -51,6 +51,7 @@ const permissionSections: { title: string; codes: string[] }[] = [
       'customer-receipt',
       'supplier-payment',
       'labour-attendance',
+      'cash-bank-expense',
     ],
   },
   {

@@ -256,7 +256,7 @@ export interface DispatchLine {
   warehouseId: string
   date: string
   itemId: string
-  bharthi: number
+  bharthi: string
   gunnyBagId: string
   quantity: number
   loadedQuantity: number
@@ -273,9 +273,10 @@ export interface Dispatch {
   lorryNumber: string
   driverName: string
   driverMobile: string
-  dispatchStatus: 'Pending' | 'Confirmed' | 'Dispatched'
+  dispatchStatus: 'Draft' | 'Pending' | 'Confirmed' | 'Approved' | 'Dispatched'
   lines: DispatchLine[]
   invoiceGenerated: boolean
+  dispatchDate?: string
 }
 
 /**
@@ -614,7 +615,7 @@ export const dispatches: Dispatch[] = Array.from({ length: 50 }).map((_, idx) =>
       warehouseId: warehouse.id,
       date: daysFromNow(-rand(0, 30)),
       itemId: item.id,
-      bharthi: bag.bharthi,
+      bharthi: String(bag.bharthi),
       gunnyBagId: bag.id,
       quantity,
       loadedQuantity: loaded,

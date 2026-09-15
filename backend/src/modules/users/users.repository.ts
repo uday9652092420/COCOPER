@@ -149,6 +149,15 @@ export async function deleteUserRepo(id: string): Promise<boolean> {
 }
 
 export async function getUserPermissionsRepo(userId: string): Promise<string[]> {
+  const ownerResult = await pool.query(
+    `SELECT role FROM organization_users WHERE id = $1 LIMIT 1`,
+    [userId]
+  );
+
+  if (String(ownerResult.rows[0]?.role ?? '').trim().toUpperCase() === 'OWNER') {
+    return getAllPermissionCodes();
+  }
+
   const { rows } = await pool.query(
     `SELECT permission_code FROM user_permissions WHERE user_id = $1 ORDER BY permission_code`,
     [userId]

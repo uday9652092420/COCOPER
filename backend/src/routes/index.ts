@@ -20,6 +20,8 @@ import salesOrderRoutes from "../modules/sales-orders/salesOrder.routes.js";
 import directSaleRoutes from "../modules/direct-sales/directSale.routes.js";
 import supplierPaymentRoutes from "../modules/supplier-payments/supplierPayment.routes.js";
 import labourAttendanceRoutes from "../modules/labour-attendance/labourAttendance.routes.js";
+import loadingDispatchRoutes from "../modules/loading-dispatch/loadingDispatch.routes.js";
+import cashBankExpenseRoutes from "../modules/cash-bank-expenses/cashBankExpense.routes.js";
 
 const router = Router();
 
@@ -78,4 +80,6 @@ router.use(
 router.use("/direct-sales", directSaleRoutes);
 router.use("/supplier-payments", supplierPaymentRoutes);
 router.use("/labour-attendance", labourAttendanceRoutes);
+router.use("/loading-dispatch", loadingDispatchRoutes);
+router.use("/cash-bank-expenses", cashBankExpenseRoutes);
 export default router;

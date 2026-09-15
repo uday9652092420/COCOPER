@@ -34,6 +34,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { code: 'customer-receipt', name: 'Customer Receipt' },
   { code: 'supplier-payment', name: 'Supplier Payment' },
   { code: 'labour-attendance', name: 'Labour Payment' },
+  { code: 'cash-bank-expense', name: 'Cash & Bank Expenses' },
   { code: 'purchase-register', name: 'Purchase Register' },
   { code: 'sales-register', name: 'Sales Register' },
   { code: 'supplier-statement', name: 'Supplier Statement' },
@@ -49,6 +50,7 @@ export const PERMISSION_ACTIONS: PermissionAction[] = [
   { code: 'edit', name: 'Edit' },
   { code: 'delete', name: 'Delete' },
   { code: 'approve', name: 'Approve' },
+  { code: 'print', name: 'Print' },
 ];
 
 export function buildPermissionCode(moduleCode: string, actionCode: string): string {

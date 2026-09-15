@@ -27,6 +27,7 @@ import {
   updateSupplierPayment,
 } from '../../services/supplierpaymentservices/supplierPayment.service'
 import { useAuthStore } from '../../store/authStore'
+import { usePermissions } from '../../hooks/usePermissions'
 
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -120,6 +121,12 @@ interface SupplierPaymentAttachment {
  */
 const SupplierPaymentPage: React.FC = () => {
   const { selectedOrganizationId } = useAuthStore()
+  const { can } = usePermissions()
+  const canCreate = can('supplier-payment', 'create')
+  const canEdit = can('supplier-payment', 'edit')
+  const canApprove = can('supplier-payment', 'approve')
+  const canPrint = can('supplier-payment', 'print')
+  const canDelete = can('supplier-payment', 'delete')
   const [records, setRecords] = useState<SupplierPayment[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -601,10 +608,10 @@ const SupplierPaymentPage: React.FC = () => {
     <div>
       <PageHeader title="Supplier Payment" breadcrumb={['Transactions', 'Supplier Payment']} />
       <Toolbar
-        onAddNew={openAdd}
-        onExportExcel={exportSupplierPaymentsToExcel}
-        onExportPdf={printSupplierPayments}
-        onPrint={printSupplierPayments}
+        onAddNew={canCreate ? openAdd : undefined}
+        onExportExcel={canPrint ? exportSupplierPaymentsToExcel : undefined}
+        onExportPdf={canPrint ? printSupplierPayments : undefined}
+        onPrint={canPrint ? printSupplierPayments : undefined}
         onRefresh={() => { void loadSupplierPayments(); toast.success('Supplier payment list refreshed.') }}
         onColumnChooser={() => setColumnChooserOpen((open) => !open)}
       />
@@ -626,12 +633,12 @@ const SupplierPaymentPage: React.FC = () => {
         columns={visibleColumns}
         getRowId={(row) => row.id}
         loading={loading}
-        onView={openView}
-        onEdit={openEdit}
-        onApprove={handleApprove}
+        onView={can('supplier-payment', 'read') ? openView : undefined}
+        onEdit={canEdit ? openEdit : undefined}
+        onApprove={canApprove ? handleApprove : undefined}
         isRowApproved={(row) => row.approved === true}
-        onDelete={(row) => setConfirmDelete(row)}
-        onPrint={printSupplierPayment}
+        onDelete={canDelete ? (row) => setConfirmDelete(row) : undefined}
+        onPrint={canPrint ? printSupplierPayment : undefined}
       />
       <PaginationControls currentPage={safeCurrentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
 

@@ -25,9 +25,12 @@ import { Toolbar } from '../../components/common/Toolbar'
 import { SearchFilterPanel } from '../../components/common/SearchFilterPanel'
 import DataGrid, { type ColumnDef } from '../../components/common/DataGrid'
 import { ConfirmDialog } from '../../components/common/ConfirmDialog'
+import PaginationControls from '../../components/common/PaginationControls'
 import { formatAmount, formatCurrency, formatDate } from '../../utils/format'
 import ResponsiveModal from '../../components/common/ResponsiveModal'
 import { CalendarDays } from 'lucide-react'
+import { onScopeChange } from '../../utils/scopeEvents'
+import { usePermissions } from '../../hooks/usePermissions'
 
 /**
  * @interface BulkEntryRow
@@ -97,6 +100,8 @@ const todayISODate = (): string => {
 const createPaymentGroupId = (): string =>
   `LP-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 
+const LABOUR_PAYMENT_PAGE_SIZE = 15
+
 const formatDDMMYYYY = (value: string): string => {
   const [year, month, day] = value.slice(0, 10).split('-')
   return year && month && day ? `${day}/${month}/${year}` : value
@@ -109,6 +114,12 @@ const formatDDMMYYYY = (value: string): string => {
  *              and adding new labour names not present in the master. Grid includes Edit/Delete actions.
  */
 const LabourAttendancePage: React.FC = () => {
+  const { can } = usePermissions()
+  const canCreate = can('labour-attendance', 'create')
+  const canEdit = can('labour-attendance', 'edit')
+  const canApprove = can('labour-attendance', 'approve')
+  const canPrint = can('labour-attendance', 'print')
+  const canDelete = can('labour-attendance', 'delete')
   const [records, setRecords] = useState<ExtendedAttendance[]>([])
   const [labours, setLabours] = useState<LabourResponse[]>([])
   const [loading, setLoading] = useState(true)
@@ -166,6 +177,8 @@ const LabourAttendancePage: React.FC = () => {
     void loadData()
   }, [])
 
+  useEffect(() => onScopeChange(() => { void loadData() }), [])
+
   const summaries = useMemo<LabourPaymentSummary[]>(() => {
     const grouped = new Map<string, LabourPaymentSummary>()
     records.forEach((record) => {
@@ -197,6 +210,18 @@ const LabourAttendancePage: React.FC = () => {
     }),
     [summaries, search]
   )
+
+  const [currentPage, setCurrentPage] = useState(1)
+  const totalPages = Math.ceil(filtered.length / LABOUR_PAYMENT_PAGE_SIZE)
+  const safeCurrentPage = Math.min(currentPage, Math.max(totalPages, 1))
+  const paginatedSummaries = filtered.slice(
+    (safeCurrentPage - 1) * LABOUR_PAYMENT_PAGE_SIZE,
+    safeCurrentPage * LABOUR_PAYMENT_PAGE_SIZE,
+  )
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search])
 
   const columns: ColumnDef<LabourPaymentSummary>[] = [
     {
@@ -557,8 +582,19 @@ const LabourAttendancePage: React.FC = () => {
     toast.success('Labour payments exported to Excel.')
   }
 
-  const printPayments = (asPdf = false) => {
-    if (!exportRows.length) {
+  const printPayments = (asPdf = false, selectedSummaries = filtered) => {
+    const rowsToPrint = selectedSummaries.flatMap((summary) => summary.records.map((row) => ({
+      date: formatDate(row.attendanceDate),
+      labourName: row.labourName,
+      type: row.type,
+      shift: row.shift,
+      morningOt: row.morningOt,
+      eveningOt: row.eveningOt,
+      loading10: row.loading10TonsAmount,
+      loading20: row.loading20TonsAmount,
+      total: row.totalOtAmount,
+    })))
+    if (!rowsToPrint.length) {
       toast.info('No labour payments to print.')
       return
     }
@@ -567,7 +603,7 @@ const LabourAttendancePage: React.FC = () => {
       toast.error('Popup blocked. Please allow popups to print or save PDF.')
       return
     }
-    const body = exportRows.map((row) => `<tr>
+    const body = rowsToPrint.map((row) => `<tr>
       <td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.labourName)}</td><td>${escapeHtml(row.type)}</td><td>${escapeHtml(row.shift)}</td>
       <td>${escapeHtml(row.morningOt)}</td><td>${escapeHtml(row.eveningOt)}</td><td>${escapeHtml(formatCurrency(row.loading10))}</td>
       <td>${escapeHtml(formatCurrency(row.loading20))}</td><td>${escapeHtml(formatCurrency(row.total))}</td>
@@ -587,10 +623,10 @@ const LabourAttendancePage: React.FC = () => {
     <div>
       <PageHeader title="Labour Payment" breadcrumb={['Transactions', 'Labour Payment']} />
       <Toolbar
-        onAddNew={openAddBulk}
-        onExportExcel={exportToExcel}
-        onExportPdf={() => printPayments(true)}
-        onPrint={() => printPayments(false)}
+        onAddNew={canCreate ? openAddBulk : undefined}
+        onExportExcel={canPrint ? exportToExcel : undefined}
+        onExportPdf={canPrint ? () => printPayments(true) : undefined}
+        onPrint={canPrint ? () => printPayments(false) : undefined}
         onRefresh={() => {
           void loadData()
           toast.success('Labour payments refreshed.')
@@ -599,16 +635,19 @@ const LabourAttendancePage: React.FC = () => {
       <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by labour name or type..." />
 
       <DataGrid<LabourPaymentSummary>
-        data={filtered}
+        data={paginatedSummaries}
         columns={columns}
         getRowId={(row) => row.id}
         loading={loading}
         onView={(row) => openPaymentDetails(row, 'view')}
-        onEdit={(row) => openPaymentDetails(row, 'edit')}
-        onApprove={(row) => void handleApprove(row)}
+        onEdit={canEdit ? (row) => openPaymentDetails(row, 'edit') : undefined}
+        onApprove={canApprove ? (row) => void handleApprove(row) : undefined}
+        onPrint={canPrint ? (row) => printPayments(false, [row]) : undefined}
         isRowApproved={(row) => row.status === 'Approved'}
-        onDelete={(row) => setConfirmDeleteSummary(row)}
+        onDelete={canDelete ? (row) => setConfirmDeleteSummary(row) : undefined}
       />
+
+      <PaginationControls currentPage={safeCurrentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
 
       <div className="mt-3 flex flex-wrap gap-x-8 gap-y-1 rounded-3xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-[11px] text-emerald-800">
         <span><span className="font-semibold">Total OT Payout:</span> {formatCurrency(monthlyOtTotal)}</span>
@@ -664,7 +703,7 @@ const LabourAttendancePage: React.FC = () => {
               />
             </div>
             <div className="flex items-end justify-end">
-              <button type="button" onClick={addNewRow} disabled={bulkMode === 'view'} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">
+                <button type="button" onClick={addNewRow} disabled={bulkMode === 'view' || (bulkMode === 'edit' ? !canEdit : !canCreate)} className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-50">
                 Add Temporary Name
               </button>
             </div>
@@ -785,7 +824,7 @@ const LabourAttendancePage: React.FC = () => {
                         <div className="w-32 rounded-full border border-slate-200 px-2 py-1 bg-slate-50 text-right">{formatCurrency(total)}</div>
                       </td>
                       <td className="px-3 py-1.5 text-right">
-                        <button type="button" onClick={() => rowsField.remove(index)} disabled={bulkMode === 'view'} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100 disabled:opacity-50">
+                        <button type="button" onClick={() => rowsField.remove(index)} disabled={bulkMode === 'view' || (bulkMode === 'edit' ? !canEdit : !canCreate)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100 disabled:opacity-50">
                           Delete
                         </button>
                       </td>
@@ -808,7 +847,7 @@ const LabourAttendancePage: React.FC = () => {
               <button type="button" onClick={() => { setModalOpen(false) }} className="rounded-full border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50">
                 Close
               </button>
-              {bulkMode !== 'view' ? (
+              {bulkMode !== 'view' && (bulkMode === 'edit' ? canEdit : canCreate) ? (
                 <button type="submit" className="rounded-full bg-[#2E7D32] px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#256427]">
                   {bulkMode === 'edit' ? 'Save Changes' : 'Save All'}
                 </button>

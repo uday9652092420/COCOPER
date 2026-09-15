@@ -31,6 +31,7 @@ export function usePermissions() {
   const hasPermission = (code: string): boolean => {
     if (!user) return false
     if (user.isSuperAdmin) return true
+    if (user.role.trim().toUpperCase() === 'OWNER') return true
     return Array.isArray(user.permissions) && user.permissions.includes(code)
   }
 

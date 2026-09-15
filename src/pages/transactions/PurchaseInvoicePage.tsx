@@ -802,6 +802,11 @@ const ViewPurchaseInvoiceModal: React.FC<{
 const PurchaseInvoicePage: React.FC = () => {
   const { selectedOrganizationId } = useAuthStore()
   const { can } = usePermissions()
+  const canCreate = can('purchase-invoice', 'create')
+  const canEdit = can('purchase-invoice', 'edit')
+  const canApprove = can('purchase-invoice', 'approve')
+  const canPrint = can('purchase-invoice', 'print')
+  const canDelete = can('purchase-invoice', 'delete')
   const [records, setRecords] = useState<PurchaseInvoice[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -1178,9 +1183,9 @@ const PurchaseInvoicePage: React.FC = () => {
             row={row as any}
             onView={(r: any) => setViewing(r)}
             onEdit={can('purchase-invoice', 'edit') ? (r: any) => openEdit(r) : undefined}
-            onPrint={(r: any) => printPurchaseInvoice(r)}
-            onDelete={row.status === 'Approved' || !can('purchase-invoice', 'delete') ? undefined : (r: any) => setConfirmDelete(r)}
-            onApprove={row.status === 'Approved' || !can('purchase-invoice', 'approve') ? undefined : (r: any) => { void handleApprove(r) }}
+            onPrint={canPrint ? (r: any) => printPurchaseInvoice(r) : undefined}
+            onDelete={row.status === 'Approved' || !canDelete ? undefined : (r: any) => setConfirmDelete(r)}
+            onApprove={row.status === 'Approved' || !canApprove ? undefined : (r: any) => { void handleApprove(r) }}
           />
         </div>
       ),
@@ -1234,10 +1239,10 @@ const PurchaseInvoicePage: React.FC = () => {
     <div>
       <PageHeader title="Purchase Invoice" breadcrumb={['Transactions', 'Purchase Invoice']} />
       <Toolbar
-        onAddNew={can('purchase-invoice', 'create') ? openAdd : undefined}
-        onExportExcel={exportPurchaseInvoicesToExcel}
-        onExportPdf={() => printPurchaseInvoiceList(true)}
-        onPrint={() => printPurchaseInvoiceList(false)}
+        onAddNew={canCreate ? openAdd : undefined}
+        onExportExcel={canPrint ? exportPurchaseInvoicesToExcel : undefined}
+        onExportPdf={canPrint ? () => printPurchaseInvoiceList(true) : undefined}
+        onPrint={canPrint ? () => printPurchaseInvoiceList(false) : undefined}
         onRefresh={() => { void loadRecords(); toast.success('Purchase invoice list refreshed.') }}
         onColumnChooser={() => setColumnChooserOpen((open) => !open)}
       />
@@ -1263,8 +1268,8 @@ const PurchaseInvoicePage: React.FC = () => {
         purchaseOrders={purchaseOrders}
         generatePINumber={generatePINumber}
         onApprove={handleApprove}
-        canSave={editing ? can('purchase-invoice', 'edit') : can('purchase-invoice', 'create')}
-        canApprove={can('purchase-invoice', 'approve')}
+        canSave={editing ? canEdit : canCreate}
+        canApprove={canApprove}
         onClose={() => {
           setModalOpen(false)
           setEditing(null)
@@ -1279,7 +1284,7 @@ const PurchaseInvoicePage: React.FC = () => {
         items={items}
         branches={branches}
         onClose={() => setViewing(null)}
-        onPrint={() => viewing && printPurchaseInvoice(viewing)}
+        onPrint={canPrint ? () => viewing && printPurchaseInvoice(viewing) : () => undefined}
       />
 
       <ConfirmDialog

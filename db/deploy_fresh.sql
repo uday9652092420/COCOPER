@@ -30,5 +30,6 @@
 \ir direct_sales.sql
 \ir 06_transaction_tables.sql
 \ir loading_dispatch.sql
+\ir 19_loading_dispatch_entries.sql
 \ir customer_receipt.sql
 \ir supplier_payment.sql

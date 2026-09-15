@@ -29,6 +29,7 @@ import { approveDirectSale, createDirectSale, deleteDirectSale, getDirectSales }
 import { getCurrentOrganization } from '../../services/organizationservices/organization.service'
 import { useAuthStore } from '../../store/authStore'
 import { onScopeChange } from '../../utils/scopeEvents'
+import { usePermissions } from '../../hooks/usePermissions'
 
 const todayDDMMYYYY = (): string => {
   const date = new Date()
@@ -783,6 +784,12 @@ const DirectSalesModal: React.FC<{
  */
 const DirectSalesPage: React.FC = () => {
   const { selectedOrganizationId } = useAuthStore()
+  const { can } = usePermissions()
+  const canCreate = can('sales', 'create')
+  const canEdit = can('sales', 'edit')
+  const canApprove = can('sales', 'approve')
+  const canPrint = can('sales', 'print')
+  const canDelete = can('sales', 'delete')
   const [records, setRecords] = useState<DirectSales[]>([])
   const [organizationName, setOrganizationName] = useState('')
   const [masterCustomers, setMasterCustomers] = useState<CustomerResponse[]>([])
@@ -900,14 +907,14 @@ const DirectSalesPage: React.FC = () => {
               setEditing(null)
               setModalOpen(true)
             }}
-            onEdit={row.approved ? undefined : ((r: any) => {
+            onEdit={row.approved || !canEdit ? undefined : ((r: any) => {
               setEditing(r)
               setViewing(null)
               setModalOpen(true)
             })}
-            onPrint={(r: any) => printDirectSale(r)}
-            onDelete={row.approved ? undefined : ((r: any) => setConfirmDelete(r))}
-            onApprove={row.approved ? undefined : ((r: any) => { void handleApprove(r) })}
+            onPrint={canPrint ? (r: any) => printDirectSale(r) : undefined}
+            onDelete={row.approved || !canDelete ? undefined : ((r: any) => setConfirmDelete(r))}
+            onApprove={row.approved || !canApprove ? undefined : ((r: any) => { void handleApprove(r) })}
           />
         </div>
       ),
@@ -1141,10 +1148,10 @@ const DirectSalesPage: React.FC = () => {
     <div>
       <PageHeader title="Direct Sales" breadcrumb={['Transactions', 'Direct Sales']} />
       <Toolbar
-        onAddNew={openAdd}
-        onExportExcel={exportDirectSalesToExcel}
-        onExportPdf={() => printDirectSalesList(true)}
-        onPrint={() => printDirectSalesList(false)}
+        onAddNew={canCreate ? openAdd : undefined}
+        onExportExcel={canPrint ? exportDirectSalesToExcel : undefined}
+        onExportPdf={canPrint ? () => printDirectSalesList(true) : undefined}
+        onPrint={canPrint ? () => printDirectSalesList(false) : undefined}
         onRefresh={() => { void loadRecords(); toast.success('Direct sales list refreshed.') }}
       />
       <SearchFilterPanel onSearchChange={setSearch} searchPlaceholder="Search by customer, branch, direct sale no..." />
@@ -1165,14 +1172,14 @@ const DirectSalesPage: React.FC = () => {
           setEditing(null)
           setViewing(null)
         }}
-        onSave={handleSave}
-        onApprove={async (invoice) => {
+        onSave={canCreate || canEdit ? handleSave : async () => undefined}
+        onApprove={canApprove ? async (invoice) => {
           await handleApprove(invoice)
           setModalOpen(false)
           setEditing(null)
           setViewing(null)
-        }}
-        onPrint={(invoice) => printDirectSale(invoice)}
+        } : undefined}
+        onPrint={canPrint ? (invoice) => printDirectSale(invoice) : undefined}
         customers={masterCustomers}
         branches={masterBranches}
         items={masterItems}

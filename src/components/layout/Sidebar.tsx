@@ -78,6 +78,7 @@ const transactionItems: NavItem[] = [
   { to: '/transactions/customer-receipt', label: 'Customer Receipt', icon: <ReceiptIndianRupee className="h-4 w-4" />, module: 'customer-receipt' },
   { to: '/transactions/supplier-payment', label: 'Supplier Payment', icon: <ReceiptIndianRupee className="h-4 w-4" />, module: 'supplier-payment' },
   { to: '/transactions/labour-attendance', label: 'Labor Payment', icon: <ClipboardList className="h-4 w-4" />, module: 'labour-attendance' },
+  { to: '/transactions/cash-bank-expense', label: 'Cash & Bank Expenses', icon: <ReceiptIndianRupee className="h-4 w-4" />, module: 'cash-bank-expense' },
 ]
 
 /**

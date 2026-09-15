@@ -25,6 +25,7 @@ import IndirectSalesPage from './pages/transactions/IndirectSalesPage'
 import LoadingDispatchPage from './pages/transactions/LoadingDispatchPage'
 import SupplierPaymentPage from './pages/transactions/SupplierPaymentPage'
 import LabourAttendancePage from './pages/transactions/LabourAttendancePage'
+import CashBankExpensePage from './pages/transactions/CashBankExpensePage'
 import CustomerReceiptPage from './pages/transactions/CustomerReceiptPage'
 import PurchaseRegisterPage from './pages/reports/PurchaseRegisterPage'
 import SalesRegisterPage from './pages/reports/SalesRegisterPage'
@@ -107,6 +108,7 @@ export default function App() {
           <Route path="transactions/loading-dispatch" element={<PermissionGuard module="loading-dispatch"><LoadingDispatchPage /></PermissionGuard>} />
           <Route path="transactions/supplier-payment" element={<PermissionGuard module="supplier-payment"><SupplierPaymentPage /></PermissionGuard>} />
           <Route path="transactions/labour-attendance" element={<PermissionGuard module="labour-attendance"><LabourAttendancePage /></PermissionGuard>} />
+          <Route path="transactions/cash-bank-expense" element={<PermissionGuard module="cash-bank-expense"><CashBankExpensePage /></PermissionGuard>} />
 
           {/* Reports */}
           <Route path="reports/purchase-register" element={<PermissionGuard module="purchase-register"><PurchaseRegisterPage /></PermissionGuard>} />

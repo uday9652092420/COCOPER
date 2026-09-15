@@ -19,6 +19,7 @@ export interface ResponsiveModalProps {
   maxWidth?: string
   maxHeight?: string
   contentMaxHeight?: string
+  scrollable?: boolean
 }
 
 /**
@@ -33,6 +34,7 @@ export const ResponsiveModal: React.FC<ResponsiveModalProps> = ({
   maxWidth = 'max-w-3xl',
   maxHeight = '92vh',
   contentMaxHeight = '70vh',
+  scrollable = true,
 }) => {
   /**
    * @function handleKeyDown
@@ -73,7 +75,10 @@ export const ResponsiveModal: React.FC<ResponsiveModalProps> = ({
         </div>
 
         {/* Scrollable content area */}
-        <div className="overflow-y-auto px-4 py-4" style={{ maxHeight: contentMaxHeight }}>
+        <div
+          className={`${scrollable ? 'overflow-y-auto' : 'overflow-hidden'} px-4 py-3`}
+          style={scrollable ? { maxHeight: contentMaxHeight } : undefined}
+        >
           {children}
         </div>
       </div>

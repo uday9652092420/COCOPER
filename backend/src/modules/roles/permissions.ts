@@ -31,6 +31,7 @@ export const AVAILABLE_PERMISSIONS: PermissionDef[] = [
   { module: 'Transactions', code: 'transactions.customer-receipt', name: 'Customer Receipt' },
   { module: 'Transactions', code: 'transactions.supplier-payment', name: 'Supplier Payment' },
   { module: 'Transactions', code: 'transactions.labour-attendance', name: 'Labour Payment' },
+  { module: 'Transactions', code: 'transactions.cash-bank-expense', name: 'Cash & Bank Expenses' },
 
   { module: 'Reports', code: 'reports.view', name: 'View Reports' },
 ];

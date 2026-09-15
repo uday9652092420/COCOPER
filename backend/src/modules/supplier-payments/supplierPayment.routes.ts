@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { requireModulePermission } from '../../middleware/modulePermission.js';
 import {
   approveSupplierPaymentHandler,
   createSupplierPaymentHandler,
@@ -10,11 +11,11 @@ import {
 
 const router = Router();
 
-router.get('/', listSupplierPaymentsHandler);
-router.get('/next-no', getNextSupplierPaymentNoHandler);
-router.post('/', createSupplierPaymentHandler);
-router.put('/:id', updateSupplierPaymentHandler);
-router.post('/:id/approve', approveSupplierPaymentHandler);
-router.delete('/:id', deleteSupplierPaymentHandler);
+router.get('/', requireModulePermission('supplier-payment', 'read'), listSupplierPaymentsHandler);
+router.get('/next-no', requireModulePermission('supplier-payment', 'read'), getNextSupplierPaymentNoHandler);
+router.post('/', requireModulePermission('supplier-payment', 'create'), createSupplierPaymentHandler);
+router.put('/:id', requireModulePermission('supplier-payment', 'edit'), updateSupplierPaymentHandler);
+router.post('/:id/approve', requireModulePermission('supplier-payment', 'approve'), approveSupplierPaymentHandler);
+router.delete('/:id', requireModulePermission('supplier-payment', 'delete'), deleteSupplierPaymentHandler);
 
 export default router;

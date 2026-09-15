@@ -4,6 +4,7 @@
  */
 
 import express from "express";
+import { requireModulePermission, requireModulePermissionForBody } from "../../middleware/modulePermission.js";
 import {
   listPurchaseOrdersHandler,
   getPurchaseOrderHandler,
@@ -14,10 +15,10 @@ import {
 
 const router = express.Router();
 
-router.get("/", listPurchaseOrdersHandler);
-router.get("/:id", getPurchaseOrderHandler);
-router.post("/", createPurchaseOrderHandler);
-router.put("/:id", updatePurchaseOrderHandler);
-router.delete("/:id", deletePurchaseOrderHandler);
+router.get("/", requireModulePermission("purchase-order", "read"), listPurchaseOrdersHandler);
+router.get("/:id", requireModulePermission("purchase-order", "read"), getPurchaseOrderHandler);
+router.post("/", requireModulePermission("purchase-order", "create"), createPurchaseOrderHandler);
+router.put("/:id", requireModulePermissionForBody("purchase-order", (req) => req.body?.status === "Approved" ? "approve" : "edit"), updatePurchaseOrderHandler);
+router.delete("/:id", requireModulePermission("purchase-order", "delete"), deletePurchaseOrderHandler);
 
 export default router;

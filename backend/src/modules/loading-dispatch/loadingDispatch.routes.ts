@@ -1,0 +1,4 @@
+import { Router } from "express";
+import { requireModulePermission, requireModulePermissionForBody } from "../../middleware/modulePermission.js";
+import { deleteLoadingDispatch, listLoadingDispatches, saveLoadingDispatch, updateLoadingDispatchStatus } from "./loadingDispatch.controller.js";
+const router=Router(); router.get('/',requireModulePermission('loading-dispatch','read'),listLoadingDispatches); router.post('/',requireModulePermissionForBody('loading-dispatch',(req) => req.body?.id ? 'edit' : 'create'),saveLoadingDispatch); router.patch('/:id/status',requireModulePermission('loading-dispatch','approve'),updateLoadingDispatchStatus); router.delete('/:id',requireModulePermission('loading-dispatch','delete'),deleteLoadingDispatch); export default router;

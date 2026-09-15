@@ -11,6 +11,7 @@ import { API } from '../../config/api'
 import { getOrgHeader } from '../../utils/apiHeaders'
 import { formatAmount, formatCurrency, formatDate } from '../../utils/format'
 import { getCustomers, type CustomerResponse } from '../../services/customerservices/customer.service'
+import { usePermissions } from '../../hooks/usePermissions'
 
 interface CustomerReceiptRow {
   id: string
@@ -166,6 +167,12 @@ function resolveCustomerInvoiceBalances(
 }
 
 const CustomerReceiptPage: React.FC = () => {
+  const { can } = usePermissions()
+  const canCreate = can('customer-receipt', 'create')
+  const canEdit = can('customer-receipt', 'edit')
+  const canApprove = can('customer-receipt', 'approve')
+  const canPrint = can('customer-receipt', 'print')
+  const canDelete = can('customer-receipt', 'delete')
   const [records, setRecords] = useState<CustomerReceiptRow[]>([])
   const [customers, setCustomers] = useState<CustomerResponse[]>([])
   const [directSales, setDirectSales] = useState<DirectSaleOption[]>([])
@@ -174,6 +181,7 @@ const CustomerReceiptPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<CustomerReceiptRow | null>(null)
+  const [viewing, setViewing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<CustomerReceiptRow | null>(null)
   const [columnChooserOpen, setColumnChooserOpen] = useState(false)
   const [visibleColumnKeys, setVisibleColumnKeys] = useState<string[]>([
@@ -417,6 +425,7 @@ const CustomerReceiptPage: React.FC = () => {
       const payload = await response.json().catch(() => ({ data: 'RCP-01' }))
       const nextNo = normalizeReceiptNo(payload.data ?? 'RCP-01')
       setEditing(null)
+      setViewing(false)
       setAttachmentPreviewUrl(null)
       setAttachmentFileInfo(null)
       reset({
@@ -438,6 +447,7 @@ const CustomerReceiptPage: React.FC = () => {
 
   const openEdit = (row: CustomerReceiptRow) => {
     setEditing(row)
+    setViewing(false)
     setAttachmentPreviewUrl(null)
     setAttachmentFileInfo(null)
     reset({
@@ -452,6 +462,11 @@ const CustomerReceiptPage: React.FC = () => {
       remarks: row.remarks ?? '',
     })
     setModalOpen(true)
+  }
+
+  const openView = (row: CustomerReceiptRow) => {
+    openEdit(row)
+    setViewing(true)
   }
 
   const onSubmit = async (values: CustomerReceiptFormValues) => {
@@ -645,10 +660,10 @@ const CustomerReceiptPage: React.FC = () => {
     <div>
       <PageHeader title="Customer Receipt" breadcrumb={['Transactions', 'Customer Receipt']} />
       <Toolbar
-        onAddNew={openAdd}
-        onExportExcel={exportCustomerReceiptsToExcel}
-        onExportPdf={printCustomerReceipts}
-        onPrint={printCustomerReceipts}
+        onAddNew={canCreate ? openAdd : undefined}
+        onExportExcel={canPrint ? exportCustomerReceiptsToExcel : undefined}
+        onExportPdf={canPrint ? printCustomerReceipts : undefined}
+        onPrint={canPrint ? printCustomerReceipts : undefined}
         onRefresh={() => { void loadData() }}
         onColumnChooser={() => setColumnChooserOpen((open) => !open)}
       />
@@ -678,12 +693,12 @@ const CustomerReceiptPage: React.FC = () => {
         columns={visibleColumns}
         getRowId={(row) => row.id}
         loading={loading}
-        onView={openEdit}
-        onEdit={openEdit}
-        onApprove={(row) => { void handleApprove(row) }}
+        onView={can('customer-receipt', 'read') ? openView : undefined}
+        onEdit={canEdit ? openEdit : undefined}
+        onApprove={canApprove ? (row) => { void handleApprove(row) } : undefined}
         isRowApproved={(row) => row.approved === true}
-        onDelete={(row) => setConfirmDelete(row)}
-        onPrint={(row) => printCustomerReceipt(row)}
+        onDelete={canDelete ? (row) => setConfirmDelete(row) : undefined}
+        onPrint={canPrint ? (row) => printCustomerReceipt(row) : undefined}
       />
       <PaginationControls currentPage={safeCurrentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
 
@@ -692,17 +707,18 @@ const CustomerReceiptPage: React.FC = () => {
           <div className="w-full max-w-lg max-h-[85vh] overflow-hidden rounded-3xl bg-white p-5 shadow-2xl">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold text-slate-900">
-                {editing ? 'Edit Customer Receipt' : 'New Customer Receipt'}
+                {viewing ? 'View Customer Receipt' : editing ? 'Edit Customer Receipt' : 'New Customer Receipt'}
               </h2>
               <button
                 type="button"
-                onClick={() => { setModalOpen(false); setEditing(null) }}
+                onClick={() => { setModalOpen(false); setEditing(null); setViewing(false) }}
                 className="rounded-full border border-slate-200 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
               >
                 Close
               </button>
             </div>
             <form onSubmit={handleSubmit(onSubmit)} className="mt-3 max-h-[72vh] overflow-y-auto pr-1 text-xs">
+              <fieldset disabled={viewing}>
               <div className="space-y-3">
                 <div className="grid gap-3 md:grid-cols-2">
                 <div>
@@ -939,8 +955,9 @@ const CustomerReceiptPage: React.FC = () => {
               </div>
 
               <div className="mt-3 flex items-center justify-end border-t border-slate-100 pt-3 text-xs">
-                <button type="submit" className="rounded-full bg-green-600 px-4 py-1.5 font-semibold text-white shadow-sm hover:bg-green-700">Save</button>
+                {!viewing ? <button type="submit" className="rounded-full bg-green-600 px-4 py-1.5 font-semibold text-white shadow-sm hover:bg-green-700">{editing ? 'Save Changes' : 'Save'}</button> : null}
               </div>
+              </fieldset>
             </form>
           </div>
         </div>

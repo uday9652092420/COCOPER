@@ -35,6 +35,22 @@ export async function initializeDatabase(): Promise<void> {
   await pool.query("ALTER TABLE labours DROP COLUMN IF EXISTS loading_amount");
 
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS loading_dispatch_entries (
+      id TEXT PRIMARY KEY, dispatch_number TEXT NOT NULL, organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE,
+      customer_id TEXT NOT NULL, lorry_number TEXT NOT NULL DEFAULT '', driver_name TEXT NOT NULL DEFAULT '', driver_mobile TEXT NOT NULL DEFAULT '',
+      dispatch_date DATE,
+      dispatch_status TEXT NOT NULL DEFAULT 'Draft', invoice_generated BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS loading_dispatch_entry_lines (
+      id TEXT PRIMARY KEY, dispatch_id TEXT NOT NULL REFERENCES loading_dispatch_entries(id) ON DELETE CASCADE,
+      branch_id TEXT NOT NULL, line_date DATE NOT NULL, item_id TEXT NOT NULL, bharthi TEXT NOT NULL DEFAULT '',
+      quantity NUMERIC NOT NULL DEFAULT 0, loaded_quantity NUMERIC NOT NULL DEFAULT 0, pending_quantity NUMERIC NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_loading_dispatch_entries_org ON loading_dispatch_entries(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_loading_dispatch_entry_lines_dispatch ON loading_dispatch_entry_lines(dispatch_id);
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS labour_attendance (
       id TEXT PRIMARY KEY,
       labour_id TEXT,
@@ -78,6 +94,7 @@ export async function initializeDatabase(): Promise<void> {
         ,ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'Draft'
         ,ADD COLUMN IF NOT EXISTS payment_created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   `);
+        await pool.query(`ALTER TABLE loading_dispatch_entries ADD COLUMN IF NOT EXISTS dispatch_date DATE`);
     await pool.query(`
       ALTER TABLE labour_attendance
         DROP CONSTRAINT IF EXISTS labour_attendance_labour_id_attendance_date_key
@@ -302,5 +319,27 @@ export async function initializeDatabase(): Promise<void> {
   await pool.query("ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT FALSE");
   await pool.query("ALTER TABLE supplier_payments ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE");
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_supplier_payments_org_number ON supplier_payments (organization_id, payment_number) WHERE organization_id IS NOT NULL");
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS cash_bank_expenses (
+      id TEXT PRIMARY KEY,
+      organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+      branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE RESTRICT,
+      expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      payment_mode TEXT NOT NULL CHECK (payment_mode IN ('Cash', 'Bank', 'UPI')),
+      transaction_type TEXT NOT NULL CHECK (transaction_type IN ('Expenses', 'Income')),
+      amount NUMERIC(15, 2) NOT NULL CHECK (amount > 0),
+      description TEXT NOT NULL DEFAULT '',
+      attachments JSONB NOT NULL DEFAULT '[]'::jsonb,
+      approved BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_cash_bank_expenses_org_date
+      ON cash_bank_expenses (organization_id, expense_date DESC, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_cash_bank_expenses_branch
+      ON cash_bank_expenses (organization_id, branch_id);
+  `);
+  await pool.query("ALTER TABLE cash_bank_expenses ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT FALSE");
+  await pool.query("ALTER TABLE cash_bank_expenses ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb");
   console.log("Database connected successfully.");
 }

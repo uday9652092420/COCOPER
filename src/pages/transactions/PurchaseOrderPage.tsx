@@ -40,6 +40,7 @@ import { useAuthStore } from '../../store/authStore'
 import { onScopeChange } from '../../utils/scopeEvents'
 import { useIsMobile } from '../../hooks/use-mobile'
 import { formatAmount } from '../../utils/format'
+import { usePermissions } from '../../hooks/usePermissions'
 
 /**
  * @description Convert a date string to DD/MM/YYYY.
@@ -1523,6 +1524,12 @@ const ViewPurchaseOrderModal: React.FC<{
  */
 const PurchaseOrderPage: React.FC = () => {
   const { selectedOrganizationId } = useAuthStore()
+  const { can } = usePermissions()
+  const canCreate = can('purchase-order', 'create')
+  const canEdit = can('purchase-order', 'edit')
+  const canApprove = can('purchase-order', 'approve')
+  const canPrint = can('purchase-order', 'print')
+  const canDelete = can('purchase-order', 'delete')
   const [records, setRecords] = useState<PurchaseOrder[]>([])
   const [salesOrders, setSalesOrders] = useState<SalesOrder[]>([])
   const [loading, setLoading] = useState(true)
@@ -2027,12 +2034,13 @@ const PurchaseOrderPage: React.FC = () => {
         <RowActions
           row={row}
           onView={(r) => setViewing(r)}
-          onEdit={openEdit}
-          onPrint={(row) => setPrintSelection(row)}
+          onEdit={canEdit ? openEdit : undefined}
+          onPrint={canPrint ? (row) => setPrintSelection(row) : undefined}
+          onApprove={canApprove ? approveOrder : undefined}
           onDelete={((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).status !== 'Approved' &&
           ((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).status !== 'Invoiced' &&
           !((row as unknown) as { status: string; purchaseOrderInvoiceStatus?: boolean }).purchaseOrderInvoiceStatus
-            ? (r) => setConfirmDelete(r)
+            && canDelete ? (r) => setConfirmDelete(r)
             : undefined}
         />
       ),
@@ -2085,10 +2093,10 @@ const PurchaseOrderPage: React.FC = () => {
     <div>
       <PageHeader title="Purchase Order" breadcrumb={['Transactions', 'Purchase Order']} />
       <Toolbar
-        onAddNew={openAdd}
-        onExportExcel={exportPurchaseOrdersToExcel}
-        onExportPdf={() => printPurchaseOrderList(true)}
-        onPrint={() => printPurchaseOrderList(false)}
+        onAddNew={canCreate ? openAdd : undefined}
+        onExportExcel={canPrint ? exportPurchaseOrdersToExcel : undefined}
+        onExportPdf={canPrint ? () => printPurchaseOrderList(true) : undefined}
+        onPrint={canPrint ? () => printPurchaseOrderList(false) : undefined}
         onRefresh={() => { void loadRecords(); toast.success('Purchase order list refreshed.') }}
         onColumnChooser={() => setColumnChooserOpen((open) => !open)}
       />
@@ -2126,8 +2134,8 @@ const PurchaseOrderPage: React.FC = () => {
           setEditing(null)
           setEditingSalesOrder(null)
         }}
-        onPrintPurchaseOrder={printPurchaseOrder}
-        onApprove={approveOrder}
+        onPrintPurchaseOrder={canPrint ? printPurchaseOrder : undefined}
+        onApprove={canApprove ? approveOrder : undefined}
         onApproveSalesOrder={approveSalesOrder}
         onSalesOrderSaved={(order) => {
           setSalesOrders((prev) => [order, ...prev])
@@ -2144,7 +2152,7 @@ const PurchaseOrderPage: React.FC = () => {
         branches={branches}
         resolveSupplierName={resolveSupplierName}
         onClose={() => setViewing(null)}
-        onPrint={() => viewing && printPurchaseOrder(viewing)}
+        onPrint={canPrint ? () => viewing && printPurchaseOrder(viewing) : () => undefined}
       />
 
       {printSelection ? (

@@ -45,6 +45,11 @@ const formatCurrency = (value: number): string => new Intl.NumberFormat('en-IN',
   maximumFractionDigits: 2,
 }).format(value)
 
+const formatStatementAmount = (value: number): string => {
+  const amount = Number(value || 0)
+  return amount < 0 ? `(${formatCurrency(Math.abs(amount))})` : formatCurrency(amount)
+}
+
 const toIsoDate = (value: string): string => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value)
@@ -198,7 +203,7 @@ const ProfitLossStatementPage: React.FC = () => {
     { label: 'Gross Profit', amount: summary.grossProfit },
     { label: 'Less: Expenses', amount: summary.expenses, negative: true },
     { label: 'Add: Other Income', amount: summary.otherIncome },
-    { label: 'Net Profit', amount: summary.netProfit, emphasis: true },
+    { label: summary.netProfit < 0 ? 'Net Loss' : 'Net Profit', amount: summary.netProfit, emphasis: true },
   ]
 
   const exportToExcel = () => {
@@ -259,7 +264,11 @@ const ProfitLossStatementPage: React.FC = () => {
 
         <section className="rounded-3xl border border-slate-100 bg-white/80 p-3 text-[11px] text-slate-700 shadow-sm">
           <div className="divide-y divide-slate-100">
-            {rows.map((row) => <div key={row.label} className={`flex items-center justify-between gap-4 px-2 py-2 ${row.emphasis ? 'font-semibold text-slate-900' : ''}`}><span>{row.label}</span><span className={row.negative ? 'text-rose-700' : ''}>{row.negative ? `-${formatCurrency(row.amount)}` : formatCurrency(row.amount)}</span></div>)}
+            {rows.map((row) => {
+              const amount = row.negative ? -Math.abs(row.amount) : row.amount
+              const isNegative = amount < 0
+              return <div key={row.label} className={`flex items-center justify-between gap-4 px-2 py-2 ${row.emphasis ? `font-semibold ${isNegative ? 'text-rose-700' : 'text-emerald-700'}` : ''}`}><span className={isNegative ? 'text-rose-700' : ''}>{row.label}</span><span className={isNegative ? 'text-rose-700' : ''}>{formatStatementAmount(amount)}</span></div>
+            })}
           </div>
         </section>
       </>}

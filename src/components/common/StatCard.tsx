@@ -31,15 +31,15 @@ export const StatCard: React.FC<StatCardProps> = ({
     animate={{ opacity: 1, y: 0 }}
     transition={{ duration: 0.25 }}
     whileHover={{ y: -4, boxShadow: '0 16px 40px rgba(0,0,0,0.08)' }}
-    className="relative overflow-hidden rounded-3xl border border-emerald-50 bg-white/80 p-4 shadow-sm backdrop-blur"
+    className="relative overflow-hidden rounded-2xl border border-emerald-50 bg-white/80 p-3 shadow-sm backdrop-blur"
   >
-    <div className="flex items-center justify-between gap-3">
-      <div>
-        <p className="text-xs font-medium text-slate-500">{label}</p>
+    <div className="relative min-h-[4.25rem] min-w-0 pr-9">
+      <div className="min-w-0">
+        <p className="break-words text-xs font-medium leading-tight text-slate-500">{label}</p>
         <p className="mt-1 text-lg font-semibold text-slate-900">{value}</p>
       </div>
       {icon ? (
-        <div className={`flex h-9 w-9 items-center justify-center rounded-2xl text-xs ${accentClassName}`}>
+        <div className={`absolute right-0 top-0 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs ${accentClassName}`}>
           {icon}
         </div>
       ) : null}

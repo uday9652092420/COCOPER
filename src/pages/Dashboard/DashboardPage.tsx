@@ -6,16 +6,16 @@
 import type React from 'react'
 import { useMemo, useState, useEffect } from 'react'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { purchaseInvoices, directSales } from '../../mock/db'
+import type { DirectSales } from '../../mock/db'
 import { StatCard } from '../../components/common/StatCard'
 import { ChartCard } from '../../components/common/ChartCard'
 import { PageHeader } from '../../components/common/PageHeader'
 import { LoadingSpinner } from '../../components/common/LoadingSpinner'
 import { formatCurrency } from '../../utils/format'
-import { Factory, UserCircle2, ShoppingBag, ReceiptIndianRupee, Truck, AlertTriangle } from 'lucide-react'
+import { Factory, UserCircle2, ShoppingBag, ReceiptIndianRupee, Truck, CircleDollarSign } from 'lucide-react'
 import { getSuppliers } from '../../services/supplierservices/supplier.service'
 import { getCustomers } from '../../services/customerservices/customer.service'
-import { getPurchaseInvoices } from '../../services/purchaseinvoiceservices/purchaseInvoice.service'
+import { getPurchaseInvoices, type PurchaseInvoiceDTO } from '../../services/purchaseinvoiceservices/purchaseInvoice.service'
 import { getDirectSales } from '../../services/directsalesservices/directSale.service'
 import { getLoadingDispatches } from '../../services/loadingdispatch.service'
 import { API } from '../../config/api'
@@ -73,6 +73,8 @@ const DashboardPage: React.FC = () => {
   })
   const [topCustomers, setTopCustomers] = useState<RankedDashboardRow[]>([])
   const [topSuppliers, setTopSuppliers] = useState<RankedDashboardRow[]>([])
+  const [purchaseInvoices, setPurchaseInvoices] = useState<PurchaseInvoiceDTO[]>([])
+  const [directSales, setDirectSales] = useState<DirectSales[]>([])
 
   useEffect(() => {
     const loadDashboardStats = async () => {
@@ -89,6 +91,8 @@ const DashboardPage: React.FC = () => {
         if (!receiptsResponse.ok) throw new Error('Unable to load customer receipts.')
         const receiptPayload = await receiptsResponse.json()
         const receipts: CustomerReceipt[] = Array.isArray(receiptPayload.data) ? receiptPayload.data : []
+        setPurchaseInvoices(purchaseRows)
+        setDirectSales(salesRows)
         const today = todayLocalDate()
         const scopedReceipts = selectedOrganizationId
           ? receipts.filter((receipt) => receipt.organization_id === selectedOrganizationId)
@@ -146,21 +150,23 @@ const DashboardPage: React.FC = () => {
   }, [selectedOrganizationId])
 
   const monthlyPurchase = useMemo(
-    () =>
-      Array.from({ length: 12 }).map((_, idx) => ({
-        month: monthLabels[idx],
-        value: purchaseInvoices.filter((p) => new Date(p.invoiceDate).getMonth() === idx).reduce((sum, p) => sum + p.grandTotal, 0) / 1000,
+    () => monthLabels.map((month, idx) => ({
+        month,
+        value: purchaseInvoices
+          .filter((invoice) => (!selectedOrganizationId || invoice.organizationId === selectedOrganizationId) && new Date(normalizeDate(invoice.invoiceDate)).getMonth() === idx)
+          .reduce((sum, invoice) => sum + Number(invoice.grandTotal || 0), 0) / 1000,
       })),
-    []
+    [purchaseInvoices, selectedOrganizationId]
   )
 
   const monthlySales = useMemo(
-    () =>
-      Array.from({ length: 12 }).map((_, idx) => ({
-        month: monthLabels[idx],
-        value: directSales.filter((s) => new Date(s.invoiceDate).getMonth() === idx).reduce((sum, s) => sum + s.invoiceTotal, 0) / 1000,
+    () => monthLabels.map((month, idx) => ({
+        month,
+        value: directSales
+          .filter((sale) => (!selectedOrganizationId || sale.organizationId === selectedOrganizationId) && new Date(normalizeDate(sale.invoiceDate)).getMonth() === idx)
+          .reduce((sum, sale) => sum + Number(sale.invoiceTotal || 0), 0) / 1000,
       })),
-    []
+    [directSales, selectedOrganizationId]
   )
 
   if (loading) {
@@ -182,7 +188,7 @@ const DashboardPage: React.FC = () => {
         <StatCard label="Today's Purchase" value={formatCurrency(dashboardStats.todaysPurchase)} icon={<ShoppingBag className="h-4 w-4" />} accentClassName="bg-blue-100 text-blue-700" />
         <StatCard label="Today's Sales" value={formatCurrency(dashboardStats.todaysSales)} icon={<ReceiptIndianRupee className="h-4 w-4" />} accentClassName="bg-amber-100 text-amber-700" />
         <StatCard label="Pending Dispatch" value={dashboardStats.pendingDispatch.toString()} icon={<Truck className="h-4 w-4" />} accentClassName="bg-violet-100 text-violet-700" />
-        <StatCard label="Customer Outstanding Amount" value={formatCurrency(dashboardStats.customerOutstanding)} icon={<AlertTriangle className="h-4 w-4" />} accentClassName="bg-rose-100 text-rose-700" />
+        <StatCard label="Customer Outstanding Amount" value={formatCurrency(dashboardStats.customerOutstanding)} icon={<CircleDollarSign className="h-4 w-4" />} accentClassName="bg-rose-100 text-rose-700" />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">

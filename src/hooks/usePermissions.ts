@@ -19,6 +19,7 @@ const REPORT_MODULES = [
   'customer-statement',
   'labour-attendance-report',
   'pending-dispatch',
+  'profit-loss',
   'outstanding',
 ]
 

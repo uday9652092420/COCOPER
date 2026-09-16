@@ -33,7 +33,6 @@ import SupplierStatementPage from './pages/reports/SupplierStatementPage'
 import CustomerStatementPage from './pages/reports/CustomerStatementPage'
 import LabourAttendanceReportPage from './pages/reports/LabourAttendanceReportPage'
 import PendingDispatchReportPage from './pages/reports/PendingDispatchReportPage'
-import ProfitLossStatementPage from './pages/reports/ProfitLossStatementPage'
 import OutstandingReportPage from './pages/reports/OutstandingReportPage'
 import BagPurchasePage from './pages/masters/BagPurchasePage'
 import OrganizationMasterPage from './pages/masters/OrganizationMasterPage'
@@ -118,7 +117,6 @@ export default function App() {
           <Route path="reports/customer-statement" element={<PermissionGuard module="customer-statement"><CustomerStatementPage /></PermissionGuard>} />
           <Route path="reports/labour-attendance" element={<PermissionGuard module="labour-attendance-report"><LabourAttendanceReportPage /></PermissionGuard>} />
           <Route path="reports/pending-dispatch" element={<PermissionGuard module="pending-dispatch"><PendingDispatchReportPage /></PermissionGuard>} />
-          <Route path="reports/profit-loss" element={<PermissionGuard module="profit-loss"><ProfitLossStatementPage /></PermissionGuard>} />
           <Route path="reports/outstanding" element={<PermissionGuard module="outstanding"><OutstandingReportPage /></PermissionGuard>} />
         </Route>
 

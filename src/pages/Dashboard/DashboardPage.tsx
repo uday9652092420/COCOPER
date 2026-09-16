@@ -6,48 +6,149 @@
 import type React from 'react'
 import { useMemo, useState, useEffect } from 'react'
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { warehouses, suppliers, customers, purchaseInvoices, directSales } from '../../mock/db'
+import { purchaseInvoices, directSales } from '../../mock/db'
 import { StatCard } from '../../components/common/StatCard'
 import { ChartCard } from '../../components/common/ChartCard'
 import { PageHeader } from '../../components/common/PageHeader'
 import { LoadingSpinner } from '../../components/common/LoadingSpinner'
 import { formatCurrency } from '../../utils/format'
 import { Factory, UserCircle2, ShoppingBag, ReceiptIndianRupee, Truck, AlertTriangle } from 'lucide-react'
+import { getSuppliers } from '../../services/supplierservices/supplier.service'
+import { getCustomers } from '../../services/customerservices/customer.service'
+import { getPurchaseInvoices } from '../../services/purchaseinvoiceservices/purchaseInvoice.service'
+import { getDirectSales } from '../../services/directsalesservices/directSale.service'
+import { getLoadingDispatches } from '../../services/loadingdispatch.service'
+import { API } from '../../config/api'
+import { getOrgHeader } from '../../utils/apiHeaders'
+import { onScopeChange } from '../../utils/scopeEvents'
+import { useAuthStore } from '../../store/authStore'
+
+interface CustomerReceipt {
+  customer_id: string
+  amount: number
+  organization_id?: string | null
+}
+
+interface DashboardStats {
+  suppliers: number
+  customers: number
+  todaysPurchase: number
+  todaysSales: number
+  pendingDispatch: number
+  customerOutstanding: number
+}
+
+interface RankedDashboardRow {
+  name: string
+  value: number
+}
+
+const normalizeDate = (value: string): string => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value)
+  return match ? `${match[3]}-${match[2]}-${match[1]}` : ''
+}
+
+const todayLocalDate = (): string => {
+  const date = new Date()
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+const monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /**
  * @component DashboardPage
  * @description Dashboard page component with KPIs and charts.
  */
 const DashboardPage: React.FC = () => {
+  const { selectedOrganizationId } = useAuthStore()
   const [loading, setLoading] = useState(true)
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    suppliers: 0,
+    customers: 0,
+    todaysPurchase: 0,
+    todaysSales: 0,
+    pendingDispatch: 0,
+    customerOutstanding: 0,
+  })
+  const [topCustomers, setTopCustomers] = useState<RankedDashboardRow[]>([])
+  const [topSuppliers, setTopSuppliers] = useState<RankedDashboardRow[]>([])
 
   useEffect(() => {
-    const id = setTimeout(() => setLoading(false), 600)
-    return () => clearTimeout(id)
-  }, [])
+    const loadDashboardStats = async () => {
+      try {
+        setLoading(true)
+        const [supplierRows, customerRows, purchaseRows, salesRows, dispatchRows, receiptsResponse] = await Promise.all([
+          getSuppliers(),
+          getCustomers(),
+          getPurchaseInvoices(),
+          getDirectSales(),
+          getLoadingDispatches(),
+          fetch(`${API}/customer-receipts`, { headers: getOrgHeader() }),
+        ])
+        if (!receiptsResponse.ok) throw new Error('Unable to load customer receipts.')
+        const receiptPayload = await receiptsResponse.json()
+        const receipts: CustomerReceipt[] = Array.isArray(receiptPayload.data) ? receiptPayload.data : []
+        const today = todayLocalDate()
+        const scopedReceipts = selectedOrganizationId
+          ? receipts.filter((receipt) => receipt.organization_id === selectedOrganizationId)
+          : receipts
+        const customerOutstanding = salesRows
+          .filter((sale) => sale.approved === true && (!selectedOrganizationId || sale.organizationId === selectedOrganizationId))
+          .reduce((total, sale) => total + Number(sale.invoiceTotal || 0), 0)
+          - scopedReceipts.reduce((total, receipt) => total + Number(receipt.amount || 0), 0)
 
-  const today = new Date().toISOString().slice(0, 10)
+        const customerSales = new Map<string, number>()
+        salesRows.forEach((sale) => {
+          if (selectedOrganizationId && sale.organizationId !== selectedOrganizationId) return
+          customerSales.set(sale.customerId, (customerSales.get(sale.customerId) ?? 0) + Number(sale.invoiceTotal || 0))
+        })
+        setTopCustomers(
+          customerRows
+            .map((customer) => ({ name: customer.name, value: (customerSales.get(customer.id) ?? 0) / 1000 }))
+            .sort((first, second) => second.value - first.value)
+            .slice(0, 5),
+        )
 
-  const stats = useMemo(() => {
-    const todaysPurchase = purchaseInvoices.filter((p) => p.invoiceDate === today).reduce((sum, p) => sum + p.grandTotal, 0)
-    const todaysSales = directSales.filter((s) => s.invoiceDate === today).reduce((sum, s) => sum + s.invoiceTotal, 0)
-    const pendingDispatch = 12
-    const outstandingAmount = 1250000
+        const supplierPurchases = new Map<string, number>()
+        purchaseRows.forEach((invoice) => {
+          if (selectedOrganizationId && invoice.organizationId !== selectedOrganizationId) return
+          supplierPurchases.set(invoice.supplierId, (supplierPurchases.get(invoice.supplierId) ?? 0) + Number(invoice.grandTotal || 0))
+        })
+        setTopSuppliers(
+          supplierRows
+            .map((supplier) => ({ name: supplier.name, value: (supplierPurchases.get(supplier.id) ?? 0) / 1000 }))
+            .sort((first, second) => second.value - first.value)
+            .slice(0, 5),
+        )
 
-    return {
-      suppliers: suppliers.length,
-      customers: customers.length,
-      todaysPurchase,
-      todaysSales,
-      pendingDispatch,
-      outstandingAmount,
+        setDashboardStats({
+          suppliers: supplierRows.length,
+          customers: customerRows.length,
+          todaysPurchase: purchaseRows
+            .filter((invoice) => normalizeDate(invoice.invoiceDate) === today)
+            .reduce((total, invoice) => total + Number(invoice.grandTotal || 0), 0),
+          todaysSales: salesRows
+            .filter((sale) => normalizeDate(sale.invoiceDate) === today)
+            .reduce((total, sale) => total + Number(sale.invoiceTotal || 0), 0),
+          pendingDispatch: dispatchRows.filter((dispatch) => dispatch.dispatchStatus !== 'Dispatched').length,
+          customerOutstanding,
+        })
+      } catch (error) {
+        console.error(error)
+      } finally {
+        setLoading(false)
+      }
     }
-  }, [])
+
+    void loadDashboardStats()
+    return onScopeChange(() => { void loadDashboardStats() })
+  }, [selectedOrganizationId])
 
   const monthlyPurchase = useMemo(
     () =>
       Array.from({ length: 12 }).map((_, idx) => ({
-        month: `M${idx + 1}`,
+        month: monthLabels[idx],
         value: purchaseInvoices.filter((p) => new Date(p.invoiceDate).getMonth() === idx).reduce((sum, p) => sum + p.grandTotal, 0) / 1000,
       })),
     []
@@ -56,33 +157,11 @@ const DashboardPage: React.FC = () => {
   const monthlySales = useMemo(
     () =>
       Array.from({ length: 12 }).map((_, idx) => ({
-        month: `M${idx + 1}`,
+        month: monthLabels[idx],
         value: directSales.filter((s) => new Date(s.invoiceDate).getMonth() === idx).reduce((sum, s) => sum + s.invoiceTotal, 0) / 1000,
       })),
     []
   )
-
-  const topCustomers = useMemo(() => {
-    const map = new Map<string, number>()
-    directSales.forEach((s) => {
-      map.set(s.customerId, (map.get(s.customerId) ?? 0) + s.invoiceTotal)
-    })
-    return customers
-      .map((c) => ({ name: c.name, value: (map.get(c.id) ?? 0) / 1000 }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5)
-  }, [])
-
-  const topSuppliers = useMemo(() => {
-    const map = new Map<string, number>()
-    purchaseInvoices.forEach((p) => {
-      map.set(p.supplierId, (map.get(p.supplierId) ?? 0) + p.grandTotal)
-    })
-    return suppliers
-      .map((s) => ({ name: s.name, value: (map.get(s.id) ?? 0) / 1000 }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5)
-  }, [])
 
   if (loading) {
     return (
@@ -98,12 +177,12 @@ const DashboardPage: React.FC = () => {
       <PageHeader title="Dashboard" breadcrumb={['Home', 'Dashboard']} />
 
       <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <StatCard label="Total Suppliers" value={stats.suppliers.toString()} icon={<Factory className="h-4 w-4" />} accentClassName="bg-emerald-100 text-emerald-700" />
-        <StatCard label="Total Customers" value={stats.customers.toString()} icon={<UserCircle2 className="h-4 w-4" />} accentClassName="bg-lime-100 text-lime-700" />
-        <StatCard label="Today's Purchase" value={formatCurrency(stats.todaysPurchase)} icon={<ShoppingBag className="h-4 w-4" />} accentClassName="bg-blue-100 text-blue-700" />
-        <StatCard label="Today's Sales" value={formatCurrency(stats.todaysSales)} icon={<ReceiptIndianRupee className="h-4 w-4" />} accentClassName="bg-amber-100 text-amber-700" />
-        <StatCard label="Pending Dispatch" value={stats.pendingDispatch.toString()} icon={<Truck className="h-4 w-4" />} accentClassName="bg-violet-100 text-violet-700" />
-        <StatCard label="Outstanding Amount" value={formatCurrency(stats.outstandingAmount)} icon={<AlertTriangle className="h-4 w-4" />} accentClassName="bg-rose-100 text-rose-700" />
+        <StatCard label="Total Suppliers" value={dashboardStats.suppliers.toString()} icon={<Factory className="h-4 w-4" />} accentClassName="bg-emerald-100 text-emerald-700" />
+        <StatCard label="Total Customers" value={dashboardStats.customers.toString()} icon={<UserCircle2 className="h-4 w-4" />} accentClassName="bg-lime-100 text-lime-700" />
+        <StatCard label="Today's Purchase" value={formatCurrency(dashboardStats.todaysPurchase)} icon={<ShoppingBag className="h-4 w-4" />} accentClassName="bg-blue-100 text-blue-700" />
+        <StatCard label="Today's Sales" value={formatCurrency(dashboardStats.todaysSales)} icon={<ReceiptIndianRupee className="h-4 w-4" />} accentClassName="bg-amber-100 text-amber-700" />
+        <StatCard label="Pending Dispatch" value={dashboardStats.pendingDispatch.toString()} icon={<Truck className="h-4 w-4" />} accentClassName="bg-violet-100 text-violet-700" />
+        <StatCard label="Customer Outstanding Amount" value={formatCurrency(dashboardStats.customerOutstanding)} icon={<AlertTriangle className="h-4 w-4" />} accentClassName="bg-rose-100 text-rose-700" />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">

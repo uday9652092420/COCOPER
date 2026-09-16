@@ -41,6 +41,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   { code: 'customer-statement', name: 'Customer Statement' },
   { code: 'labour-attendance-report', name: 'Labour Attendance' },
   { code: 'pending-dispatch', name: 'Pending Dispatch' },
+  { code: 'profit-loss', name: 'Profit & Loss Statement' },
   { code: 'outstanding', name: 'Outstanding' },
 ];
 

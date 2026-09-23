@@ -8,12 +8,23 @@ import {
   deleteLabourAttendanceGroupRepository,
 } from "./labourAttendance.repository.js";
 import type { LabourAttendancePayload } from "./labourAttendance.types.js";
+import { listMobileAttendanceRepo } from "../mobile/mobileAttendance.repository.js";
 
 function requireOrganizationId(req: Pick<Request, "query" | "header">): string {
   const organizationId =
     (req.query.organizationId as string | undefined) || req.header("x-organization-id");
   if (!organizationId) throw { status: 400, message: "Organization ID is required" };
   return organizationId;
+}
+
+export async function listLabourAttendanceDetailsHandler(req: Request, res: Response) {
+  try {
+    const organizationId = requireOrganizationId(req);
+    const branchId = req.header("x-branch-id") || undefined;
+    res.json({ success: true, data: await listMobileAttendanceRepo(organizationId, branchId) });
+  } catch (error: any) {
+    res.status(error.status || 500).json({ success: false, message: error.message || "Failed to fetch labour attendance details" });
+  }
 }
 
 export async function listLabourAttendanceHandler(req: Request, res: Response) {

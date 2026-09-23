@@ -42,6 +42,8 @@ export interface CustomerResponse {
 
   credit_limit?: number;
 
+  organization_id?: string | null;
+
   status:
     | "Active"
     | "Inactive";

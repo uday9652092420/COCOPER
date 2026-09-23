@@ -43,11 +43,6 @@ interface RankedDashboardRow {
   value: number
 }
 
-interface DispatchOrganizationRecord {
-  organizationId?: string | null
-  organization_id?: string | null
-}
-
 const normalizeDate = (value: string): string => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
   const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value)
@@ -96,67 +91,51 @@ const DashboardPage: React.FC = () => {
         if (!receiptsResponse.ok) throw new Error('Unable to load customer receipts.')
         const receiptPayload = await receiptsResponse.json()
         const receipts: CustomerReceipt[] = Array.isArray(receiptPayload.data) ? receiptPayload.data : []
-        const scopedSuppliers = selectedOrganizationId
-          ? supplierRows.filter((supplier) => supplier.organization_id === selectedOrganizationId)
-          : supplierRows
-        const scopedCustomers = selectedOrganizationId
-          ? customerRows.filter((customer) => customer.organization_id === selectedOrganizationId)
-          : customerRows
-        const scopedPurchases = selectedOrganizationId
-          ? purchaseRows.filter((invoice) => invoice.organizationId === selectedOrganizationId)
-          : purchaseRows
-        const scopedSales = selectedOrganizationId
-          ? salesRows.filter((sale) => sale.organizationId === selectedOrganizationId)
-          : salesRows
-        const scopedDispatches = selectedOrganizationId
-          ? dispatchRows.filter((dispatch) => {
-            const record = dispatch as DispatchOrganizationRecord
-            return (record.organizationId ?? record.organization_id) === selectedOrganizationId
-          })
-          : dispatchRows
-        setPurchaseInvoices(scopedPurchases)
-        setDirectSales(scopedSales)
+        setPurchaseInvoices(purchaseRows)
+        setDirectSales(salesRows)
         const today = todayLocalDate()
         const scopedReceipts = selectedOrganizationId
           ? receipts.filter((receipt) => receipt.organization_id === selectedOrganizationId)
           : receipts
-        const customerOutstanding = scopedSales
-          .filter((sale) => sale.approved === true)
+        const customerOutstanding = salesRows
+          .filter((sale) => sale.approved === true && (!selectedOrganizationId || sale.organizationId === selectedOrganizationId))
           .reduce((total, sale) => total + Number(sale.invoiceTotal || 0), 0)
           - scopedReceipts.reduce((total, receipt) => total + Number(receipt.amount || 0), 0)
 
         const customerSales = new Map<string, number>()
-        scopedSales.forEach((sale) => {
+        salesRows.forEach((sale) => {
+          if (selectedOrganizationId && sale.organizationId !== selectedOrganizationId) return
           customerSales.set(sale.customerId, (customerSales.get(sale.customerId) ?? 0) + Number(sale.invoiceTotal || 0))
         })
         setTopCustomers(
-          scopedCustomers
+          customerRows
             .map((customer) => ({ name: customer.name, value: (customerSales.get(customer.id) ?? 0) / 1000 }))
             .sort((first, second) => second.value - first.value)
             .slice(0, 5),
         )
 
         const supplierPurchases = new Map<string, number>()
-        scopedPurchases.forEach((invoice) => {
+        purchaseRows.forEach((invoice) => {
+          if (selectedOrganizationId && invoice.organizationId !== selectedOrganizationId) return
           supplierPurchases.set(invoice.supplierId, (supplierPurchases.get(invoice.supplierId) ?? 0) + Number(invoice.grandTotal || 0))
         })
         setTopSuppliers(
-          scopedSuppliers
+          supplierRows
             .map((supplier) => ({ name: supplier.name, value: (supplierPurchases.get(supplier.id) ?? 0) / 1000 }))
             .sort((first, second) => second.value - first.value)
             .slice(0, 5),
         )
 
         setDashboardStats({
-          suppliers: scopedSuppliers.length,
-          customers: scopedCustomers.length,
-          todaysPurchase: scopedPurchases
+          suppliers: supplierRows.length,
+          customers: customerRows.length,
+          todaysPurchase: purchaseRows
             .filter((invoice) => normalizeDate(invoice.invoiceDate) === today)
             .reduce((total, invoice) => total + Number(invoice.grandTotal || 0), 0),
-          todaysSales: scopedSales
+          todaysSales: salesRows
             .filter((sale) => normalizeDate(sale.invoiceDate) === today)
             .reduce((total, sale) => total + Number(sale.invoiceTotal || 0), 0),
-          pendingDispatch: scopedDispatches.filter((dispatch) => dispatch.dispatchStatus !== 'Dispatched').length,
+          pendingDispatch: dispatchRows.filter((dispatch) => dispatch.dispatchStatus !== 'Dispatched').length,
           customerOutstanding,
         })
       } catch (error) {
@@ -174,7 +153,7 @@ const DashboardPage: React.FC = () => {
     () => monthLabels.map((month, idx) => ({
         month,
         value: purchaseInvoices
-          .filter((invoice) => new Date(normalizeDate(invoice.invoiceDate)).getMonth() === idx)
+          .filter((invoice) => (!selectedOrganizationId || invoice.organizationId === selectedOrganizationId) && new Date(normalizeDate(invoice.invoiceDate)).getMonth() === idx)
           .reduce((sum, invoice) => sum + Number(invoice.grandTotal || 0), 0) / 1000,
       })),
     [purchaseInvoices, selectedOrganizationId]
@@ -184,7 +163,7 @@ const DashboardPage: React.FC = () => {
     () => monthLabels.map((month, idx) => ({
         month,
         value: directSales
-          .filter((sale) => new Date(normalizeDate(sale.invoiceDate)).getMonth() === idx)
+          .filter((sale) => (!selectedOrganizationId || sale.organizationId === selectedOrganizationId) && new Date(normalizeDate(sale.invoiceDate)).getMonth() === idx)
           .reduce((sum, sale) => sum + Number(sale.invoiceTotal || 0), 0) / 1000,
       })),
     [directSales, selectedOrganizationId]

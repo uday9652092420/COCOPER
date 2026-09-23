@@ -15,6 +15,7 @@ import { getDirectSales } from '../../services/directsalesservices/directSale.se
 import { getPurchaseInvoices, type PurchaseInvoiceDTO } from '../../services/purchaseinvoiceservices/purchaseInvoice.service'
 import type { DirectSales } from '../../mock/db'
 import { onScopeChange } from '../../utils/scopeEvents'
+import { useAuthStore } from '../../store/authStore'
 
 interface StatementRow {
   label: string
@@ -129,6 +130,7 @@ const ProfitLossStatementPage: React.FC = () => {
   const [fromDate, setFromDate] = useState(() => toDisplayDate(defaultFromDate()))
   const [toDate, setToDate] = useState(() => toDisplayDate(todayIsoDate()))
   const [loading, setLoading] = useState(true)
+  const { selectedOrganizationId } = useAuthStore()
 
   const loadData = async () => {
     try {
@@ -138,9 +140,15 @@ const ProfitLossStatementPage: React.FC = () => {
         getPurchaseInvoices(),
         getCashBankExpenses(),
       ])
-      setSales(salesRows)
-      setPurchases(purchaseRows)
-      setCashBankEntries(cashBankRows)
+      setSales(selectedOrganizationId
+        ? salesRows.filter((sale) => sale.organizationId === selectedOrganizationId)
+        : salesRows)
+      setPurchases(selectedOrganizationId
+        ? purchaseRows.filter((invoice) => invoice.organizationId === selectedOrganizationId)
+        : purchaseRows)
+      setCashBankEntries(selectedOrganizationId
+        ? cashBankRows.filter((entry) => entry.organizationId === selectedOrganizationId)
+        : cashBankRows)
     } catch (error: any) {
       toast.error(error?.message || 'Failed to load profit and loss statement.')
     } finally {
@@ -151,7 +159,7 @@ const ProfitLossStatementPage: React.FC = () => {
   useEffect(() => {
     void loadData()
     return onScopeChange(() => { void loadData() })
-  }, [])
+  }, [selectedOrganizationId])
 
   const inRange = (date: string): boolean => {
     const isoDate = toIsoDate(date)

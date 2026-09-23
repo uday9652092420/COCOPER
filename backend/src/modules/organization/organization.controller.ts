@@ -16,6 +16,7 @@ import {
 } from './organization.service.js';
 import { validateOrganizationPayload } from './organization.validation.js';
 import { AppError } from '../../utils/AppError.js';
+import { readAuthToken } from '../auth/auth.token.js';
 
 interface OrganizationParams {
   id: string;
@@ -36,18 +37,32 @@ export async function getCurrentOrganizationHandler(
   next: NextFunction
 ) {
   try {
-    const organizationId =
+    const authorization = req.header('authorization') ?? '';
+    const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+    const claims = token ? readAuthToken(token) : null;
+    const requestedOrganizationId =
       req.header('x-organization-id') ||
       (req.query.organizationId as string | undefined);
+    const organizationId = claims && !claims.isSuperAdmin
+      ? claims.organizationId ?? undefined
+      : requestedOrganizationId;
 
     if (organizationId) {
       const row = await getOrganizationByIdService(organizationId);
 
-      if (!row) {
-        return next(new AppError('Organization not found', 404));
+      if (row) {
+        return res.status(200).json(row);
       }
 
-      return res.status(200).json(row);
+      // A super-admin can retain an organization id from a previous database
+      // session. Recover by using the current default instead of failing the
+      // application bootstrap on a stale selection.
+      if (claims?.isSuperAdmin) {
+        const fallback = await getLatestOrganizationService();
+        if (fallback) return res.status(200).json(fallback);
+      } else {
+        return next(new AppError('Organization not found', 404));
+      }
     }
 
     const row = await getLatestOrganizationService();

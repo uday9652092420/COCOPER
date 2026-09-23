@@ -4,6 +4,7 @@
  */
 
 import { API } from "../../config/api";
+import { getAuthHeader } from "../../utils/apiHeaders";
 
 /**
  * Organization returned by the backend.
@@ -121,7 +122,7 @@ export async function getOrganizations(): Promise<OrganizationSummary[]> {
 export async function getCurrentOrganization(
   organizationId?: string | null
 ): Promise<OrganizationResponse> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...getAuthHeader() };
 
   const resolvedId = organizationId ?? getStoredOrganizationId();
   if (resolvedId) {

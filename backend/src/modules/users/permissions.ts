@@ -13,6 +13,11 @@ export interface PermissionAction {
   name: string;
 }
 
+export interface PermissionCapability {
+  code: string;
+  name: string;
+}
+
 export const PERMISSION_MODULES: PermissionModule[] = [
   { code: 'dashboard', name: 'Dashboard' },
   { code: 'organization', name: 'Organization Master' },
@@ -52,6 +57,12 @@ export const PERMISSION_ACTIONS: PermissionAction[] = [
   { code: 'delete', name: 'Delete' },
   { code: 'approve', name: 'Approve' },
   { code: 'print', name: 'Print' },
+];
+
+/** Capabilities that are independent of web module permissions. */
+export const PERMISSION_CAPABILITIES: PermissionCapability[] = [
+  { code: 'mobile-app.login', name: 'Mobile App Login' },
+  { code: 'mobile-app.labour-attendance', name: 'Mobile App Labour Attendance' },
 ];
 
 export function buildPermissionCode(moduleCode: string, actionCode: string): string {

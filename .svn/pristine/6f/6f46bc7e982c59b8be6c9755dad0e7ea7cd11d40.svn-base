@@ -75,7 +75,6 @@ const UserPermissionPage: React.FC = () => {
   const [options, setOptions] = useState<PermissionOptions>({
     modules: [],
     actions: [],
-    capabilities: [],
   })
 
   const [selectedRole, setSelectedRole] = useState('')
@@ -311,29 +310,6 @@ const UserPermissionPage: React.FC = () => {
           Select a role and a user to manage their permissions.
         </div>
       ) : (
-        <>
-        {options.capabilities.length > 0 && (
-          <div className="mb-4 rounded-2xl border border-slate-100 bg-white/90 p-4 shadow-sm">
-            <div className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              App Access
-            </div>
-            {options.capabilities.map((capability) => (
-              <label
-                key={capability.code}
-                className="mr-6 inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-700 last:mr-0"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedCodes.includes(capability.code)}
-                  onChange={() => togglePermission(capability.code)}
-                  className="h-4 w-4 rounded border-slate-300 text-[#2E7D32] focus:ring-[#2E7D32]"
-                />
-                {capability.name}
-              </label>
-            ))}
-          </div>
-        )}
-
         <div className="overflow-x-auto rounded-2xl border border-slate-100 bg-white/90 shadow-sm">
           <table className="w-full min-w-[720px] border-collapse text-left">
             <thead>
@@ -431,7 +407,6 @@ const UserPermissionPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-        </>
       )}
     </div>
   )

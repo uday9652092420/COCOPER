@@ -10,8 +10,20 @@ import {
   updateProfile as updateProfileService,
 } from './profile.service.js';
 import { AppError } from '../../utils/AppError.js';
+import { readAuthToken } from '../auth/auth.token.js';
 
 function resolveIdentity(req: Request): { userId: string; userType: 'super' | 'org' } {
+  const authorization = req.header('authorization') ?? '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  const claims = token ? readAuthToken(token) : null;
+
+  if (claims) {
+    return {
+      userId: claims.sub,
+      userType: claims.isSuperAdmin ? 'super' : 'org',
+    };
+  }
+
   const userId = String(req.header('x-user-id') ?? '');
   const userType = req.header('x-user-type') === 'super' ? 'super' : 'org';
 

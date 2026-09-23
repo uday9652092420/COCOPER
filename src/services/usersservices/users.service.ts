@@ -78,9 +78,15 @@ export interface PermissionAction {
   name: string;
 }
 
+export interface PermissionCapability {
+  code: string;
+  name: string;
+}
+
 export interface PermissionOptions {
   modules: PermissionModule[];
   actions: PermissionAction[];
+  capabilities: PermissionCapability[];
 }
 
 export async function getPermissionOptions(): Promise<PermissionOptions> {

@@ -6,6 +6,8 @@
 export interface LoginPayload {
   email: string;
   password: string;
+  /** Mobile clients must explicitly identify themselves for capability checks. */
+  client?: 'web' | 'mobile';
 }
 
 export interface AuthUserResult {

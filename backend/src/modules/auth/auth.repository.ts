@@ -6,6 +6,9 @@
 import { pool } from '../../config/db.js';
 import type { AuthUserResult } from './auth.types.js';
 
+export const MOBILE_LOGIN_PERMISSION = 'mobile-app.login';
+export const MOBILE_LABOUR_ATTENDANCE_PERMISSION = 'mobile-app.labour-attendance';
+
 interface SuperUserRow {
   id: string;
   username: string;
@@ -70,6 +73,20 @@ export async function updateOrgUserLastLogin(id: string): Promise<void> {
     `UPDATE organization_users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1`,
     [id]
   );
+}
+
+export async function hasMobileLoginPermission(userId: string): Promise<boolean> {
+  const { rowCount } = await pool.query(
+    `
+    SELECT 1
+    FROM user_permissions
+    WHERE user_id = $1
+      AND permission_code IN ($2, $3)
+    LIMIT 1
+    `,
+    [userId, MOBILE_LOGIN_PERMISSION, MOBILE_LABOUR_ATTENDANCE_PERMISSION]
+  );
+  return (rowCount ?? 0) > 0;
 }
 
 export function toAuthUserResult(

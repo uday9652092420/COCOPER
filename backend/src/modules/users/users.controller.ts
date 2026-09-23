@@ -13,7 +13,11 @@ import {
   setUserPermissions as setUserPermissionsService,
   updateUser as updateUserService,
 } from './users.service.js';
-import { PERMISSION_ACTIONS, PERMISSION_MODULES } from './permissions.js';
+import {
+  PERMISSION_ACTIONS,
+  PERMISSION_CAPABILITIES,
+  PERMISSION_MODULES,
+} from './permissions.js';
 import { AppError } from '../../utils/AppError.js';
 
 interface UserParams {
@@ -103,6 +107,7 @@ export async function getPermissionOptionsHandler(
     return res.status(200).json({
       modules: PERMISSION_MODULES,
       actions: PERMISSION_ACTIONS,
+      capabilities: PERMISSION_CAPABILITIES,
     });
   } catch (error) {
     return next(new AppError('Failed to load permission options', 500, { cause: error }));

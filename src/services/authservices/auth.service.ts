@@ -55,7 +55,7 @@ export async function login(
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, client: "web" }),
   });
 
   const data = (await response.json()) as LoginRawResponse;

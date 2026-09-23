@@ -9,6 +9,7 @@ import type { LoginPayload, LoginResult } from './auth.types.js';
 import { generateAuthToken } from './auth.token.js';
 import {
   findOrgUserByEmail,
+  hasMobileLoginPermission,
   findSuperUserByUsername,
   toAuthUserResult,
   updateOrgUserLastLogin,
@@ -55,6 +56,13 @@ export async function loginService(payload: LoginPayload): Promise<LoginResult> 
     const valid = await bcrypt.compare(password, orgUser.password_hash);
 
     if (valid) {
+      if (payload.client === 'mobile') {
+        const canLoginToMobileApp = await hasMobileLoginPermission(orgUser.id);
+        if (!canLoginToMobileApp) {
+          throw new AppError('Mobile app access is not enabled for this user.', 403);
+        }
+      }
+
       await updateOrgUserLastLogin(orgUser.id);
 
       const user = toAuthUserResult(

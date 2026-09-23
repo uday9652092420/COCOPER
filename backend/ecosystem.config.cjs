@@ -46,8 +46,9 @@ module.exports = {
         DB_HOST: process.env.DB_HOST || 'localhost',
         DB_PORT: process.env.DB_PORT || '5432',
         DB_NAME: process.env.DB_NAME || 'CoconutCocktailDB',
+      
         DB_USER: process.env.DB_USER || 'postgres',
-        DB_PASSWORD: process.env.DB_PASSWORD || 'NewPassword@123',
+        DB_PASSWORD: process.env.DB_PASSWORD || 'sa@123',
         API_BASE_URL: process.env.API_BASE_URL || 'http://localhost:4004',
         FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:8000',
       },

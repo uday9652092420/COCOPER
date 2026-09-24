@@ -19,7 +19,16 @@ export function getOrgHeader(): Record<string, string> {
 
 export function getAuthHeader(): Record<string, string> {
   if (typeof window === 'undefined') return {}
-  const token = localStorage.getItem('cocoper_auth_token')
+  const persistedAuth = localStorage.getItem('cocoper_auth')
+  let persistedToken = ''
+  if (persistedAuth) {
+    try {
+      persistedToken = String((JSON.parse(persistedAuth) as { state?: { token?: string } }).state?.token ?? '')
+    } catch {
+      persistedToken = ''
+    }
+  }
+  const token = localStorage.getItem('cocoper_auth_token') || persistedToken
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 

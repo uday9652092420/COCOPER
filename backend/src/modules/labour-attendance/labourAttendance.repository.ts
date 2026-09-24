@@ -26,13 +26,53 @@ const selectColumns = `
 `;
 
 export async function listLabourAttendanceRepository(organizationId: string) {
-  const { rows } = await pool.query(
+  const { rows: webRows } = await pool.query(
     `SELECT ${selectColumns} FROM labour_attendance
      WHERE organization_id = $1
      ORDER BY attendance_date DESC, created_at DESC`,
     [organizationId]
   );
-  return rows;
+
+  const { rows: mobileRows } = await pool.query(
+    `
+    SELECT
+      id::text AS id,
+      NULL::text AS labour_id,
+      labour_name,
+      'Temporary'::text AS type,
+      TO_CHAR(attendance_date, 'YYYY-MM-DD') AS attendance_date,
+      'Both'::text AS shift,
+      TO_CHAR(in_time AT TIME ZONE 'Asia/Kolkata', 'HH24:MI') AS in_time,
+      CASE WHEN out_time IS NULL THEN NULL ELSE TO_CHAR(out_time AT TIME ZONE 'Asia/Kolkata', 'HH24:MI') END AS out_time,
+      total_working_hours AS hours,
+      0::numeric AS morning_ot,
+      0::numeric AS evening_ot,
+      0::numeric AS ot_hours,
+      0::numeric AS ot_rate,
+      0::numeric AS loading_10_tons_amount,
+      0::numeric AS loading_20_tons_amount,
+      0::numeric AS total_ot_amount,
+      organization_id,
+      CONCAT('MOBILE-', id::text) AS payment_group_id,
+      'Draft'::text AS payment_status,
+      created_at AS payment_created_at,
+      created_at,
+      'mobile'::text AS source,
+      branch_id
+    FROM mobile_labour_attendance
+    WHERE organization_id = $1
+    ORDER BY attendance_date DESC, created_at DESC
+    `,
+    [organizationId]
+  );
+
+  return [
+    ...webRows.map((row) => ({ ...row, source: "web" as const, branch_id: null })),
+    ...mobileRows,
+  ].sort((left, right) => {
+    const dateOrder = String(right.attendance_date).localeCompare(String(left.attendance_date));
+    return dateOrder || String(right.created_at).localeCompare(String(left.created_at));
+  });
 }
 
 export async function createLabourAttendanceRepository(

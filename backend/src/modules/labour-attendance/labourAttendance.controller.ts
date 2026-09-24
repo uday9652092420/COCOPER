@@ -21,7 +21,21 @@ export async function listLabourAttendanceDetailsHandler(req: Request, res: Resp
   try {
     const organizationId = requireOrganizationId(req);
     const branchId = req.header("x-branch-id") || undefined;
-    res.json({ success: true, data: await listMobileAttendanceRepo(organizationId, branchId) });
+    const rows = await listMobileAttendanceRepo(organizationId, branchId);
+    const details = rows.map((row) => ({
+      id: row.id,
+      labour_name: row.labour_name,
+      user_id: row.user_id,
+      attendance_date: row.attendance_date,
+      in_time: row.in_time,
+      out_time: row.out_time,
+      total_working_hours: Number(row.total_working_hours ?? 0),
+      is_working: row.is_working,
+      organization_id: row.organization_id,
+      branch_id: row.branch_id,
+      source: 'mobile' as const,
+    }));
+    res.json({ success: true, data: details });
   } catch (error: any) {
     res.status(error.status || 500).json({ success: false, message: error.message || "Failed to fetch labour attendance details" });
   }

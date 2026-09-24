@@ -25,7 +25,16 @@ function getRuntimeApiUrl(): string {
 function getBuildTimeApiUrl(): string {
   try {
     // Replaced at build time by esbuild `define` (see scripts/build.mjs).
-    return import.meta.env.VITE_BASE_API_URL || ''
+    const configuredUrl = import.meta.env.VITE_BASE_API_URL || ''
+    if (
+      configuredUrl &&
+      typeof window !== 'undefined' &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1'
+    ) {
+      return configuredUrl.replace('://localhost:', `://${window.location.hostname}:`)
+    }
+    return configuredUrl
   } catch {
     return ''
   }

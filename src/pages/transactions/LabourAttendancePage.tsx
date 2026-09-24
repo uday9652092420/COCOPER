@@ -81,6 +81,7 @@ interface ExtendedAttendance {
   paymentGroupId: string
   paymentStatus: 'Draft' | 'Approved'
   paymentCreatedAt: string
+  source: 'web' | 'mobile'
 }
 
 interface LabourPaymentSummary {
@@ -146,7 +147,7 @@ const LabourAttendancePage: React.FC = () => {
     attendanceDate: row.attendance_date,
     shift: row.shift,
     inTime: row.in_time,
-    outTime: row.out_time,
+    outTime: row.out_time || '',
     hours: Number(row.hours || 0),
     otHours: Number(row.ot_hours || 0),
     otRate: Number(row.ot_rate || DEFAULT_OT_RATE),
@@ -158,6 +159,7 @@ const LabourAttendancePage: React.FC = () => {
     paymentGroupId: row.payment_group_id || row.id,
     paymentStatus: String(row.payment_status || 'Draft').toLowerCase() === 'approved' ? 'Approved' : 'Draft',
     paymentCreatedAt: row.payment_created_at || row.created_at || '',
+    source: row.source || 'web',
   })
 
   const loadData = async () => {
@@ -640,11 +642,11 @@ const LabourAttendancePage: React.FC = () => {
         getRowId={(row) => row.id}
         loading={loading}
         onView={(row) => openPaymentDetails(row, 'view')}
-        onEdit={canEdit ? (row) => openPaymentDetails(row, 'edit') : undefined}
-        onApprove={canApprove ? (row) => void handleApprove(row) : undefined}
+        onEdit={canEdit ? (row) => row.records.every((record) => record.source === 'web') ? openPaymentDetails(row, 'edit') : undefined : undefined}
+        onApprove={canApprove ? (row) => row.records.every((record) => record.source === 'web') ? void handleApprove(row) : undefined : undefined}
         onPrint={canPrint ? (row) => printPayments(false, [row]) : undefined}
         isRowApproved={(row) => row.status === 'Approved'}
-        onDelete={canDelete ? (row) => setConfirmDeleteSummary(row) : undefined}
+        onDelete={canDelete ? (row) => row.records.every((record) => record.source === 'web') ? setConfirmDeleteSummary(row) : undefined : undefined}
       />
 
       <PaginationControls currentPage={safeCurrentPage} totalPages={totalPages} onPageChange={setCurrentPage} />

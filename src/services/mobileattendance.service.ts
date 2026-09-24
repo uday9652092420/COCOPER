@@ -4,14 +4,15 @@ import { getBranchHeader, getOrgHeader } from '../utils/apiHeaders'
 export interface MobileAttendanceDetails {
   id: string
   labour_name: string
-  user_id: string
+  user_id: string | null
   attendance_date: string
   in_time: string
   out_time: string | null
   total_working_hours: number
   is_working: boolean
   organization_id: string
-  branch_id: string
+  branch_id: string | null
+  source: 'web' | 'mobile'
 }
 
 export async function getMobileAttendanceDetails(): Promise<MobileAttendanceDetails[]> {

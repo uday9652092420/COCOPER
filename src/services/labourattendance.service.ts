@@ -9,7 +9,7 @@ export interface LabourAttendanceResponse {
   attendance_date: string;
   shift: "Morning" | "Evening" | "Night" | "Both";
   in_time: string;
-  out_time: string;
+  out_time: string | null;
   hours: number;
   morning_ot: number;
   evening_ot: number;
@@ -23,6 +23,8 @@ export interface LabourAttendanceResponse {
   payment_group_id?: string | null;
   payment_status?: 'Draft' | 'Approved';
   payment_created_at?: string;
+  source?: 'web' | 'mobile';
+  branch_id?: string | null;
 }
 
 export interface LabourAttendancePayload {

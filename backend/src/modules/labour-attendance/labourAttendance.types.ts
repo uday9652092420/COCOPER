@@ -20,6 +20,8 @@ export interface LabourAttendanceRecord {
   payment_group_id: string;
   payment_status: "Draft" | "Approved";
   payment_created_at: string;
+  source?: "web" | "mobile";
+  branch_id?: string | null;
 }
 
 export interface LabourAttendancePayload {

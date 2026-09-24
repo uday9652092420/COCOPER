@@ -39,6 +39,7 @@ export interface LoginResult {
  */
 interface AuthState {
   user: AuthUser | null
+  token: string | null
   selectedOrganizationId: string | null
   login: (username: string, password: string) => Promise<LoginResult>
   logout: () => Promise<void>
@@ -53,6 +54,7 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
   user: null,
+    token: null,
   selectedOrganizationId: null,
 
   login: async (username: string, password: string) => {
@@ -81,6 +83,7 @@ export const useAuthStore = create<AuthState>()(
 
       set({
         user,
+        token: data.token,
         selectedOrganizationId: data.user.organizationId,
       })
       localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.token)
@@ -112,7 +115,7 @@ export const useAuthStore = create<AuthState>()(
     localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
     localStorage.removeItem('cocoper_org_id')
     localStorage.removeItem('cocoper_branch_id')
-    set({ user: null, selectedOrganizationId: null })
+    set({ user: null, token: null, selectedOrganizationId: null })
   },
 
   setSelectedOrganization: (organizationId: string | null) => {
@@ -134,6 +137,7 @@ export const useAuthStore = create<AuthState>()(
     name: 'cocoper_auth',
     partialize: (state) => ({
       user: state.user,
+      token: state.token,
       selectedOrganizationId: state.selectedOrganizationId,
     }),
   }

@@ -81,6 +81,9 @@ const todayDDMMYYYY = (): string => {
 
 const PURCHASE_INVOICE_PAGE_SIZE = 10
 
+const calculateBaseCost = (amount: number, pieces: number): number =>
+  pieces > 0 && Number.isFinite(amount / pieces) ? Number((amount / pieces).toFixed(2)) : 0
+
 /**
  * @interface PurchaseInvoiceFormValues
  * @description Form shape used inside purchase invoice modal.
@@ -96,6 +99,7 @@ interface PurchaseInvoiceFormValues extends FieldValues {
     quantity?: string
     discount?: string
     piecesPercentage?: string
+    pieces?: string
     actualQuantity?: number
     purchaseCost?: string
     purchaseAmount?: number
@@ -154,12 +158,13 @@ const PurchaseInvoiceModal: React.FC<{
             quantity: String(l.quantityTons ?? ''),
             discount: String(l.discount ?? (((Number(l.quantityTons ?? 0) * Number(l.piecesPercentage ?? 0)) / 100) || '')),
             piecesPercentage: String(l.piecesPercentage ?? ''),
+            pieces: String(Number(l.pieces ?? 0) || ''),
             actualQuantity: Math.round(Number(l.actualQuantity ?? 0)),
             purchaseCost: l.purchaseCost !== undefined ? String(l.purchaseCost) : '',
             purchaseAmount: l.purchaseAmount ?? 0,
             locked: Boolean(existing.purchaseOrderId),
           })) ?? [
-            { itemId: '', quantity: '', discount: '', piecesPercentage: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0 },
+            { itemId: '', quantity: '', discount: '', piecesPercentage: '', pieces: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0 },
           ],
         loadingCost: Number(existing.loadingCost) || 0,
         marketCess: Number(existing.marketCess) || 0,
@@ -173,7 +178,7 @@ const PurchaseInvoiceModal: React.FC<{
       purchaseOrderId: '',
       invoiceNo: generatePINumber(),
       invoiceDate: todayDDMMYYYY(),
-      lines: [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0 }],
+      lines: [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', pieces: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0 }],
       loadingCost: 0,
       marketCess: 0,
       bagsAndSticks: 0,
@@ -224,6 +229,7 @@ const PurchaseInvoiceModal: React.FC<{
       quantity: String(line.quantity ?? ''),
       discount: String(line.discount ?? ''),
       piecesPercentage: String(line.piecesPercentage ?? ''),
+      pieces: String(Number(line.pieces ?? 0) || ''),
       actualQuantity: line.actualQuantity ?? 0,
       purchaseCost: String(line.purchaseCost ?? ''),
       purchaseAmount: line.purchaseAmount ?? line.amount ?? 0,
@@ -321,6 +327,8 @@ const PurchaseInvoiceModal: React.FC<{
       quantityTons: Number(l.quantity) || 0,
       discount: Number(l.discount) || 0,
       piecesPercentage: piecesMode ? Number(l.piecesPercentage) || 0 : 0,
+      pieces: Number(l.pieces) || 0,
+      baseCost: calculateBaseCost(Number(l.purchaseAmount) || 0, Number(l.pieces) || 0),
       actualQuantity: Number(l.actualQuantity) || 0,
       purchaseCost: Number(l.purchaseCost) || 0,
       purchaseAmount: Number(l.purchaseAmount) || 0,
@@ -492,6 +500,7 @@ const PurchaseInvoiceModal: React.FC<{
                     quantity: '',
                     discount: '',
                     piecesPercentage: '',
+                    pieces: '',
                     actualQuantity: 0,
                     purchaseCost: '',
                     purchaseAmount: 0,
@@ -514,6 +523,7 @@ const PurchaseInvoiceModal: React.FC<{
                     <th className="px-3 py-2">Actual Quantity</th>
                     <th className="px-3 py-2">Purchase Cost</th>
                     <th className="px-3 py-2">Purchase Amount</th>
+                    <th className="px-3 py-2">Pieces</th>
                     <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -592,6 +602,15 @@ const PurchaseInvoiceModal: React.FC<{
                             {formatAmount(Number(arr[index]?.purchaseAmount ?? 0))}
                           </div>
                       </td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          disabled={isApproved}
+                          className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
+                          {...register(`lines.${index}.pieces` as const)}
+                        />
+                      </td>
                       <td className="px-3 py-1.5 text-right">
                         <button type="button" disabled={isApproved || Boolean(field.locked)} onClick={() => linesField.remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100 disabled:hidden">
                           Remove
@@ -601,7 +620,7 @@ const PurchaseInvoiceModal: React.FC<{
                   ))}
                   {linesField.fields.length === 0 && (
                     <tr className="border-t border-slate-100">
-                      <td colSpan={7} className="px-3 py-4 text-center text-slate-400">
+                      <td colSpan={mode !== 'lessing' && piecesMode ? 10 : 9} className="px-3 py-4 text-center text-slate-400">
                         No line items
                       </td>
                     </tr>
@@ -611,11 +630,9 @@ const PurchaseInvoiceModal: React.FC<{
                   <tr className="border-t bg-slate-50">
                     <td className="px-3 py-2 font-semibold text-slate-700">Total Lines Amount</td>
                     <td className="px-3 py-2 font-semibold text-slate-700">{totalQuantity}</td>
-                    <td className="px-3 py-2" />
-                    <td className="px-3 py-2" />
-                    <td className="px-3 py-2" />
+                    <td className="px-3 py-2" colSpan={mode !== 'lessing' && piecesMode ? 4 : 3} />
                     <td className="px-3 py-2 font-semibold text-slate-700">{formatAmount(totalAmount)}</td>
-                    <td className="px-3 py-2" />
+                    <td className="px-3 py-2" colSpan={2} />
                   </tr>
                 </tfoot>
               </table>
@@ -735,6 +752,7 @@ const ViewPurchaseInvoiceModal: React.FC<{
                   <th className="px-3 py-2">Actual Qty</th>
                   <th className="px-3 py-2">Purchase Cost</th>
                   <th className="px-3 py-2 text-right">Purchase Amount</th>
+                  <th className="px-3 py-2 text-right">Pieces</th>
                 </tr>
               </thead>
               <tbody>
@@ -748,6 +766,7 @@ const ViewPurchaseInvoiceModal: React.FC<{
                       <td className="px-3 py-1.5">{Math.round(Number(l.actualQuantity ?? 0))}</td>
                       <td className="px-3 py-1.5">{Number(l.purchaseCost ?? 0).toFixed(2)}</td>
                       <td className="px-3 py-1.5 text-right font-semibold">{formatAmount(Number(l.purchaseAmount ?? 0))}</td>
+                      <td className="px-3 py-1.5 text-right">{Number(l.pieces ?? 0)}</td>
                     </tr>
                   )
                 })}
@@ -758,6 +777,7 @@ const ViewPurchaseInvoiceModal: React.FC<{
                     Lines Total
                   </td>
                   <td className="px-3 py-2 text-right font-semibold text-slate-700">{formatAmount(linesTotal)}</td>
+                  <td className="px-3 py-2" />
                 </tr>
                 {charges > 0 && (
                   <tr className="border-t bg-slate-50">
@@ -765,6 +785,7 @@ const ViewPurchaseInvoiceModal: React.FC<{
                       Additional Charges
                     </td>
                     <td className="px-3 py-2 text-right font-semibold text-slate-700">{charges.toFixed(2)}</td>
+                    <td className="px-3 py-2" />
                   </tr>
                 )}
                 <tr className="border-t bg-slate-100">
@@ -772,6 +793,7 @@ const ViewPurchaseInvoiceModal: React.FC<{
                     Grand Total
                   </td>
                   <td className="px-3 py-2 text-right font-bold text-slate-800">{Number(invoice.grandTotal ?? 0).toFixed(2)}</td>
+                  <td className="px-3 py-2" />
                 </tr>
               </tfoot>
             </table>
@@ -996,6 +1018,8 @@ const PurchaseInvoicePage: React.FC = () => {
           quantityTons: l.quantityTons,
           discount: l.discount,
           piecesPercentage: l.piecesPercentage ?? 0,
+          pieces: l.pieces ?? 0,
+          baseCost: calculateBaseCost(Number(l.purchaseAmount ?? 0), Number(l.pieces ?? 0)),
           actualQuantity: l.actualQuantity ?? 0,
           purchaseCost: l.purchaseCost,
           purchaseAmount: l.purchaseAmount,
@@ -1057,6 +1081,7 @@ const PurchaseInvoicePage: React.FC = () => {
           <td class="right">${Math.round(Number(l.actualQuantity ?? 0))}</td>
           <td class="right">${Number(l.purchaseCost ?? 0).toFixed(2)}</td>
           <td class="right">${formatAmount(Number(l.purchaseAmount ?? 0))}</td>
+          <td class="right">${Number(l.pieces ?? 0)}</td>
         </tr>`
       })
       .join('')
@@ -1108,6 +1133,7 @@ const PurchaseInvoicePage: React.FC = () => {
         <th class="right">Actual Qty</th>
         <th class="right">Purchase Cost</th>
         <th class="right">Purchase Amount</th>
+        <th class="right">Pieces</th>
       </tr>
     </thead>
     <tbody>${lineRows}</tbody>
@@ -1115,18 +1141,21 @@ const PurchaseInvoicePage: React.FC = () => {
       <tr>
         <td colspan="6" class="right">Lines Total</td>
         <td class="right total">${formatAmount(linesTotal)}</td>
+        <td></td>
       </tr>
       ${
         charges > 0
           ? `<tr>
         <td colspan="6" class="right">Additional Charges</td>
         <td class="right">${charges.toFixed(2)}</td>
+        <td></td>
       </tr>`
           : ''
       }
       <tr>
         <td colspan="6" class="right">Grand Total</td>
         <td class="right total">${formatAmount(Number(row.grandTotal ?? 0))}</td>
+        <td></td>
       </tr>
     </tfoot>
   </table>

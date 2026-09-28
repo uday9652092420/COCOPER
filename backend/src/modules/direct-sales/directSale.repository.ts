@@ -5,7 +5,10 @@ let directSaleSchemaReady: Promise<void> | null = null
 async function ensureDirectSaleSchema(): Promise<void> {
   if (!directSaleSchemaReady) {
     directSaleSchemaReady = pool
-      .query('ALTER TABLE direct_sale_items ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0')
+      .query(`ALTER TABLE direct_sale_items
+        ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS pieces NUMERIC NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS base_cost NUMERIC NOT NULL DEFAULT 0`)
       .then(() => undefined)
       .catch((error) => {
         directSaleSchemaReady = null
@@ -26,7 +29,7 @@ type SalePayload = {
   mode?: string
   invoiceTotal?: number
   charges?: { gunnyBags?: number; transportation?: number; loadingCharges?: number }
-  lines?: Array<{ id?: string; itemId: string; quantity: number; discount: number; piecesPercentage?: number; actualQuantity?: number; salesPrice: number; salesAmount: number }>
+  lines?: Array<{ id?: string; itemId: string; quantity: number; discount: number; piecesPercentage?: number; pieces?: number; baseCost?: number; actualQuantity?: number; salesPrice: number; salesAmount: number }>
   gunnyBags?: Array<{ bagTypeId: string; bagBharthi?: string; bharthiTypeId?: string; quantity: number; rate: number; amount: number }>
 }
 
@@ -76,6 +79,8 @@ export async function listDirectSales(organizationId?: string | null) {
              'quantity', dsi.qty,
              'discount', dsi.discount,
              'piecesPercentage', dsi.pieces_percentage,
+             'pieces', dsi.pieces,
+             'baseCost', dsi.base_cost,
              'actualQuantity', dsi.actual_quantity,
              'salesPrice', dsi.rate,
              'salesAmount', dsi.amount
@@ -208,9 +213,9 @@ export async function createDirectSale(payload: SalePayload) {
         if (itemStockUpdate.rowCount !== 1) throw new Error(`Insufficient total stock for item ${item.rows[0].code}`)
       }
       await client.query(
-        `INSERT INTO direct_sale_items (id, direct_sale_id, item_id, qty, discount, pieces_percentage, actual_quantity, rate, amount)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [line.id || `DSL-${Date.now()}-${index}`, id, line.itemId, line.quantity, line.discount, line.piecesPercentage ?? 0, actualQuantity, line.salesPrice, line.salesAmount]
+        `INSERT INTO direct_sale_items (id, direct_sale_id, item_id, qty, discount, pieces_percentage, pieces, base_cost, actual_quantity, rate, amount)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [line.id || `DSL-${Date.now()}-${index}`, id, line.itemId, line.quantity, line.discount, line.piecesPercentage ?? 0, line.pieces ?? 0, Number(line.pieces) > 0 ? Number((Number(line.salesAmount) / Number(line.pieces)).toFixed(2)) : 0, actualQuantity, line.salesPrice, line.salesAmount]
       )
     }
 

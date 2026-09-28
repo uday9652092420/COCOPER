@@ -38,6 +38,9 @@ const todayDDMMYYYY = (): string => {
 
 const DIRECT_SALES_PAGE_SIZE = 10
 
+const calculateBaseCost = (amount: number, pieces: number): number =>
+  pieces > 0 ? Number((amount / pieces).toFixed(2)) : 0
+
 function escapeHtml(value: unknown): string {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -63,6 +66,7 @@ interface DirectSalesFormValues extends FieldValues {
     quantity: number
     discount: number
     piecesPercentage: number
+    pieces: number
     actualQuantity: number
     salesPrice: number
     salesAmount: number
@@ -160,7 +164,7 @@ const DirectSalesModal: React.FC<{
         branchId: '',
         salesOrderNo: '',
         invoiceDate: todayDDMMYYYY(),
-        lines: [{ itemId: '', quantity: 0, discount: 0, piecesPercentage: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 }],
+        lines: [{ itemId: '', quantity: 0, discount: 0, piecesPercentage: 0, pieces: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 }],
         gunnyBags: [{ bagTypeId: '', quantity: 0, rate: 0, amount: 0 }],
         loadingCharges: 0,
       } as DirectSalesFormValues),
@@ -206,6 +210,7 @@ const DirectSalesModal: React.FC<{
                 quantity: l.quantity,
                 discount: l.discount ?? ((Number(l.quantity ?? 0) * Number(l.piecesPercentage ?? 0)) / 100),
                 piecesPercentage: l.piecesPercentage ?? 0,
+                pieces: l.pieces ?? 0,
                 actualQuantity: l.salesAmount && l.salesPrice ? Number((l.salesAmount / l.salesPrice).toFixed(6)) : 0,
                 salesPrice: l.salesPrice ?? 0,
                 salesAmount: l.salesAmount ?? 0,
@@ -215,6 +220,7 @@ const DirectSalesModal: React.FC<{
                   quantity: 0,
                   discount: 0,
                   piecesPercentage: 0,
+                  pieces: 0,
                   actualQuantity: 0,
                   salesPrice: 0,
                   salesAmount: 0,
@@ -238,7 +244,7 @@ const DirectSalesModal: React.FC<{
             branchId: '',
             salesOrderNo: '',
             invoiceDate: todayDDMMYYYY(),
-            lines: [{ itemId: '', quantity: 0, discount: 0, piecesPercentage: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 }],
+            lines: [{ itemId: '', quantity: 0, discount: 0, piecesPercentage: 0, pieces: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 }],
             gunnyBags: [{ bagTypeId: '', bagBharthi: '', quantity: 0, rate: 0, amount: 0 }],
             loadingCharges: 0,
           }
@@ -267,6 +273,7 @@ const DirectSalesModal: React.FC<{
       quantity: line.quantity,
       discount: line.discount,
       piecesPercentage: line.piecesPercentage ?? 0,
+      pieces: line.pieces ?? 0,
       actualQuantity: line.actualQuantity,
       salesPrice: line.saleCost,
       salesAmount: line.saleAmount,
@@ -361,6 +368,8 @@ const DirectSalesModal: React.FC<{
       quantity: Number(l.quantity),
       discount: Number(l.discount),
       piecesPercentage: piecesMode ? Number(l.piecesPercentage) || 0 : 0,
+      pieces: Number(l.pieces) || 0,
+      baseCost: calculateBaseCost(Number(l.salesAmount) || 0, Number(l.pieces) || 0),
       actualQuantity: Number(l.actualQuantity),
       salesPrice: Number(l.salesPrice),
       salesAmount: Number(l.salesAmount),
@@ -509,7 +518,7 @@ const DirectSalesModal: React.FC<{
               <p className="text-[11px] font-medium text-slate-700">Sales Details</p>
               {!selectedSalesOrderNo && !isReadOnly && <button
                 type="button"
-                onClick={() => linesField.append({ itemId: '', quantity: 0, discount: 0, piecesPercentage: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 })}
+                onClick={() => linesField.append({ itemId: '', quantity: 0, discount: 0, piecesPercentage: 0, pieces: 0, actualQuantity: 0, salesPrice: 0, salesAmount: 0 })}
                 className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
               >
                 Add Line
@@ -526,6 +535,7 @@ const DirectSalesModal: React.FC<{
                     <th className="px-3 py-2">Actual Quantity</th>
                     <th className="px-3 py-2">Sales Price</th>
                     <th className="px-3 py-2">Sales Amount</th>
+                    <th className="px-3 py-2">Pieces</th>
                     {!selectedSalesOrderNo && <th className="px-3 py-2 text-right">Actions</th>}
                   </tr>
                 </thead>
@@ -600,6 +610,16 @@ const DirectSalesModal: React.FC<{
                         </div>
                         <input type="hidden" {...register(`lines.${index}.salesAmount` as const, { valueAsNumber: true })} />
                       </td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          disabled={Boolean(selectedSalesOrderNo) || isApproved}
+                          className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:bg-slate-100"
+                          {...register(`lines.${index}.pieces` as const, { valueAsNumber: true })}
+                        />
+                      </td>
                       {!selectedSalesOrderNo && !isReadOnly && <td className="px-3 py-1.5 text-right">
                         <button type="button" onClick={() => linesField.remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100">
                           Remove
@@ -610,9 +630,9 @@ const DirectSalesModal: React.FC<{
                 </tbody>
                 <tfoot>
                   <tr className="border-t bg-slate-50">
-                    <td colSpan={selectedSalesOrderNo ? 5 : 5} className="px-3 py-2 font-semibold text-slate-700">Total Sales Line Amount</td>
+                    <td colSpan={piecesMode ? 6 : 5} className="px-3 py-2 font-semibold text-slate-700">Total Sales Line Amount</td>
                     <td className="px-3 py-2 font-semibold text-slate-700">{formatAmount(lineTotal)}</td>
-                    {!selectedSalesOrderNo && <td />}
+                    <td colSpan={selectedSalesOrderNo ? 1 : 2} />
                   </tr>
                 </tfoot>
               </table>
@@ -1052,6 +1072,7 @@ const DirectSalesPage: React.FC = () => {
         <td style="text-align:right">${Number(line.actualQuantity ?? 0).toFixed(2)}</td>
         <td style="text-align:right">${Number(line.salesPrice ?? 0).toFixed(2)}</td>
         <td style="text-align:right">${formatAmount(amount)}</td>
+        <td style="text-align:right">${Number(line.pieces ?? 0)}</td>
       </tr>`
     }).join('')
 
@@ -1101,24 +1122,25 @@ const DirectSalesPage: React.FC = () => {
         <th class="right">Actual Qty</th>
         <th class="right">Sales Price</th>
         <th class="right">Sales Amount</th>
+        <th class="right">Pieces</th>
       </tr>
     </thead>
     <tbody>${itemRows}</tbody>
     <tfoot>
       <tr>
-        <td colspan="6" class="right">Total Sales Lines Amount</td>
+        <td colspan="7" class="right">Total Sales Lines Amount</td>
         <td class="right total">${formatAmount(lineTotal)}</td>
       </tr>
       <tr>
-        <td colspan="6" class="right">Gunny Bags Line Amount</td>
+        <td colspan="7" class="right">Gunny Bags Line Amount</td>
         <td class="right">${formatAmount(gunnyTotal)}</td>
       </tr>
       <tr>
-        <td colspan="6" class="right">Other Charges</td>
+        <td colspan="7" class="right">Other Charges</td>
         <td class="right">${formatAmount(otherCharges)}</td>
       </tr>
       <tr>
-        <td colspan="6" class="right">Invoice Total</td>
+        <td colspan="7" class="right">Invoice Total</td>
         <td class="right total">${formatAmount(total)}</td>
       </tr>
     </tfoot>

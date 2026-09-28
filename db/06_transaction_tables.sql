@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
   quantity NUMERIC DEFAULT 0,
   discount NUMERIC DEFAULT 0,
   pieces_percentage NUMERIC DEFAULT 0,
+  pieces NUMERIC NOT NULL DEFAULT 0,
+  base_cost NUMERIC NOT NULL DEFAULT 0,
   actual_quantity NUMERIC DEFAULT 0,
   purchase_cost NUMERIC DEFAULT 0,
   purchase_amount NUMERIC DEFAULT 0,
@@ -70,6 +72,8 @@ END $$;
 ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS quantity NUMERIC DEFAULT 0;
 ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS discount NUMERIC DEFAULT 0;
 ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0;
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS pieces NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS base_cost NUMERIC NOT NULL DEFAULT 0;
 ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS actual_quantity NUMERIC DEFAULT 0;
 ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS purchase_cost NUMERIC DEFAULT 0;
 ALTER TABLE purchase_order_items ADD COLUMN IF NOT EXISTS purchase_amount NUMERIC DEFAULT 0;
@@ -127,6 +131,8 @@ CREATE TABLE IF NOT EXISTS purchase_invoice_items (
   quantity_tons NUMERIC DEFAULT 0,
   discount NUMERIC DEFAULT 0,
   pieces_percentage NUMERIC DEFAULT 0,
+  pieces NUMERIC NOT NULL DEFAULT 0,
+  base_cost NUMERIC NOT NULL DEFAULT 0,
   actual_quantity NUMERIC DEFAULT 0,
   purchase_cost NUMERIC DEFAULT 0,
   purchase_amount NUMERIC DEFAULT 0,
@@ -149,6 +155,8 @@ ALTER TABLE purchase_invoices ALTER COLUMN status TYPE TEXT USING status::text;
 ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS quantity_tons NUMERIC DEFAULT 0;
 ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS discount NUMERIC DEFAULT 0;
 ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0;
+ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS pieces NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS base_cost NUMERIC NOT NULL DEFAULT 0;
 ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS actual_quantity NUMERIC DEFAULT 0;
 ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS purchase_cost NUMERIC DEFAULT 0;
 ALTER TABLE purchase_invoice_items ADD COLUMN IF NOT EXISTS purchase_amount NUMERIC DEFAULT 0;
@@ -202,12 +210,17 @@ CREATE TABLE IF NOT EXISTS sales_order_items (
   quantity NUMERIC DEFAULT 0,
   discount NUMERIC DEFAULT 0,
   pieces_percentage NUMERIC DEFAULT 0,
+  pieces NUMERIC NOT NULL DEFAULT 0,
+  base_cost NUMERIC NOT NULL DEFAULT 0,
   actual_quantity NUMERIC DEFAULT 0,
   sale_cost NUMERIC DEFAULT 0,
   sale_amount NUMERIC DEFAULT 0,
   amount NUMERIC DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS pieces NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE sales_order_items ADD COLUMN IF NOT EXISTS base_cost NUMERIC NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS direct_sale_gunny_bags (
   id TEXT PRIMARY KEY,

@@ -97,6 +97,8 @@ export interface PurchaseOrderLine {
   quantity: number
   discount: number
   piecesPercentage?: number
+  pieces?: number
+  baseCost?: number
   actualQuantity?: number
   purchaseCost: number
   purchaseAmount?: number
@@ -130,6 +132,8 @@ export interface PurchaseInvoiceLine {
   quantityTons: number
   discount: number
   piecesPercentage?: number
+  pieces?: number
+  baseCost?: number
   actualQuantity?: number
   purchaseCost: number
   purchaseAmount: number
@@ -195,6 +199,8 @@ export interface DirectSalesLine {
   quantity: number
   discount: number
   piecesPercentage?: number
+  pieces?: number
+  baseCost?: number
   actualQuantity?: number
   salesPrice: number
   salesAmount: number

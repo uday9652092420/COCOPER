@@ -10,6 +10,9 @@ import {
   PurchaseInvoiceUpdateDTO,
 } from "./purchaseInvoice.types.js";
 
+const calculateBaseCost = (amount: number, pieces: number): number =>
+  pieces > 0 ? Math.round((amount / pieces) * 100) / 100 : 0
+
 let purchaseInvoiceSchemaReady: Promise<void> | null = null;
 
 async function ensurePurchaseInvoiceSchema(): Promise<void> {
@@ -17,7 +20,9 @@ async function ensurePurchaseInvoiceSchema(): Promise<void> {
     purchaseInvoiceSchemaReady = pool
       .query(
         `ALTER TABLE purchase_invoice_items
-         ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0`
+         ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS pieces NUMERIC DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS base_cost NUMERIC DEFAULT 0`
       )
       .then(() => undefined)
       .catch((error) => {
@@ -55,6 +60,8 @@ const PI_SELECT = `
           'quantityTons', pii.quantity_tons,
           'discount', pii.discount,
           'piecesPercentage', pii.pieces_percentage,
+          'pieces', pii.pieces,
+          'baseCost', pii.base_cost,
           'actualQuantity', pii.actual_quantity,
           'purchaseCost', pii.purchase_cost,
           'purchaseAmount', pii.purchase_amount
@@ -137,8 +144,8 @@ export async function createPurchaseInvoiceRepo(
     for (const [i, l] of (payload.lines || []).entries()) {
       await client.query(
         `INSERT INTO purchase_invoice_items
-          (id, purchase_invoice_id, item_id, quantity_tons, discount, pieces_percentage, actual_quantity, purchase_cost, purchase_amount)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          (id, purchase_invoice_id, item_id, quantity_tons, discount, pieces_percentage, pieces, base_cost, actual_quantity, purchase_cost, purchase_amount)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
         [
           `PIL-${Date.now()}-${i}`,
           id,
@@ -146,6 +153,8 @@ export async function createPurchaseInvoiceRepo(
           l.quantityTons ?? 0,
           l.discount ?? 0,
           l.piecesPercentage ?? 0,
+          l.pieces ?? 0,
+          calculateBaseCost(Number(l.purchaseAmount ?? 0), Number(l.pieces ?? 0)),
           l.actualQuantity ?? 0,
           l.purchaseCost ?? 0,
           l.purchaseAmount ?? 0,
@@ -239,8 +248,8 @@ export async function updatePurchaseInvoiceRepo(
       for (const [i, l] of payload.lines.entries()) {
         await client.query(
           `INSERT INTO purchase_invoice_items
-            (id, purchase_invoice_id, item_id, quantity_tons, discount, pieces_percentage, actual_quantity, purchase_cost, purchase_amount)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+            (id, purchase_invoice_id, item_id, quantity_tons, discount, pieces_percentage, pieces, base_cost, actual_quantity, purchase_cost, purchase_amount)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
           [
             `PIL-${Date.now()}-${i}`,
             id,
@@ -248,6 +257,8 @@ export async function updatePurchaseInvoiceRepo(
             l.quantityTons ?? 0,
             l.discount ?? 0,
             l.piecesPercentage ?? 0,
+            l.pieces ?? 0,
+            calculateBaseCost(Number(l.purchaseAmount ?? 0), Number(l.pieces ?? 0)),
             l.actualQuantity ?? 0,
             l.purchaseCost ?? 0,
             l.purchaseAmount ?? 0,

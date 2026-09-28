@@ -9,6 +9,8 @@ export interface SalesOrderItem {
   quantity: number
   discount: number
   piecesPercentage?: number
+  pieces?: number
+  baseCost?: number
   actualQuantity: number
   saleCost: number
   saleAmount: number

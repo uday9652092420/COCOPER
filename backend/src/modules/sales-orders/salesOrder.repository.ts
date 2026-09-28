@@ -10,6 +10,9 @@ import {
   SalesOrderUpdateDTO,
 } from "./salesOrder.types.js";
 
+const calculateBaseCost = (amount: number, pieces: number): number =>
+  pieces > 0 ? Math.round((amount / pieces) * 100) / 100 : 0
+
 let salesOrderSchemaReady: Promise<void> | null = null;
 
 async function ensureSalesOrderSchema(): Promise<void> {
@@ -17,7 +20,9 @@ async function ensureSalesOrderSchema(): Promise<void> {
     salesOrderSchemaReady = pool
       .query(
         `ALTER TABLE sales_order_items
-         ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0`
+         ADD COLUMN IF NOT EXISTS pieces_percentage NUMERIC DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS pieces NUMERIC DEFAULT 0,
+         ADD COLUMN IF NOT EXISTS base_cost NUMERIC DEFAULT 0`
       )
       .then(() => undefined)
       .catch((error) => {
@@ -58,6 +63,8 @@ const SO_SELECT = `
           'quantity', soi.quantity,
           'discount', soi.discount,
           'piecesPercentage', soi.pieces_percentage,
+          'pieces', soi.pieces,
+          'baseCost', soi.base_cost,
           'actualQuantity', soi.actual_quantity,
           'saleCost', soi.sale_cost,
           'saleAmount', soi.sale_amount,
@@ -127,8 +134,8 @@ export async function createSalesOrderRepo(
     for (const [i, l] of (payload.lines || []).entries()) {
       await client.query(
         `INSERT INTO sales_order_items
-          (id, sales_order_id, item_id, quantity, discount, pieces_percentage, actual_quantity, sale_cost, sale_amount, amount)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          (id, sales_order_id, item_id, quantity, discount, pieces_percentage, pieces, base_cost, actual_quantity, sale_cost, sale_amount, amount)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
         [
           `SOL-${Date.now()}-${i}`,
           id,
@@ -136,6 +143,8 @@ export async function createSalesOrderRepo(
           l.quantity ?? 0,
           l.discount ?? 0,
           l.piecesPercentage ?? 0,
+          l.pieces ?? 0,
+          calculateBaseCost(Number(l.saleAmount ?? l.amount ?? 0), Number(l.pieces ?? 0)),
           l.actualQuantity ?? 0,
           l.saleCost ?? 0,
           l.saleAmount ?? 0,
@@ -195,8 +204,8 @@ export async function updateSalesOrderRepo(
       for (const [i, l] of payload.lines.entries()) {
         await client.query(
           `INSERT INTO sales_order_items
-            (id, sales_order_id, item_id, quantity, discount, pieces_percentage, actual_quantity, sale_cost, sale_amount, amount)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+            (id, sales_order_id, item_id, quantity, discount, pieces_percentage, pieces, base_cost, actual_quantity, sale_cost, sale_amount, amount)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
           [
             `SOL-${Date.now()}-${i}`,
             id,
@@ -204,6 +213,8 @@ export async function updateSalesOrderRepo(
             l.quantity ?? 0,
             l.discount ?? 0,
             l.piecesPercentage ?? 0,
+            l.pieces ?? 0,
+            calculateBaseCost(Number(l.saleAmount ?? l.amount ?? 0), Number(l.pieces ?? 0)),
             l.actualQuantity ?? 0,
             l.saleCost ?? 0,
             l.saleAmount ?? 0,

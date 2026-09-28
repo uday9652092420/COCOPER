@@ -9,6 +9,8 @@ export interface PurchaseInvoiceItem {
   quantityTons: number
   discount: number
   piecesPercentage?: number
+  pieces?: number
+  baseCost?: number
   actualQuantity: number
   purchaseCost: number
   purchaseAmount: number

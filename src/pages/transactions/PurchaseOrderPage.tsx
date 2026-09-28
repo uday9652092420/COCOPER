@@ -91,6 +91,9 @@ const roundValue = (value: number, digits = 0): number => {
   return Math.round(value * factor) / factor
 }
 
+const calculateBaseCost = (amount: number, pieces: number): number =>
+  pieces > 0 ? roundValue(amount / pieces, 2) : 0
+
 /**
  * @description Sales order created by converting an approved purchase order.
  */
@@ -110,6 +113,8 @@ interface SalesOrder {
     quantity: number
     discount: number
     piecesPercentage?: number
+    pieces?: number
+    baseCost?: number
     actualQuantity: number
     saleCost: number
     saleAmount: number
@@ -133,6 +138,7 @@ interface PurchaseOrderFormValues extends FieldValues {
     quantity?: string
     discount?: string
     piecesPercentage?: string
+    pieces?: string
     actualQuantity?: number
     purchaseCost?: string
     purchaseAmount?: number
@@ -153,6 +159,7 @@ interface SalesOrderFormValues extends FieldValues {
     quantity?: string
     discount?: string
     piecesPercentage?: string
+    pieces?: string
     actualQuantity?: number
     saleCost?: string
     saleAmount?: number
@@ -222,6 +229,7 @@ const PurchaseOrderModal: React.FC<{
               ? (Number(l.quantity ?? 0) * Number(l.piecesPercentage ?? 0)) / 100
               : 0)), 0) || ''),
             piecesPercentage: String(roundValue(Number(l.piecesPercentage ?? (existing.mode === 'tonagePercentage' ? l.discount : 0)), 0) || ''),
+            pieces: String(Number(l.pieces ?? 0) || ''),
             actualQuantity: roundValue(Number(l.actualQuantity ?? 0), 0),
             purchaseCost: l.purchaseCost !== undefined ? String(l.purchaseCost) : '',
             purchaseAmount: roundValue(Number(l.purchaseAmount ?? 0), 2),
@@ -232,6 +240,7 @@ const PurchaseOrderModal: React.FC<{
               quantity: '',
               discount: '',
               piecesPercentage: '',
+              pieces: '',
               actualQuantity: 0,
               purchaseCost: '',
               purchaseAmount: 0,
@@ -248,7 +257,7 @@ const PurchaseOrderModal: React.FC<{
       branchId: '',
       warehouseId: '',
       remarks: '',
-      lines: [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0, amount: 0 }],
+      lines: [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', pieces: '', actualQuantity: 0, purchaseCost: '', purchaseAmount: 0, amount: 0 }],
     }
   }
 
@@ -389,6 +398,7 @@ const PurchaseOrderModal: React.FC<{
       const quantity = Number(l.quantity) || 0
       const discount = Number(l.discount) || 0
       const piecesPercentage = Number(l.piecesPercentage) || 0
+      const pieces = Number(l.pieces) || 0
       const actualQuantity = Number(l.actualQuantity) || 0
       const purchaseCost = (Number(l.purchaseCost) || 0)
       const purchaseAmount = (Number(l.purchaseAmount) || 0)
@@ -398,6 +408,8 @@ const PurchaseOrderModal: React.FC<{
         quantity,
         discount,
         piecesPercentage: mode === 'tonagePercentage' ? piecesPercentage : 0,
+        pieces,
+        baseCost: calculateBaseCost(purchaseAmount, pieces),
         actualQuantity: roundValue(actualQuantity, 0),
         purchaseCost: Number(purchaseCost.toFixed(2)),
         purchaseAmount: Number(purchaseAmount.toFixed(2)),
@@ -440,6 +452,7 @@ const PurchaseOrderModal: React.FC<{
             quantity: String(l.quantity ?? ''),
             discount: String(l.discount ?? ''),
             piecesPercentage: String(l.piecesPercentage ?? ''),
+            pieces: String(Number(l.pieces ?? 0) || ''),
             actualQuantity: l.actualQuantity ?? 0,
             saleCost: String(l.saleCost ?? ''),
             saleAmount: l.saleAmount ?? l.amount ?? 0,
@@ -459,11 +472,12 @@ const PurchaseOrderModal: React.FC<{
             quantity: String(l.quantity ?? ''),
             discount: String(l.discount ?? ''),
             piecesPercentage: String(l.piecesPercentage ?? ''),
+            pieces: String(Number(l.pieces ?? 0) || ''),
             actualQuantity: l.actualQuantity ?? 0,
             saleCost: l.purchaseCost !== undefined ? String(l.purchaseCost) : '',
             saleAmount: l.purchaseAmount ?? l.amount ?? 0,
             amount: l.purchaseAmount ?? l.amount ?? 0,
-          })) ?? [{ itemId: '', quantity: '', discount: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
+          })) ?? [{ itemId: '', quantity: '', discount: '', pieces: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
       }
     }
     return {
@@ -471,7 +485,7 @@ const PurchaseOrderModal: React.FC<{
       date: todayDDMMYYYY(),
       customerId: '',
       remarks: '',
-      lines: [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
+      lines: [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', pieces: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
     }
   }
 
@@ -566,6 +580,7 @@ const PurchaseOrderModal: React.FC<{
       const quantity = Number(l.quantity) || 0
       const discount = Number(l.discount) || 0
       const piecesPercentage = Number(l.piecesPercentage) || 0
+      const pieces = Number(l.pieces) || 0
       const actualQuantity = Number(l.actualQuantity) || 0
       const saleCost = Number(l.saleCost) || 0
       const saleAmount = Number(l.saleAmount) || 0
@@ -575,6 +590,8 @@ const PurchaseOrderModal: React.FC<{
         quantity,
         discount,
         piecesPercentage: salesMode === 'tonagePercentage' ? piecesPercentage : 0,
+        pieces,
+        baseCost: calculateBaseCost(saleAmount, pieces),
         actualQuantity: Number(actualQuantity.toFixed(6)),
         saleCost: Number(saleCost.toFixed(2)),
         saleAmount: Number(saleAmount.toFixed(2)),
@@ -641,13 +658,14 @@ const PurchaseOrderModal: React.FC<{
         <td class="right">${Math.round(Number(line.actualQuantity ?? 0))}</td>
         <td class="right">${Number(line.saleCost ?? 0).toFixed(2)}</td>
         <td class="right">${formatAmount(Number(line.saleAmount ?? line.amount ?? 0))}</td>
+        <td class="right">${Number(line.pieces ?? 0)}</td>
       </tr>`
     }).join('')
 
     win.document.write(`<!DOCTYPE html><html><head><title>Sales Order ${order.soNumber}</title>
       <style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}.muted{color:#555}.head{display:flex;justify-content:space-between;align-items:flex-start}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ccc;padding:6px 8px;font-size:12px;text-align:left}th{background:#f3f4f6}.right{text-align:right}.total{font-weight:bold;font-size:14px}.sign{margin-top:40px;display:flex;justify-content:space-between}</style>
       </head><body><div class="head"><div><h1>Sales Order</h1><div class="muted">SO No: ${order.soNumber}</div><div class="muted">Date: ${toDDMMYYYY(order.date)}</div></div><div class="muted" style="text-align:right"><div>Customer: <b>${customerName}</b></div>${customerAddress ? `<div>${customerAddress}</div>` : ''}</div></div>
-      ${order.remarks ? `<p class="muted">Remarks: ${order.remarks}</p>` : ''}<table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="right">Discount</th><th class="right">Actual Qty</th><th class="right">Sale Cost</th><th class="right">Sale Amount</th></tr></thead><tbody>${lineRows}</tbody><tfoot><tr><td colspan="6" class="right">Total Lines Amount</td><td class="right total">${formatAmount(order.totalAmount)}</td></tr></tfoot></table><div class="sign"><div>Prepared By: ______________________</div><div>Authorized Signature: ______________________</div></div></body></html>`)
+      ${order.remarks ? `<p class="muted">Remarks: ${order.remarks}</p>` : ''}<table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="right">Discount</th><th class="right">Actual Qty</th><th class="right">Sale Cost</th><th class="right">Sale Amount</th><th class="right">Pieces</th></tr></thead><tbody>${lineRows}</tbody><tfoot><tr><td colspan="7" class="right">Total Lines Amount</td><td class="right total">${formatAmount(order.totalAmount)}</td></tr></tfoot></table><div class="sign"><div>Prepared By: ______________________</div><div>Authorized Signature: ______________________</div></div></body></html>`)
     win.document.close()
     win.focus()
     setTimeout(() => win.print(), 300)
@@ -677,10 +695,11 @@ const PurchaseOrderModal: React.FC<{
       const quantity = l.quantity ?? ''
       const discount = l.discount ?? ''
       const piecesPercentage = l.piecesPercentage ?? ''
+      const pieces = String(Number(l.pieces ?? 0) || '')
       const actualQuantity = Number((l as any)?.actualQuantity) || 0
       const saleCostVal = String((l as any)?.purchaseCost ?? '')
       const saleAmountVal = Number((l as any)?.purchaseAmount) || 0
-      return { itemId, quantity, discount, piecesPercentage, actualQuantity, saleCost: saleCostVal, saleAmount: saleAmountVal, amount: saleAmountVal }
+      return { itemId, quantity, discount, piecesPercentage, pieces, actualQuantity, saleCost: saleCostVal, saleAmount: saleAmountVal, amount: saleAmountVal }
     })
     setSalesMode(existing?.mode ?? 'tonage')
     resetS({
@@ -688,7 +707,7 @@ const PurchaseOrderModal: React.FC<{
       date: todayDDMMYYYY(),
       customerId: '',
       remarks: `Converted from ${existing.poNumber}`,
-      lines: mapped.length ? mapped : [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
+      lines: mapped.length ? mapped : [{ itemId: '', quantity: '', discount: '', piecesPercentage: '', pieces: '', actualQuantity: 0, saleCost: '', saleAmount: 0, amount: 0 }],
     })
     setConvertOpen(true)
   }
@@ -851,6 +870,7 @@ const PurchaseOrderModal: React.FC<{
                       quantity: '',
                       discount: '',
                       piecesPercentage: '',
+                      pieces: '',
                       actualQuantity: 0,
                       purchaseCost: '',
                       purchaseAmount: 0,
@@ -877,6 +897,7 @@ const PurchaseOrderModal: React.FC<{
                     <th className="px-3 py-2">Actual Quantity</th>
                     <th className="px-3 py-2">Purchase Cost</th>
                     <th className="px-3 py-2">Purchase Amount</th>
+                    <th className="px-3 py-2">Pieces</th>
                     <th className="px-3 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -962,6 +983,16 @@ const PurchaseOrderModal: React.FC<{
                           </div>
                         </td>
 
+                        <td className="px-3 py-1.5">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            disabled={isPurchaseLocked}
+                            className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-slate-100"
+                            {...register(`lines.${index}.pieces` as const)}
+                          />
+                        </td>
+
                         <td className="px-3 py-1.5 text-right">
                           {!isPurchaseLocked && (
                             <button type="button" onClick={() => remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-100">
@@ -978,11 +1009,9 @@ const PurchaseOrderModal: React.FC<{
                   <tr className="border-t bg-slate-50">
                     <td className="px-3 py-2 font-semibold text-slate-700">Total Lines Amount</td>
                     <td className="px-3 py-2 font-semibold text-slate-700">{totals.totalQuantity}</td>
-                    <td className="px-3 py-2" />
-                    <td className="px-3 py-2" />
-                    <td className="px-3 py-2" />
+                    <td className="px-3 py-2" colSpan={mode === 'tonagePercentage' ? 4 : 3} />
                     <td className="px-3 py-2 font-semibold text-slate-700">{formatAmount(totals.totalAmount)}</td>
-                    <td className="px-3 py-2" />
+                    <td className="px-3 py-2" colSpan={2} />
                   </tr>
                 </tfoot>
               </table>
@@ -1081,6 +1110,19 @@ const PurchaseOrderModal: React.FC<{
                       </div>
                     </div>
 
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-medium text-slate-700">Pieces</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          disabled={isPurchaseLocked}
+                          className="w-full rounded-full border border-slate-200 px-3 py-1 disabled:bg-slate-100"
+                          {...register(`lines.${index}.pieces` as const)}
+                        />
+                      </div>
+                    </div>
+
                     <div className="mt-3 flex justify-end">
                       <button type="button" onClick={() => remove(index)} className="rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-[10px] text-rose-600 hover:bg-rose-100">
                         Remove
@@ -1143,7 +1185,7 @@ const PurchaseOrderModal: React.FC<{
                 </div>
 
                 <div>
-                  <label className="mb-1 block text-[11px] font-medium text-slate-700">Date (DD/MM/YYYY)</label>
+                  <label className="mb-1 block text-[11px] font-medium text-slate-700">Date</label>
                   <div className="relative">
                     <input
                       placeholder="DD/MM/YYYY"
@@ -1199,6 +1241,7 @@ const PurchaseOrderModal: React.FC<{
                         quantity: '',
                         discount: '',
                         piecesPercentage: '',
+                        pieces: '',
                         actualQuantity: 0,
                         saleCost: '',
                         saleAmount: 0,
@@ -1222,6 +1265,7 @@ const PurchaseOrderModal: React.FC<{
                         <th className="px-3 py-2">Actual Quantity</th>
                         <th className="px-3 py-2">Sale Cost</th>
                         <th className="px-3 py-2">Sale Amount</th>
+                        <th className="px-3 py-2">Pieces</th>
                         <th className="px-3 py-2 text-right">Actions</th>
                       </tr>
                     </thead>
@@ -1283,6 +1327,10 @@ const PurchaseOrderModal: React.FC<{
                               </div>
                             </td>
 
+                            <td className="px-3 py-1.5">
+                              <input type="text" inputMode="decimal" disabled={isSalesLocked} className="w-20 rounded-full border border-slate-200 px-2 py-1 disabled:cursor-not-allowed disabled:bg-[#e8f4c8]" {...registerS(`lines.${index}.pieces` as const)} />
+                            </td>
+
                             <td className="px-3 py-1.5 text-right">
                               {!isSalesLocked && <button type="button" onClick={() => salesRemove(index)} className="rounded-full border border-[#ff7043]/30 bg-[#fff0e8] px-2 py-1 text-[10px] text-[#c94f2d] hover:bg-[#ffe0d2]">
                                 Remove
@@ -1297,11 +1345,9 @@ const PurchaseOrderModal: React.FC<{
                       <tr className="border-t bg-[#fff8e8]">
                         <td className="px-3 py-2 font-semibold text-slate-700">Total Lines Amount</td>
                         <td className="px-3 py-2 font-semibold text-slate-700">{salesTotals.totalQuantity}</td>
-                        <td className="px-3 py-2" />
-                        <td className="px-3 py-2" />
-                        <td className="px-3 py-2" />
+                        <td className="px-3 py-2" colSpan={salesMode === 'tonagePercentage' ? 4 : 3} />
                         <td className="px-3 py-2 font-semibold text-slate-700">{formatAmount(salesTotals.totalAmount)}</td>
-                        <td className="px-3 py-2" />
+                        <td className="px-3 py-2" colSpan={2} />
                       </tr>
                     </tfoot>
                   </table>
@@ -1461,6 +1507,7 @@ const ViewPurchaseOrderModal: React.FC<{
                   <th className="px-3 py-2">Actual Qty</th>
                   <th className="px-3 py-2">Purchase Cost</th>
                   <th className="px-3 py-2 text-right">Purchase Amount</th>
+                  <th className="px-3 py-2">Pieces</th>
                 </tr>
               </thead>
               <tbody>
@@ -1474,13 +1521,14 @@ const ViewPurchaseOrderModal: React.FC<{
                       <td className="px-3 py-1.5">{l.discount ?? 0}</td>
                       <td className="px-3 py-1.5">{roundValue(Number(l.actualQuantity ?? 0), 0)}</td>
                       <td className="px-3 py-1.5">{Number(l.purchaseCost ?? 0).toFixed(2)}</td>
-                            <td className="px-3 py-1.5 text-right font-semibold">{formatAmount(amount)}</td>
+                              <td className="px-3 py-1.5 text-right font-semibold">{formatAmount(amount)}</td>
+                              <td className="px-3 py-1.5">{Number(l.pieces ?? 0)}</td>
                     </tr>
                   )
                 })}
                 {order.lines.length === 0 && (
                   <tr className="border-t border-slate-100">
-                    <td colSpan={6} className="px-3 py-4 text-center text-slate-400">
+                    <td colSpan={7} className="px-3 py-4 text-center text-slate-400">
                       No line items
                     </td>
                   </tr>
@@ -1493,7 +1541,7 @@ const ViewPurchaseOrderModal: React.FC<{
                   </td>
                   <td className="px-3 py-2 font-semibold text-slate-700">{totalQty}</td>
                   <td className="px-3 py-2 font-semibold text-slate-700">Total Lines Amount</td>
-                  <td className="px-3 py-2" />
+                  <td className="px-3 py-2" colSpan={2} />
                   <td className="px-3 py-2 text-right font-semibold text-slate-700">{formatAmount(totalAmount)}</td>
                 </tr>
               </tfoot>
@@ -1739,6 +1787,8 @@ const PurchaseOrderPage: React.FC = () => {
           quantity: l.quantity,
           discount: l.discount,
           piecesPercentage: l.piecesPercentage ?? 0,
+          pieces: l.pieces ?? 0,
+          baseCost: calculateBaseCost(Number(l.purchaseAmount ?? 0), Number(l.pieces ?? 0)),
           actualQuantity: l.actualQuantity ?? 0,
           purchaseCost: l.purchaseCost,
           purchaseAmount: l.purchaseAmount ?? 0,
@@ -1810,6 +1860,8 @@ const PurchaseOrderPage: React.FC = () => {
       itemId: l.itemId,
       quantity: l.quantity,
       discount: l.discount ?? 0,
+      pieces: l.pieces ?? 0,
+      baseCost: calculateBaseCost(Number(l.purchaseAmount ?? l.amount ?? 0), Number(l.pieces ?? 0)),
       actualQuantity: l.actualQuantity ?? 0,
       saleCost: l.purchaseCost ?? 0,
       saleAmount: Number(l.purchaseAmount ?? l.amount ?? 0),
@@ -1870,6 +1922,7 @@ const PurchaseOrderPage: React.FC = () => {
           <td class="right">${roundValue(Number(l.actualQuantity ?? 0), 0)}</td>
           <td class="right">${Number(l.purchaseCost ?? 0).toFixed(2)}</td>
           <td class="right">${formatAmount(amount)}</td>
+          <td class="right">${Number(l.pieces ?? 0)}</td>
         </tr>`
       })
       .join('')
@@ -1920,12 +1973,13 @@ const PurchaseOrderPage: React.FC = () => {
         <th class="right">Actual Qty</th>
         <th class="right">Purchase Cost</th>
         <th class="right">Purchase Amount</th>
+        <th class="right">Pieces</th>
       </tr>
     </thead>
     <tbody>${lineRows}</tbody>
     <tfoot>
       <tr>
-        <td colspan="6" class="right">Total Lines Amount</td>
+        <td colspan="7" class="right">Total Lines Amount</td>
         <td class="right total">${formatAmount(total)}</td>
       </tr>
     </tfoot>
@@ -1960,13 +2014,14 @@ const PurchaseOrderPage: React.FC = () => {
         <td class="right">${Math.round(Number(line.actualQuantity ?? 0))}</td>
         <td class="right">${Number(line.saleCost ?? 0).toFixed(2)}</td>
         <td class="right">${formatAmount(Number(line.saleAmount ?? line.amount ?? 0))}</td>
+        <td class="right">${Number(line.pieces ?? 0)}</td>
       </tr>`
     }).join('')
 
     win.document.write(`<!DOCTYPE html><html><head><title>Sales Order ${order.soNumber}</title>
       <style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px}h1{font-size:20px;margin:0 0 4px}.muted{color:#555}.head{display:flex;justify-content:space-between;align-items:flex-start}table{width:100%;border-collapse:collapse;margin-top:16px}th,td{border:1px solid #ccc;padding:6px 8px;font-size:12px;text-align:left}th{background:#f3f4f6}.right{text-align:right}.total{font-weight:bold;font-size:14px}.sign{margin-top:40px;display:flex;justify-content:space-between}</style>
       </head><body><div class="head"><div><h1>Sales Order</h1><div class="muted">SO No: ${order.soNumber}</div><div class="muted">Date: ${toDDMMYYYY(order.date)}</div></div><div class="muted" style="text-align:right"><div>Customer: <b>${customerName}</b></div>${customerAddress ? `<div>${customerAddress}</div>` : ''}</div></div>
-      ${order.remarks ? `<p class="muted">Remarks: ${order.remarks}</p>` : ''}<table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="right">Discount</th><th class="right">Actual Qty</th><th class="right">Sale Cost</th><th class="right">Sale Amount</th></tr></thead><tbody>${lineRows}</tbody><tfoot><tr><td colspan="6" class="right">Total Lines Amount</td><td class="right total">${formatAmount(order.totalAmount)}</td></tr></tfoot></table><div class="sign"><div>Prepared By: ______________________</div><div>Authorized Signature: ______________________</div></div></body></html>`)
+      ${order.remarks ? `<p class="muted">Remarks: ${order.remarks}</p>` : ''}<table><thead><tr><th>#</th><th>Item</th><th class="right">Qty</th><th class="right">Discount</th><th class="right">Actual Qty</th><th class="right">Sale Cost</th><th class="right">Sale Amount</th><th class="right">Pieces</th></tr></thead><tbody>${lineRows}</tbody><tfoot><tr><td colspan="7" class="right">Total Lines Amount</td><td class="right total">${formatAmount(order.totalAmount)}</td></tr></tfoot></table><div class="sign"><div>Prepared By: ______________________</div><div>Authorized Signature: ______________________</div></div></body></html>`)
     win.document.close()
     win.focus()
     setTimeout(() => win.print(), 300)

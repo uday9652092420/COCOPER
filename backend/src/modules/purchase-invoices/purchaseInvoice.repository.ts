@@ -84,6 +84,66 @@ type InvoiceQuantityLine = {
   quantity: number
 }
 
+type StockLedgerLine = {
+  itemId: string
+  quantity: number
+}
+
+function toLedgerDate(value: string): string {
+  const dmy = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value ?? "")
+  if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value ?? "")) return value
+  throw new Error("Invoice date must be a valid date")
+}
+
+async function replacePurchaseInvoiceLedger(
+  client: import("pg").PoolClient,
+  invoiceId: string,
+  invoiceNo: string,
+  organizationId: string,
+  branchId: string,
+  invoiceDate: string,
+  lines: StockLedgerLine[]
+): Promise<void> {
+  await client.query(
+    "DELETE FROM item_stock_ledger WHERE source_id = $1 AND stock_type = 'Purchase'",
+    [invoiceId]
+  )
+  const quantities = groupInvoiceQuantityLines(lines)
+  if (!quantities.size) return
+
+  const itemIds = [...quantities.keys()]
+  const rateResult = await client.query(
+    `SELECT item_id AS "itemId", base_cost AS "baseCost"
+     FROM item_branch_stock
+     WHERE organization_id = $1 AND branch_id = $2::uuid AND item_id = ANY($3::text[])`,
+    [organizationId, branchId, itemIds]
+  )
+  const rates = new Map<string, number>(
+    rateResult.rows.map((row: { itemId: string; baseCost: number | string }) => [row.itemId, Number(row.baseCost) || 0])
+  )
+
+  for (const [itemId, quantity] of quantities) {
+    await client.query(
+      `INSERT INTO item_stock_ledger
+        (id, organization_id, branch_id, item_id, transaction_date,
+         in_quantity_stock, out_quantity_stock, rate, stock_type, source_id, source_number)
+       VALUES ($1,$2,$3::uuid,$4,$5,$6,NULL,$7,'Purchase',$8,$9)`,
+      [
+        `ISL-P-${invoiceId}-${itemId}`,
+        organizationId,
+        branchId,
+        itemId,
+        toLedgerDate(invoiceDate),
+        quantity,
+        rates.get(itemId) ?? 0,
+        invoiceId,
+        invoiceNo,
+      ]
+    )
+  }
+}
+
 type InvoiceStockTotals = {
   pieces: number
   purchaseAmount: number
@@ -470,6 +530,18 @@ export async function createPurchaseInvoiceRepo(
       })),
       payload.purchaseOrderId ?? null
     )
+    await replacePurchaseInvoiceLedger(
+      client,
+      id,
+      payload.invoiceNo,
+      payload.organizationId!,
+      payload.branchId!,
+      toLedgerDate(payload.invoiceDate ?? ""),
+      (payload.lines || []).map((line) => ({
+        itemId: line.itemId,
+        quantity: Number(line.quantityTons) || 0,
+      }))
+    )
     if (payload.purchaseOrderId) {
       await client.query(
         `UPDATE purchase_orders SET purchase_order_invoice_status = TRUE, status = 'Invoiced'
@@ -506,7 +578,8 @@ export async function updatePurchaseInvoiceRepo(
     await client.query("BEGIN");
     const invoiceHeaderResult = await client.query(
             `SELECT organization_id AS "organizationId", branch_id AS "branchId",
-              purchase_order_id AS "purchaseOrderId"
+              purchase_order_id AS "purchaseOrderId", invoice_no AS "invoiceNo",
+              invoice_date AS "invoiceDate"
        FROM purchase_invoices
        WHERE id = $1 AND ($2::uuid IS NULL OR organization_id = $2)
        FOR UPDATE`,
@@ -526,6 +599,8 @@ export async function updatePurchaseInvoiceRepo(
     const nextBranchId = payload.branchId ?? previousBranchId
     const previousPurchaseOrderId = invoiceHeader.purchaseOrderId || null
     const nextPurchaseOrderId = payload.purchaseOrderId || previousPurchaseOrderId
+    const nextInvoiceNo = payload.invoiceNo ?? invoiceHeader.invoiceNo
+    const nextInvoiceDate = payload.invoiceDate ?? invoiceHeader.invoiceDate
     const previousStockLines = previousLinesResult.rows as InvoiceStockLine[]
     const previousQuantityLines = previousLinesResult.rows as InvoiceQuantityLine[]
     const nextStockLines = payload.lines?.map((line) => ({
@@ -610,6 +685,23 @@ export async function updatePurchaseInvoiceRepo(
       )
     }
 
+    if (
+      payload.lines !== undefined ||
+      nextBranchId !== previousBranchId ||
+      nextInvoiceNo !== invoiceHeader.invoiceNo ||
+      nextInvoiceDate !== invoiceHeader.invoiceDate
+    ) {
+      await replacePurchaseInvoiceLedger(
+        client,
+        id,
+        nextInvoiceNo,
+        resolvedOrganizationId!,
+        nextBranchId!,
+        toLedgerDate(nextInvoiceDate),
+        nextQuantityLines
+      )
+    }
+
     if (payload.lines !== undefined) {
       await client.query(
         "DELETE FROM purchase_invoice_items WHERE purchase_invoice_id = $1",
@@ -669,6 +761,10 @@ export async function deletePurchaseInvoiceRepo(
       await client.query("COMMIT")
       return false
     }
+    await client.query(
+      "DELETE FROM item_stock_ledger WHERE source_id = $1 AND stock_type = 'Purchase'",
+      [id]
+    )
     const linesResult = await client.query(
             `SELECT item_id AS "itemId", quantity_tons AS quantity, pieces,
               purchase_amount AS "purchaseAmount"

@@ -30,6 +30,7 @@
 \ir bag_purchase.sql
 \ir direct_sales.sql
 \ir 06_transaction_tables.sql
+\ir 24_item_stock_ledger.sql
 \ir loading_dispatch.sql
 \ir 19_loading_dispatch_entries.sql
 \ir customer_receipt.sql

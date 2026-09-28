@@ -116,6 +116,51 @@ function parseDate(value: string): string {
   return match ? `${match[3]}-${match[2]}-${match[1]}` : value
 }
 
+async function writeSalesInvoiceLedger(
+  client: import('pg').PoolClient,
+  saleId: string,
+  invoiceNo: string,
+  organizationId: string,
+  branchId: string,
+  invoiceDate: string,
+  lines: Array<{ itemId: string; quantity: number }>
+): Promise<void> {
+  const quantities = new Map<string, number>()
+  for (const line of lines) {
+    const quantity = Number(line.quantity) || 0
+    if (!line.itemId || quantity <= 0) continue
+    quantities.set(line.itemId, (quantities.get(line.itemId) ?? 0) + quantity)
+  }
+
+  for (const [itemId, quantity] of quantities) {
+    const stockResult = await client.query(
+      `SELECT base_cost AS "baseCost"
+       FROM item_branch_stock
+       WHERE organization_id = $1 AND item_id = $2 AND branch_id = $3::uuid`,
+      [organizationId, itemId, branchId]
+    )
+    if (!stockResult.rows[0]) throw new Error(`Branch stock not found for item ${itemId}`)
+
+    await client.query(
+      `INSERT INTO item_stock_ledger
+        (id, organization_id, branch_id, item_id, transaction_date,
+         in_quantity_stock, out_quantity_stock, rate, stock_type, source_id, source_number)
+       VALUES ($1,$2,$3::uuid,$4,$5,NULL,$6,$7,'Sales',$8,$9)`,
+      [
+        `ISL-S-${saleId}-${itemId}`,
+        organizationId,
+        branchId,
+        itemId,
+        parseDate(invoiceDate),
+        quantity,
+        Number(stockResult.rows[0].baseCost) || 0,
+        saleId,
+        invoiceNo,
+      ]
+    )
+  }
+}
+
 export async function createDirectSale(payload: SalePayload) {
   await ensureDirectSaleSchema()
   if (!payload.organizationId || !payload.branchId) throw new Error('Organization and branch are required')
@@ -239,6 +284,16 @@ export async function createDirectSale(payload: SalePayload) {
       )
     }
 
+    await writeSalesInvoiceLedger(
+      client,
+      id,
+      invoiceNo,
+      payload.organizationId,
+      payload.branchId,
+      payload.invoiceDate,
+      payload.lines.map((line) => ({ itemId: line.itemId, quantity: line.quantity }))
+    )
+
     if (payload.salesOrderNo) {
       await client.query(
         `UPDATE sales_orders
@@ -351,6 +406,10 @@ export async function deleteDirectSale(id: string, organizationId?: string | nul
 
     const itemLines = await client.query(
       'SELECT item_id AS "itemId", qty, pieces FROM direct_sale_items WHERE direct_sale_id = $1',
+      [id]
+    )
+    await client.query(
+      "DELETE FROM item_stock_ledger WHERE source_id = $1 AND stock_type = 'Sales'",
       [id]
     )
     for (const line of itemLines.rows) {

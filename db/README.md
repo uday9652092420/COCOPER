@@ -45,6 +45,9 @@ following files in dependency order:
 - `23_item_branch_stock_pieces_base_cost.sql` adds per-branch piece inventory
   and base cost, then initializes balances from purchase invoices less Direct
   Sales. Run after migrations 21 and 22.
+- `24_item_stock_ledger.sql` creates the transaction ledger for purchase and
+  sales invoice inventory movements. Fresh installs include it after the
+  transaction tables.
 - `06_purchase_invoice_sales_tables.sql` is an old destructive migration that
   drops transaction tables. Do not use it for releases; use the canonical
   `06_transaction_tables.sql` instead.

@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS item_branch_stock (
   branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
   branch_name TEXT NOT NULL,
   stock NUMERIC NOT NULL DEFAULT 0 CHECK (stock >= 0),
+  pieces NUMERIC NOT NULL DEFAULT 0 CHECK (pieces >= 0),
+  base_cost NUMERIC NOT NULL DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE (organization_id, item_id, branch_id)

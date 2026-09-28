@@ -69,6 +69,9 @@ export interface MasterFormModalProps<
   /** Values that should be synchronized into registered form fields. */
   syncedValues?: Partial<TValues>;
 
+  /** Optional maximum width class for forms with wider custom sections. */
+  widthClassName?: string;
+
   /**
    * Optional custom content rendered after the standard fields
    * and before the footer buttons.
@@ -100,6 +103,7 @@ export const MasterFormModal = <
   fields,
   defaultValues,
   syncedValues,
+  widthClassName = "max-w-lg",
   customSection,
   onClose,
   onSave,
@@ -213,7 +217,7 @@ export const MasterFormModal = <
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-xl">
+      <div className={`w-full ${widthClassName} overflow-hidden rounded-2xl bg-white shadow-xl`}>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-2.5 py-2">
           <h2 className="text-xs font-semibold text-slate-900">

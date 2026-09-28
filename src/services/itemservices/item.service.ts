@@ -142,6 +142,8 @@ export interface ItemBranchStock {
   branch_id: string;
   branch_name: string;
   stock: number;
+  pieces: number;
+  base_cost: number;
 }
 
 export interface ItemBranchStockInput {

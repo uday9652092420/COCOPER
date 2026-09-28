@@ -44,6 +44,8 @@ interface ItemFormValues {
 interface BranchStockRow {
   branchId: string
   stock: string
+  pieces: string
+  baseCost: string
 }
 
 /**
@@ -109,7 +111,12 @@ useEffect(() => {
 
   getItemBranchStock(editing.id)
     .then((rows) => {
-      setBranchStockRows(rows.map((row) => ({ branchId: row.branch_id, stock: String(row.stock) })));
+      setBranchStockRows(rows.map((row) => ({
+        branchId: row.branch_id,
+        stock: String(row.stock),
+        pieces: String(row.pieces ?? 0),
+        baseCost: String(row.base_cost ?? 0),
+      })));
       setBranchWiseStockTotal(rows.reduce((sum, row) => sum + Number(row.stock || 0), 0));
     })
     .catch(() => {
@@ -209,7 +216,7 @@ const buildDefaultBranchRows = async () => {
     const availableBranches = await getBranches();
     const orgBranchRows = (Array.isArray(availableBranches) ? availableBranches : [])
       .filter((branch) => branch.status?.toUpperCase() !== 'INACTIVE')
-      .map((branch) => ({ branchId: branch.id, stock: '' }));
+      .map((branch) => ({ branchId: branch.id, stock: '', pieces: '0', baseCost: '0' }));
 
     setBranchStockRows(orgBranchRows);
     setBranchWiseStockTotal(0);
@@ -342,6 +349,7 @@ const openEdit = (row: ItemResponse) => {
       <MasterFormModal<ItemFormValues>
         open={modalOpen}
         title={editing?.id ? 'Edit Item' : 'New Item'}
+        widthClassName="max-w-3xl"
         fields={fields}
         defaultValues={
           editing
@@ -368,6 +376,8 @@ const openEdit = (row: ItemResponse) => {
                           <tr>
                             <th className="px-3 py-2">Branch</th>
                             <th className="px-3 py-2">Stock</th>
+                            <th className="px-3 py-2">Pieces</th>
+                            <th className="px-3 py-2">Base Cost</th>
                             <th className="px-3 py-2 text-right">Action</th>
                           </tr>
                         </thead>
@@ -390,13 +400,21 @@ const openEdit = (row: ItemResponse) => {
                                     placeholder="0"
                                   />
                                 </td>
+                                <td className="px-3 py-2 text-slate-700">{Number(row.pieces || 0)}</td>
+                                <td className="px-3 py-2 text-slate-700">{Number(row.baseCost || 0).toFixed(2)}</td>
                                 <td className="px-3 py-2 text-right">
                                   {!editing?.id ? (
                                     <span className="text-[10px] text-slate-400">-</span>
                                   ) : (
                                     <button
                                       type="button"
-                                      onClick={() => setBranchStockRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}
+                                      onClick={() => {
+                                        if (Number(row.pieces) > 0) {
+                                          toast.warning("This branch still has pieces in stock and cannot be removed.");
+                                          return;
+                                        }
+                                        setBranchStockRows((rows) => rows.filter((_, rowIndex) => rowIndex !== index));
+                                      }}
                                       className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-medium text-rose-700 hover:bg-rose-100"
                                     >
                                       Remove
@@ -406,12 +424,14 @@ const openEdit = (row: ItemResponse) => {
                               </tr>
                             );
                           })}
-                          {!branchStockRows.length && <tr><td colSpan={3} className="px-3 py-3 text-center text-slate-400">No branch stock rows</td></tr>}
+                          {!branchStockRows.length && <tr><td colSpan={5} className="px-3 py-3 text-center text-slate-400">No branch stock rows</td></tr>}
                         </tbody>
                         <tfoot className="border-t border-slate-200 bg-slate-50">
                           <tr>
-                            <td className="px-3 py-2 font-semibold text-slate-700">Total branch stock</td>
+                            <td className="px-3 py-2 font-semibold text-slate-700">Totals</td>
                             <td className="px-3 py-2 font-semibold text-slate-700">{branchStockRows.reduce((sum, row) => sum + (Number(row.stock) || 0), 0)}</td>
+                            <td className="px-3 py-2 font-semibold text-slate-700">{branchStockRows.reduce((sum, row) => sum + (Number(row.pieces) || 0), 0)}</td>
+                            <td />
                             <td />
                           </tr>
                         </tfoot>

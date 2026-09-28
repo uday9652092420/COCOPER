@@ -73,6 +73,155 @@ const PI_SELECT = `
   LEFT JOIN purchase_invoice_items pii ON pii.purchase_invoice_id = pi.id
 `;
 
+type InvoiceStockLine = {
+  itemId: string
+  pieces: number
+  purchaseAmount: number
+}
+
+type InvoiceStockTotals = {
+  pieces: number
+  purchaseAmount: number
+}
+
+function groupInvoiceStockLines(lines: InvoiceStockLine[]): Map<string, InvoiceStockTotals> {
+  const totals = new Map<string, InvoiceStockTotals>()
+  for (const line of lines) {
+    const pieces = Number(line.pieces) || 0
+    if (pieces < 0) throw new Error("Pieces cannot be negative")
+    if (!line.itemId || pieces <= 0) continue
+    const current = totals.get(line.itemId) ?? { pieces: 0, purchaseAmount: 0 }
+    current.pieces += pieces
+    current.purchaseAmount += Number(line.purchaseAmount) || 0
+    totals.set(line.itemId, current)
+  }
+  return totals
+}
+
+async function addInvoicePieceStock(
+  client: import("pg").PoolClient,
+  organizationId: string,
+  branchId: string,
+  itemId: string,
+  pieces: number,
+  baseCost: number
+): Promise<void> {
+  const itemResult = await client.query(
+    `SELECT code FROM items
+     WHERE id = $1 AND (organization_id = $2 OR organization_id IS NULL)`,
+    [itemId, organizationId]
+  )
+  if (!itemResult.rows[0]) throw new Error(`Item not found: ${itemId}`)
+
+  const branchResult = await client.query(
+    "SELECT branch_name AS \"branchName\" FROM branches WHERE id = $1",
+    [branchId]
+  )
+  if (!branchResult.rows[0]) throw new Error(`Branch not found: ${branchId}`)
+
+  await client.query(
+    `INSERT INTO item_branch_stock
+      (id, organization_id, item_id, item_code, branch_id, branch_name, stock, pieces, base_cost)
+     VALUES ($1,$2,$3,$4,$5,$6,0,$7,$8)
+     ON CONFLICT (organization_id, item_id, branch_id)
+     DO UPDATE SET
+       pieces = item_branch_stock.pieces + EXCLUDED.pieces,
+       base_cost = CASE
+         WHEN item_branch_stock.pieces + EXCLUDED.pieces > 0 THEN ROUND(
+           (item_branch_stock.pieces * item_branch_stock.base_cost
+             + EXCLUDED.pieces * EXCLUDED.base_cost)
+           / (item_branch_stock.pieces + EXCLUDED.pieces),
+           2
+         )
+         ELSE EXCLUDED.base_cost
+       END,
+       item_code = EXCLUDED.item_code,
+       branch_name = EXCLUDED.branch_name,
+       updated_at = NOW()`,
+    [
+      `IBS-${Date.now()}-${itemId}-${branchId}`,
+      organizationId,
+      itemId,
+      itemResult.rows[0].code ?? itemId,
+      branchId,
+      branchResult.rows[0].branchName,
+      pieces,
+      baseCost,
+    ]
+  )
+}
+
+async function removeInvoicePieceStock(
+  client: import("pg").PoolClient,
+  organizationId: string,
+  branchId: string,
+  itemId: string,
+  pieces: number
+): Promise<void> {
+  const result = await client.query(
+    `UPDATE item_branch_stock
+     SET pieces = pieces - $1, updated_at = NOW()
+     WHERE organization_id = $2 AND item_id = $3 AND branch_id = $4 AND pieces >= $1`,
+    [pieces, organizationId, itemId, branchId]
+  )
+  if (result.rowCount !== 1) {
+    throw new Error(`Cannot remove ${pieces} pieces of item ${itemId}; piece stock is insufficient`)
+  }
+}
+
+async function reconcileInvoicePieceStock(
+  client: import("pg").PoolClient,
+  organizationId: string | null,
+  previousBranchId: string | null,
+  previousLines: InvoiceStockLine[],
+  nextBranchId: string | null,
+  nextLines: InvoiceStockLine[]
+): Promise<void> {
+  if (!organizationId) return
+  const previous = groupInvoiceStockLines(previousLines)
+  const next = groupInvoiceStockLines(nextLines)
+
+  if (previousBranchId && previousBranchId === nextBranchId) {
+    for (const itemId of new Set([...previous.keys(), ...next.keys()])) {
+      const before = previous.get(itemId) ?? { pieces: 0, purchaseAmount: 0 }
+      const after = next.get(itemId) ?? { pieces: 0, purchaseAmount: 0 }
+      const delta = after.pieces - before.pieces
+      if (delta > 0 && nextBranchId) {
+        const addedAmount = after.purchaseAmount - before.purchaseAmount
+        await addInvoicePieceStock(
+          client,
+          organizationId,
+          nextBranchId,
+          itemId,
+          delta,
+          calculateBaseCost(addedAmount, delta)
+        )
+      } else if (delta < 0) {
+        await removeInvoicePieceStock(client, organizationId, previousBranchId, itemId, Math.abs(delta))
+      }
+    }
+    return
+  }
+
+  if (previousBranchId) {
+    for (const [itemId, totals] of previous) {
+      await removeInvoicePieceStock(client, organizationId, previousBranchId, itemId, totals.pieces)
+    }
+  }
+  if (nextBranchId) {
+    for (const [itemId, totals] of next) {
+      await addInvoicePieceStock(
+        client,
+        organizationId,
+        nextBranchId,
+        itemId,
+        totals.pieces,
+        calculateBaseCost(totals.purchaseAmount, totals.pieces)
+      )
+    }
+  }
+}
+
 export async function listPurchaseInvoicesRepo(
   organizationId?: string | null
 ): Promise<PurchaseInvoiceRow[]> {
@@ -161,6 +310,18 @@ export async function createPurchaseInvoiceRepo(
         ]
       );
     }
+    await reconcileInvoicePieceStock(
+      client,
+      payload.organizationId ?? null,
+      null,
+      [],
+      payload.branchId || null,
+      (payload.lines || []).map((line) => ({
+        itemId: line.itemId,
+        pieces: Number(line.pieces) || 0,
+        purchaseAmount: Number(line.purchaseAmount) || 0,
+      }))
+    )
     if (payload.purchaseOrderId) {
       await client.query(
         `UPDATE purchase_orders SET purchase_order_invoice_status = TRUE, status = 'Invoiced'
@@ -195,6 +356,30 @@ export async function updatePurchaseInvoiceRepo(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    const invoiceHeaderResult = await client.query(
+      `SELECT organization_id AS "organizationId", branch_id AS "branchId"
+       FROM purchase_invoices
+       WHERE id = $1 AND ($2::uuid IS NULL OR organization_id = $2)
+       FOR UPDATE`,
+      [id, resolvedOrganizationId ?? null]
+    )
+    const invoiceHeader = invoiceHeaderResult.rows[0]
+    if (!invoiceHeader) throw new Error("Purchase invoice not found")
+    const previousLinesResult = await client.query(
+      `SELECT item_id AS "itemId", pieces, purchase_amount AS "purchaseAmount"
+       FROM purchase_invoice_items
+       WHERE purchase_invoice_id = $1
+       FOR UPDATE`,
+      [id]
+    )
+    const previousBranchId = invoiceHeader.branchId || null
+    const nextBranchId = payload.branchId ?? previousBranchId
+    const previousStockLines = previousLinesResult.rows as InvoiceStockLine[]
+    const nextStockLines = payload.lines?.map((line) => ({
+      itemId: line.itemId,
+      pieces: Number(line.pieces) || 0,
+      purchaseAmount: Number(line.purchaseAmount) || 0,
+    })) ?? previousStockLines
     await client.query(
       `UPDATE purchase_invoices SET
         invoice_no = COALESCE($2, invoice_no),
@@ -240,6 +425,17 @@ export async function updatePurchaseInvoiceRepo(
       throw new Error("Purchase invoice not found");
     }
 
+    if (payload.lines !== undefined || nextBranchId !== previousBranchId) {
+      await reconcileInvoicePieceStock(
+        client,
+        resolvedOrganizationId ?? null,
+        previousBranchId,
+        previousStockLines,
+        nextBranchId || null,
+        nextStockLines
+      )
+    }
+
     if (payload.lines !== undefined) {
       await client.query(
         "DELETE FROM purchase_invoice_items WHERE purchase_invoice_id = $1",
@@ -282,9 +478,44 @@ export async function deletePurchaseInvoiceRepo(
   id: string,
   organizationId?: string | null
 ): Promise<boolean> {
-  const { rowCount } = await pool.query(
-    "DELETE FROM purchase_invoices WHERE id = $1 AND ($2::uuid IS NULL OR organization_id = $2::uuid)",
-    [id, organizationId ?? null]
-  );
-  return (rowCount ?? 0) > 0;
+  await ensurePurchaseInvoiceSchema();
+  const client = await pool.connect()
+  try {
+    await client.query("BEGIN")
+    const invoiceResult = await client.query(
+      `SELECT organization_id AS "organizationId", branch_id AS "branchId"
+       FROM purchase_invoices
+       WHERE id = $1 AND ($2::uuid IS NULL OR organization_id = $2::uuid)
+       FOR UPDATE`,
+      [id, organizationId ?? null]
+    )
+    const invoice = invoiceResult.rows[0]
+    if (!invoice) {
+      await client.query("COMMIT")
+      return false
+    }
+    const linesResult = await client.query(
+      `SELECT item_id AS "itemId", pieces, purchase_amount AS "purchaseAmount"
+       FROM purchase_invoice_items
+       WHERE purchase_invoice_id = $1
+       FOR UPDATE`,
+      [id]
+    )
+    await reconcileInvoicePieceStock(
+      client,
+      invoice.organizationId ?? null,
+      invoice.branchId || null,
+      linesResult.rows as InvoiceStockLine[],
+      null,
+      []
+    )
+    const result = await client.query("DELETE FROM purchase_invoices WHERE id = $1", [id])
+    await client.query("COMMIT")
+    return (result.rowCount ?? 0) > 0
+  } catch (error) {
+    await client.query("ROLLBACK")
+    throw error
+  } finally {
+    client.release()
+  }
 }

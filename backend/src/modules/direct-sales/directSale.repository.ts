@@ -192,6 +192,26 @@ export async function createDirectSale(payload: SalePayload) {
       )
       if (!item.rows[0]) throw new Error(`Item not found: ${line.itemId}`)
 
+      const pieces = Number(line.pieces) || 0
+      if (pieces < 0) throw new Error('Pieces cannot be negative')
+      if (pieces > 0) {
+        const pieceStock = await client.query(
+          `SELECT pieces FROM item_branch_stock
+           WHERE organization_id = $1 AND item_id = $2 AND branch_id = $3
+           FOR UPDATE`,
+          [payload.organizationId, line.itemId, payload.branchId]
+        )
+        if (!pieceStock.rows[0] || Number(pieceStock.rows[0].pieces) < pieces) {
+          throw new Error(`Insufficient piece stock for item ${item.rows[0].code}`)
+        }
+        await client.query(
+          `UPDATE item_branch_stock
+           SET pieces = pieces - $1, updated_at = NOW()
+           WHERE organization_id = $2 AND item_id = $3 AND branch_id = $4`,
+          [pieces, payload.organizationId, line.itemId, payload.branchId]
+        )
+      }
+
       if (!payload.salesOrderNo) {
         const branchStock = await client.query(
           `SELECT stock FROM item_branch_stock WHERE organization_id = $1 AND item_id = $2 AND branch_id = $3 FOR UPDATE`,
@@ -329,11 +349,23 @@ export async function deleteDirectSale(id: string, organizationId?: string | nul
     if (!sale) throw new Error('Direct sale not found')
     if (sale.approved) throw new Error('Approved direct sales cannot be deleted')
 
+    const itemLines = await client.query(
+      'SELECT item_id AS "itemId", qty, pieces FROM direct_sale_items WHERE direct_sale_id = $1',
+      [id]
+    )
+    for (const line of itemLines.rows) {
+      const pieces = Number(line.pieces) || 0
+      if (pieces > 0) {
+        await client.query(
+          `UPDATE item_branch_stock
+           SET pieces = pieces + $1, updated_at = NOW()
+           WHERE organization_id = $2 AND item_id = $3 AND branch_id = $4`,
+          [pieces, organizationId, line.itemId, sale.branchId]
+        )
+      }
+    }
+
     if (!sale.salesOrderNo) {
-      const itemLines = await client.query(
-        'SELECT item_id AS "itemId", qty FROM direct_sale_items WHERE direct_sale_id = $1',
-        [id]
-      )
       for (const line of itemLines.rows) {
         await client.query(
           `UPDATE item_branch_stock

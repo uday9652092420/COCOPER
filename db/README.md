@@ -42,6 +42,9 @@ following files in dependency order:
 - `22_direct_sale_line_pieces_base_cost.sql` adds `pieces` and `base_cost` to
   Direct Sales detail lines for existing databases. Fresh installs receive them
   from `direct_sales.sql`.
+- `23_item_branch_stock_pieces_base_cost.sql` adds per-branch piece inventory
+  and base cost, then initializes balances from purchase invoices less Direct
+  Sales. Run after migrations 21 and 22.
 - `06_purchase_invoice_sales_tables.sql` is an old destructive migration that
   drops transaction tables. Do not use it for releases; use the canonical
   `06_transaction_tables.sql` instead.

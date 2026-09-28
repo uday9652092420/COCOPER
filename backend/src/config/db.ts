@@ -227,10 +227,17 @@ export async function initializeDatabase(): Promise<void> {
       branch_id UUID NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
       branch_name TEXT NOT NULL,
       stock NUMERIC NOT NULL DEFAULT 0 CHECK (stock >= 0),
+      pieces NUMERIC NOT NULL DEFAULT 0 CHECK (pieces >= 0),
+      base_cost NUMERIC NOT NULL DEFAULT 0,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE (organization_id, item_id, branch_id)
     )
+  `);
+  await pool.query(`
+    ALTER TABLE item_branch_stock
+      ADD COLUMN IF NOT EXISTS pieces NUMERIC NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS base_cost NUMERIC NOT NULL DEFAULT 0
   `);
   await pool.query(
     "CREATE INDEX IF NOT EXISTS idx_item_branch_stock_org_item ON item_branch_stock (organization_id, item_id)"

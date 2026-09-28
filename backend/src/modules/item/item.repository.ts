@@ -270,7 +270,7 @@ export async function listItemBranchStockRepo(
   organizationId: string
 ): Promise<ItemBranchStock[]> {
   const { rows } = await pool.query(
-    `SELECT id, organization_id, item_id, item_code, branch_id, branch_name, stock
+    `SELECT id, organization_id, item_id, item_code, branch_id, branch_name, stock, pieces, base_cost
      FROM item_branch_stock
      WHERE item_id = $1 AND organization_id = $2
      ORDER BY branch_name`,
@@ -288,15 +288,27 @@ export async function replaceItemBranchStockRepo(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    await client.query(
-      "DELETE FROM item_branch_stock WHERE item_id = $1 AND organization_id = $2",
-      [itemId, organizationId]
-    );
+    const branchIds = rows.map((row) => row.branch_id)
+    const protectedRows = await client.query(
+      `SELECT branch_id FROM item_branch_stock
+       WHERE item_id = $1 AND organization_id = $2 AND pieces > 0
+         AND NOT (branch_id = ANY($3::uuid[]))`,
+      [itemId, organizationId, branchIds]
+    )
+    if (protectedRows.rowCount) {
+      throw new Error("Cannot remove a branch that still has pieces in stock")
+    }
     for (const row of rows) {
       await client.query(
         `INSERT INTO item_branch_stock
-          (id, organization_id, item_id, item_code, branch_id, branch_name, stock)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          (id, organization_id, item_id, item_code, branch_id, branch_name, stock, pieces, base_cost)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,0,0)
+         ON CONFLICT (organization_id, item_id, branch_id)
+         DO UPDATE SET
+           item_code = EXCLUDED.item_code,
+           branch_name = EXCLUDED.branch_name,
+           stock = EXCLUDED.stock,
+           updated_at = NOW()`,
         [
           `IBS-${Date.now()}-${row.branch_id}`,
           organizationId,
@@ -308,6 +320,12 @@ export async function replaceItemBranchStockRepo(
         ]
       );
     }
+    await client.query(
+      `DELETE FROM item_branch_stock
+       WHERE item_id = $1 AND organization_id = $2
+         AND NOT (branch_id = ANY($3::uuid[])) AND pieces = 0`,
+      [itemId, organizationId, branchIds]
+    )
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");

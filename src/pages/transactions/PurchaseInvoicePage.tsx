@@ -321,6 +321,15 @@ const PurchaseInvoiceModal: React.FC<{
    * @description Submit handler to sanitize lines and create/update invoice.
    */
   const submit = (values: PurchaseInvoiceFormValues) => {
+    if (!selectedOrganizationId) {
+      toast.error('Select an organization before saving the purchase invoice.')
+      return
+    }
+    if (!values.branchId) {
+      toast.error('Select a branch before saving the purchase invoice.')
+      return
+    }
+
     const linesOut: PurchaseInvoiceLine[] = values.lines.map((l, idx) => ({
       id: existing?.lines?.[idx]?.id ?? `PIL-${Date.now()}-${idx}`,
       itemId: l.itemId,
@@ -1033,8 +1042,8 @@ const PurchaseInvoicePage: React.FC = () => {
       await loadRecords()
       await loadPurchaseOrders()
       toast.success('Purchase invoice saved.')
-    } catch {
-      toast.error('Failed to save purchase invoice.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save purchase invoice.')
     }
   }
 

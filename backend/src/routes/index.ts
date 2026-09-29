@@ -22,6 +22,7 @@ import supplierPaymentRoutes from "../modules/supplier-payments/supplierPayment.
 import labourAttendanceRoutes from "../modules/labour-attendance/labourAttendance.routes.js";
 import loadingDispatchRoutes from "../modules/loading-dispatch/loadingDispatch.routes.js";
 import cashBankExpenseRoutes from "../modules/cash-bank-expenses/cashBankExpense.routes.js";
+import profitLossRoutes from "../modules/profit-loss/profitLoss.routes.js";
 import mobileRoutes from "../modules/mobile/mobile.routes.js";
 
 const router = Router();
@@ -83,5 +84,6 @@ router.use("/supplier-payments", supplierPaymentRoutes);
 router.use("/labour-attendance", labourAttendanceRoutes);
 router.use("/loading-dispatch", loadingDispatchRoutes);
 router.use("/cash-bank-expenses", cashBankExpenseRoutes);
+router.use("/profit-loss", profitLossRoutes);
 router.use("/mobile", mobileRoutes);
 export default router;

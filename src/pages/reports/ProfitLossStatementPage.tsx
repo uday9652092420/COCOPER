@@ -13,6 +13,7 @@ import { Toolbar } from '../../components/common/Toolbar'
 import { getCashBankExpenses, type CashBankExpenseResponse } from '../../services/cashbankexpenseservices/cashBankExpense.service'
 import { getDirectSales } from '../../services/directsalesservices/directSale.service'
 import { getPurchaseInvoices, type PurchaseInvoiceDTO } from '../../services/purchaseinvoiceservices/purchaseInvoice.service'
+import { getProfitLossStockSnapshot, type ProfitLossStockSnapshot } from '../../services/profitloss.service'
 import type { DirectSales } from '../../mock/db'
 import { onScopeChange } from '../../utils/scopeEvents'
 import { useAuthStore } from '../../store/authStore'
@@ -123,43 +124,67 @@ const defaultFromDate = (): string => {
 const lineQuantity = (line: { actualQuantity?: number; quantityTons?: number; quantity?: number }): number =>
   Number(line.actualQuantity ?? line.quantityTons ?? line.quantity ?? 0)
 
+const EMPTY_STOCK_SNAPSHOT: ProfitLossStockSnapshot = {
+  openingUnits: 0,
+  openingAmount: 0,
+  closingUnits: 0,
+  closingAmount: 0,
+}
+
 const ProfitLossStatementPage: React.FC = () => {
   const [sales, setSales] = useState<DirectSales[]>([])
   const [purchases, setPurchases] = useState<PurchaseInvoiceDTO[]>([])
   const [cashBankEntries, setCashBankEntries] = useState<CashBankExpenseResponse[]>([])
+  const [stockSnapshot, setStockSnapshot] = useState<ProfitLossStockSnapshot>(EMPTY_STOCK_SNAPSHOT)
   const [fromDate, setFromDate] = useState(() => toDisplayDate(defaultFromDate()))
   const [toDate, setToDate] = useState(() => toDisplayDate(todayIsoDate()))
   const [loading, setLoading] = useState(true)
-  const { selectedOrganizationId } = useAuthStore()
+  const { selectedOrganizationId, user } = useAuthStore()
+  const organizationId = selectedOrganizationId ?? (user?.isSuperAdmin ? null : user?.organizationId ?? null)
+  const loadRequestIdRef = useRef(0)
 
   const loadData = async () => {
+    const requestId = ++loadRequestIdRef.current
     try {
       setLoading(true)
-      const [salesRows, purchaseRows, cashBankRows] = await Promise.all([
+      setSales([])
+      setPurchases([])
+      setCashBankEntries([])
+      setStockSnapshot(EMPTY_STOCK_SNAPSHOT)
+      const fromIsoDate = toIsoDate(fromDate)
+      const toIsoDateValue = toIsoDate(toDate)
+      const [salesRows, purchaseRows, cashBankRows, stockRows] = await Promise.all([
         getDirectSales(),
         getPurchaseInvoices(),
         getCashBankExpenses(),
+        fromIsoDate && toIsoDateValue
+          ? getProfitLossStockSnapshot(fromIsoDate, toIsoDateValue)
+          : Promise.resolve(EMPTY_STOCK_SNAPSHOT),
       ])
-      setSales(selectedOrganizationId
-        ? salesRows.filter((sale) => sale.organizationId === selectedOrganizationId)
+      if (requestId !== loadRequestIdRef.current) return
+      setSales(organizationId
+        ? salesRows.filter((sale) => sale.organizationId === organizationId)
         : salesRows)
-      setPurchases(selectedOrganizationId
-        ? purchaseRows.filter((invoice) => invoice.organizationId === selectedOrganizationId)
+      setPurchases(organizationId
+        ? purchaseRows.filter((invoice) => invoice.organizationId === organizationId)
         : purchaseRows)
-      setCashBankEntries(selectedOrganizationId
-        ? cashBankRows.filter((entry) => entry.organizationId === selectedOrganizationId)
+      setCashBankEntries(organizationId
+        ? cashBankRows.filter((entry) => entry.organizationId === organizationId)
         : cashBankRows)
+      setStockSnapshot(stockRows)
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to load profit and loss statement.')
+      if (requestId === loadRequestIdRef.current) {
+        toast.error(error?.message || 'Failed to load profit and loss statement.')
+      }
     } finally {
-      setLoading(false)
+      if (requestId === loadRequestIdRef.current) setLoading(false)
     }
   }
 
   useEffect(() => {
     void loadData()
     return onScopeChange(() => { void loadData() })
-  }, [selectedOrganizationId])
+  }, [fromDate, organizationId, toDate])
 
   const inRange = (date: string): boolean => {
     const isoDate = toIsoDate(date)
@@ -181,26 +206,26 @@ const ProfitLossStatementPage: React.FC = () => {
       .reduce((total, entry) => total + Number(entry.amount || 0), 0)
     const expenses = entries.filter((entry) => entry.transactionType === 'Expenses')
       .reduce((total, entry) => total + Number(entry.amount || 0), 0)
-    const costOfGoodsSold = purchaseAmount
+    const costOfGoodsSold = stockSnapshot.openingAmount + purchaseAmount - stockSnapshot.closingAmount
     const grossProfit = salesAmount - costOfGoodsSold
     const netProfit = grossProfit + otherIncome - expenses
 
     return {
-      openingUnits: 0,
-      openingAmount: 0,
+      openingUnits: stockSnapshot.openingUnits,
+      openingAmount: stockSnapshot.openingAmount,
       purchaseUnits,
       purchaseAmount,
       salesUnits,
       salesAmount,
-      closingUnits: 0,
-      closingAmount: 0,
+      closingUnits: stockSnapshot.closingUnits,
+      closingAmount: stockSnapshot.closingAmount,
       otherIncome,
       expenses,
       costOfGoodsSold,
       grossProfit,
       netProfit,
     }
-  }, [cashBankEntries, fromDate, purchases, sales, toDate])
+  }, [cashBankEntries, fromDate, purchases, sales, stockSnapshot, toDate])
 
   const rows: StatementRow[] = [
     { label: 'Total Sales', amount: summary.salesAmount },

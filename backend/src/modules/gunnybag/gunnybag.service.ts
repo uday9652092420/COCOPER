@@ -98,8 +98,9 @@ export async function createGunnyBagService(
   const errors = validateGunnyBagPayload(payload);
 
   if (errors) {
-    const error = new Error(
-      JSON.stringify(errors)
+    const error = Object.assign(
+      new Error(JSON.stringify(errors)),
+      { status: 400, errors }
     );
 
     throw error;

@@ -672,7 +672,8 @@ const GunnyBagMasterPage: React.FC =
      * ========================================================
      */
     const buildPayload = (
-      values: GunnyBagFormValues
+      values: GunnyBagFormValues,
+      branchId = selectedBranchId
     ): GunnyBagSavePayload => {
       return {
         code: String(
@@ -700,7 +701,7 @@ const GunnyBagMasterPage: React.FC =
           values.status,
 
         bharthi_types: [],
-        branch_id: selectedBranchId || null,
+        branch_id: branchId || null,
         branch_stock: branchStockMap,
       };
     };
@@ -798,6 +799,20 @@ const GunnyBagMasterPage: React.FC =
             return;
           }
 
+          const branchId =
+            selectedBranchId ||
+            branches.find(
+              (branch) => Number(branchStockMap[branch.id]) > 0
+            )?.id ||
+            "";
+
+          if (!branchId) {
+            showValidationError(
+              "Please add stock to an available branch"
+            );
+            return;
+          }
+
           /**
            * ==================================================
            * Build final payload
@@ -814,7 +829,7 @@ const GunnyBagMasterPage: React.FC =
                 totalBranchStock,
               status:
                 values.status,
-            });
+            }, branchId);
 
           console.log(
             "Gunny Bag Save Payload:",
@@ -901,7 +916,7 @@ const GunnyBagMasterPage: React.FC =
            * SAVE & NEW
            * ==================================================
            */
-          await prepareNewGunnyBag(selectedBranchId);
+          await prepareNewGunnyBag(branchId);
 
           clearValidationError();
         } catch (error: any) {

@@ -359,9 +359,8 @@ const openEdit = (row: ItemResponse) => {
                 category: editing.category,
                 uom: editing.uom,
                 status: editing.status,
-                branchWiseStock: branchWiseStockTotal,
               }
-                  : { code: '', name: '', category: '', uom: '', status: 'Active', branchWiseStock: 0 }
+                  : { code: '', name: '', category: '', uom: '', status: 'Active' }
         }
         syncedValues={{ branchWiseStock: branchWiseStockTotal }}
                 customSection={

@@ -21,7 +21,7 @@ END$$;
 -- Create items table
 CREATE TABLE IF NOT EXISTS items (
   id TEXT PRIMARY KEY,
-  code TEXT NOT NULL UNIQUE,
+  code TEXT NOT NULL,
   name TEXT NOT NULL,
   category TEXT,
   uom TEXT,
@@ -37,6 +37,12 @@ CREATE INDEX IF NOT EXISTS idx_items_code ON items(code);
 CREATE INDEX IF NOT EXISTS idx_items_category ON items(category);
 CREATE INDEX IF NOT EXISTS idx_items_organization ON items(organization_id);
 CREATE INDEX IF NOT EXISTS idx_items_branch ON items(branch_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_items_organization_code
+  ON items (organization_id, code)
+  WHERE organization_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_items_global_code
+  ON items (code)
+  WHERE organization_id IS NULL;
 
 ALTER TABLE items ADD COLUMN IF NOT EXISTS branch_wise_stock NUMERIC NOT NULL DEFAULT 0;
 

@@ -48,6 +48,10 @@ following files in dependency order:
 - `24_item_stock_ledger.sql` creates the transaction ledger for purchase and
   sales invoice inventory movements. Fresh installs include it after the
   transaction tables.
+- `25_item_organization_code_uniqueness.sql` updates existing databases so
+  item codes are unique within each organization rather than globally. Run
+  this migration once when upgrading; fresh installs get the same indexes
+  directly from `item_master.sql`.
 - `06_purchase_invoice_sales_tables.sql` is an old destructive migration that
   drops transaction tables. Do not use it for releases; use the canonical
   `06_transaction_tables.sql` instead.
